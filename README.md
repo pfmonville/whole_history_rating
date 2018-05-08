@@ -7,11 +7,11 @@ the original code can be found [here](https://github.com/goshrine/whole_history_
 Usage
 -----
 
-    import base
+    from whole_history_rating import base
     
-    whr = base()
+    whr = Base()
     
-    # base.create_game() arguments: black player name, white player name, winner, day number, handicap
+    # Base.create_game() arguments: black player name, white player name, winner, day number, handicap
     # Handicap should generally be less than 500 elo
     whr.create_game("shusaku", "shusai", "B", 1, 0)
     whr.create_game("shusaku", "shusai", "W", 2, 0)
@@ -38,7 +38,7 @@ Usage
     whr.get_ordered_ratings()
 
     # You can get a prediction for a future game between two players (even non existing players)
-    # base.probability_future_match() arguments: black player name, white player name, handicap
+    # Base.probability_future_match() arguments: black player name, white player name, handicap
     whr.probability_future_match("shusaku", "shusai",0) =>
       win probability: shusaku:37.24%; shusai:62.76%
 
