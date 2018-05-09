@@ -4,6 +4,11 @@ a python convertion from the ruby implementation of Rémi Coulom's Whole-History
 the original code can be found [here](https://github.com/goshrine/whole_history_rating)
 
 
+Installation
+------------
+
+pip install whole_history_rating
+
 Usage
 -----
 
