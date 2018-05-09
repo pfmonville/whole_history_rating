@@ -81,9 +81,9 @@ class Base:
 
 	def auto_iterate(self, time_limit = 10):
 		start = time.time()
-		self.iterate(40)
+		self.iterate(10)
 		a = self.get_ordered_ratings()
-		i = 40
+		i = 10
 		while True:
 			self.iterate(10)
 			i += 10
@@ -102,14 +102,14 @@ class Base:
 				return False
 		return True
 
-	def probability_for_the_match(self, black, white, time_step, handicap, extras = {}):
+	def probability_future_match(self, black, white, handicap, extras = {}):
 	  # Avoid self-played games (no info)
 	  if black == white:
 	    raise(AttributeError("Invalid game (black player == white player)"))
 	    return None
 	  white_player = self.player_by_name(white)
 	  black_player = self.player_by_name(black)
-	  game = Game(black_player, white_player, "unknown", time_step, handicap, extras)
+	  game = Game(black_player, white_player, "unknown", 0, handicap, extras)
 	  new_pday_white = PlayerDay(white_player, game.day)
 	  if len(white_player.days) == 0:
 	  	new_pday_white.is_first_day = True
@@ -124,22 +124,39 @@ class Base:
 	  	new_pday_black.set_gamma(black_player.days[-1].gamma())
 	  game.wpd = new_pday_white
 	  game.bpd = new_pday_black
-	  print("win probability: {}:{}; {}:{}".format(black,game.black_win_probability(),white,game.white_win_probability()))
+	  print("win probability: {}:{:.2f}%; {}:{:.2f}%".format(black,game.black_win_probability(),white,game.white_win_probability()))
 	  return game.black_win_probability(),game.white_win_probability()
 
 	def run_one_iteration(self):
 		for name,player in self.players.items():
 			player.run_one_newton_iteration()
 
-# whr = Base()
-# whr.create_game("shusaku", "shusai", "B", 1, 0)
-# whr.create_game("shusaku", "shusai", "W", 2, 0)
-# c = whr.create_game("shusaku", "shusai", "W", 3, 0)
-# a = whr.create_game("shusaku", "PF", "W", 3, 0)
-# print(whr.auto_iterate())
-# print(whr.ratings_for_player("shusaku"))
-# print(whr.ratings_for_player("shusai"))
-# whr.probability_for_the_match("shusai", "PF", 1, 0)
-# print(a.bpd)
+	def load_games(self, games):
+		data = None
+		if isinstance(games, str):
+			with open(games, 'r') as f:
+				data = f.readlines()
+		else:
+			data = games
+		for line in data:
+			black, white, winner, time_step, handicap, *extras = line.split()
+			time_step, handicap = int(time_step), int(handicap)
+			self.create_game(black, white, winner, time_step, handicap, extras=extras[0] if len(extras) > 0 else None)
 
+
+
+
+if __name__ == "__main__":
+	whr = Base()
+	games = ["shusaku shusai B 1 0", "shusaku shusai W 2 0", "shusaku shusai W 3 0", "shusaku PF W 3 0"]
+	# whr.create_game("shusaku", "shusai", "B", 1, 0)
+	# whr.create_game("shusaku", "shusai", "W", 2, 0)
+	# whr.create_game("shusaku", "shusai", "W", 3, 0)
+	# a = whr.create_game("shusaku", "PF", "W", 3, 0)
+	# print(a.bpd)
+	whr.load_games(games)
+	print(whr.auto_iterate())
+	print(whr.ratings_for_player("shusaku"))
+	print(whr.ratings_for_player("shusai"))
+	whr.probability_future_match("shusai", "PF", 0)
 
