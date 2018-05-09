@@ -31,7 +31,7 @@ class Player():
 					print("Infinity at {}: {} + {}: prior = {}, days = {}".format(self.__str__,
 						  self.days[i].log_likelihood(), math.log(prior), self.days))
 					return
-				result += self.days[i].log_likelihood() + math.log(prior)
+				result += days[i].log_likelihood() + math.log(prior)
 		return result
 
 	def hessian(self, days, sigma2):
