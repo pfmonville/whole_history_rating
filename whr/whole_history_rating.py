@@ -1,6 +1,6 @@
-from player import Player
-from playerday import PlayerDay
-from game import Game
+from whr.player import Player
+from whr.playerday import PlayerDay
+from whr.game import Game
 from collections import defaultdict
 import numpy as np
 import time

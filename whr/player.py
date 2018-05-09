@@ -1,4 +1,4 @@
-from playerday import PlayerDay
+from whr.playerday import PlayerDay
 import math
 import sys
 import numpy as np
