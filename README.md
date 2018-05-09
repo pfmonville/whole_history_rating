@@ -12,9 +12,9 @@ Installation
 Usage
 -----
 
-    from whole_history_rating import base
+    from whr import whole_history_rating
     
-    whr = Base()
+    whr = whole_history_rating.Base()
     
     # Base.create_game() arguments: black player name, white player name, winner, day number, handicap
     # Handicap should generally be less than 500 elo
