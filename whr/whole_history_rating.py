@@ -2,8 +2,8 @@ from whr.player import Player
 from whr.playerday import PlayerDay
 from whr.game import Game
 from collections import defaultdict
-import numpy as np
 import time
+import math
 class UnstableRatingException(Exception):
 	pass
 
@@ -19,27 +19,39 @@ class Base:
 		self.games = []
 		self.players = {}
 
-	def print_ordered_ratings(self):
+	def print_ordered_ratings(self, current=False):
 		"""displays all ratings for each player (for each of his playing days) ordered
 		"""
 		players = [x for x in self.players.values() if len(x.days) > 0]
 		players.sort(key=lambda x: x.days[-1].gamma())
 		for p in players:
 			if len(p.days) > 0:
-				print("{} => {}".format(p.name, [x.elo() for x in p.days]))
+				if current:
+					print("{} => {}".format(p.name, p.days[-1].elo()))
+				else:
+					print("{} => {}".format(p.name, [x.elo() for x in p.days]))
 
-	def get_ordered_ratings(self):
+	def get_ordered_ratings(self, current = False, compact = False):
 		"""gets all ratings for each player (for each of his playing days) ordered
 		
 		Returns:
 		    list[list[float]]: for each player and each of his playing day, the corresponding elo
+		
+		Args:
+		    current (bool, optional): True to let only the last estimation of the elo, False gets all estimation for each day played
+		    compact (bool, optional): True to get only a list of elos, False to get the name before
 		"""
 		result = []
 		players = [x for x in self.players.values() if len(x.days) > 0]
 		players.sort(key=lambda x: x.days[-1].gamma())
 		for p in players:
 			if len(p.days) > 0:
-				result.append([x.elo() for x in p.days])
+				if current:
+					result.append((p.name, p.days[-1].elo()))
+				elif compact:
+					result.append([x.elo() for x in p.days])
+				else:
+					result.append((p.name,[x.elo() for x in p.days]))
 		return result
 
 	def log_likelihood(self):
@@ -69,7 +81,7 @@ class Base:
 			self.players[name] = Player(name, self.config)
 		return self.players[name]
 
-	def ratings_for_player(self,name):
+	def ratings_for_player(self,name, current = False):
 		"""gets all rating for each day played for the player
 		
 		Args:
@@ -79,7 +91,10 @@ class Base:
 		    list[list[int,float,float]]: for each day, the time_step the elo the uncertainty
 		"""
 		player = self.player_by_name(name)
-		return [[d.day, round(d.elo()), round(d.uncertainty*100)] for d in player.days]
+		if current:
+			return (round(player.days[-1].elo()), round(player.days[-1].uncertainty*100))
+		else:
+			return [[d.day, round(d.elo()), round(d.uncertainty*100)] for d in player.days]
 
 	def _setup_game(self,black,white,winner,time_step,handicap,extras={}):
 		if black == white:
@@ -138,12 +153,12 @@ class Base:
 		"""
 		start = time.time()
 		self.iterate(10)
-		a = self.get_ordered_ratings()
+		a = self.get_ordered_ratings(compact=True)
 		i = 10
 		while True:
 			self.iterate(10)
 			i += 10
-			b = self.get_ordered_ratings()
+			b = self.get_ordered_ratings(compact=True)
 			if self._test_stability(a,b, precision):
 				return i, True
 			if time.time() - start > time_limit:
@@ -168,48 +183,43 @@ class Base:
 				return False
 		return True
 
-	def probability_future_match(self, black, white, handicap = 0, extras = {}):
-	  """gets the probability of winning for an hypothetical match against black and white
+	def probability_future_match(self, name1, name2, handicap = 0, extras = {}):
+		"""gets the probability of winning for an hypothetical match against name1 and name2
 
-	  displays the probability of winning for black and white in percent rounded to the second decimal
-	  
-	  Args:
-	      black (str): black's name
-	      white (str): white's name
-	      handicap (int, optional): the handicap (in elo)
-	      extras (dict, optional): extra parameters
-	  
-	  Returns:
-	      tuple(int,int): the probability between 0 and 1 for black first then white
-	  """
-	  # Avoid self-played games (no info)
-	  if black == white:
-	    raise(AttributeError("Invalid game (black player == white player)"))
-	    return None
-	  white_player = self.player_by_name(white)
-	  black_player = self.player_by_name(black)
-	  game = Game(black_player, white_player, "unknown", 0, handicap, extras)
-	  new_pday_white = PlayerDay(white_player, game.day)
-	  if len(white_player.days) == 0:
-	  	new_pday_white.is_first_day = True
-	  	new_pday_white.set_gamma(1)
-	  else:
-	  	new_pday_white.set_gamma(white_player.days[-1].gamma())
-	  new_pday_black = PlayerDay(black_player, game.day)
-	  if len(black_player.days) == 0:
-	  	new_pday_black.is_first_day = True
-	  	new_pday_black.set_gamma(1)
-	  else:
-	  	new_pday_black.set_gamma(black_player.days[-1].gamma())
-	  game.wpd = new_pday_white
-	  game.bpd = new_pday_black
-	  print("win probability: {}:{:.2f}%; {}:{:.2f}%".format(black,game.black_win_probability(),white,game.white_win_probability()))
+		displays the probability of winning for name1 and name2 in percent rounded to the second decimal
 
-	  bpd = black_player.days[-1].gamma()
-	  wpd = white_player.days[-1].gamma()
-	  self.bpd.gamma()/(self.bpd.gamma() + self.opponents_adjusted_gamma(self.black_player))
+		Args:
+		  name1 (str): name1's name
+		  name2 (str): name2's name
+		  handicap (int, optional): the handicap (in elo)
+		  extras (dict, optional): extra parameters
 
-	  return game.black_win_probability(),game.white_win_probability()
+		Returns:
+		  tuple(int,int): the probability between 0 and 1 for name1 first then name2
+		"""
+		# Avoid self-played games (no info)
+		if name1 == name2:
+			raise(AttributeError("Invalid game (black == white)"))
+			return None
+		player1 = self.player_by_name(name1)
+		player2 = self.player_by_name(name2)
+		bpd_gamma = 1
+		bpd_elo = (math.log(1) * 400) / (math.log(10))
+		wpd_gamma = 1
+		wpd_elo= (math.log(1) * 400) / (math.log(10))
+		if len(player1.days) > 0:
+			bpd = player1.days[-1]
+			bpd_gamma = bpd.gamma()
+			bpd_elo = bpd.elo()
+		if len(player2.days) != 0:
+			wpd = player2.days[-1]
+			wpd_gamma=wpd.gamma()
+			wpd_elo = wpd.elo()
+		player1_proba = bpd_gamma/(bpd_gamma + 10**((wpd_elo - handicap)/400.0))
+		player2_proba = wpd_gamma/(wpd_gamma + 10**((bpd_elo + handicap)/400.0))
+		print("win probability: {}:{:.2f}%; {}:{:.2f}%".format(name1,player1_proba,name2,player2_proba))
+		return player1_proba, player2_proba
+
 
 	def _run_one_iteration(self):
 		"""runs one iteration of the whr algorithm
@@ -267,7 +277,7 @@ class Base:
 
 if __name__ == "__main__":
 	whr = Base()
-	games = ["shusaku shusai B 1", "shusaku shusai W 2 0", "shusaku shusai W 3 {'w2':300}", "shusaku PF W 3 0 {'w2':300}"]
+	games = ["shusaku shusai B 1", "shusaku shusai W 2 0", "shusaku shusai W 3 {'w2':300}", "shusaku nobody B 3 0 {'w2':300}"]
 	# whr.create_game("shusaku", "shusai", "B", 1, 0)
 	# whr.create_game("shusaku", "shusai", "W", 2, 0)
 	# whr.create_game("shusaku", "shusai", "W", 3, 0)
@@ -277,7 +287,8 @@ if __name__ == "__main__":
 	print(whr.auto_iterate())
 	print(whr.ratings_for_player("shusaku"))
 	print(whr.ratings_for_player("shusai"))
-	whr.probability_future_match("shusai", "PF", 0)
+	print(whr.probability_future_match("shusai", "nobody2", 0))
 	print(whr.log_likelihood())
 	whr.print_ordered_ratings()
+	whr.print_ordered_ratings(current=True)
 
