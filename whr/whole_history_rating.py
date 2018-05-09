@@ -4,6 +4,7 @@ from whr.game import Game
 from collections import defaultdict
 import time
 import math
+import pickle
 class UnstableRatingException(Exception):
 	pass
 
@@ -274,6 +275,30 @@ class Base:
 			time_step, handicap = int(time_step), int(handicap)
 			self.create_game(black, white, winner, time_step, handicap, extras=extras)
 
+	def save_base(self, path):
+		"""saves the current state of the base to a file at "path"
+		
+		Args:
+		    path (str): the path where to save the base
+		"""
+		pickle.dump([self.players,self.games,self.config["w2"]], open(path, 'wb'))
+
+	@staticmethod
+	def load_base(path):
+		"""loads a saved base
+		
+		Args:
+		    path (str): the path to the saved base
+		
+		Returns:
+		    Base: the loaded base
+		"""
+		players, games, config = pickle.load(open(path, 'rb'))
+		result = Base()
+		result.config["w2"], result.games, result.players = config, games, players
+		return result
+
+
 
 if __name__ == "__main__":
 	whr = Base()
@@ -291,4 +316,7 @@ if __name__ == "__main__":
 	print(whr.log_likelihood())
 	whr.print_ordered_ratings()
 	whr.print_ordered_ratings(current=True)
+	Base.save_base(whr,"test_whr")
+	whr2 = Base.load_base('test_whr')
+
 
