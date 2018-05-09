@@ -51,3 +51,6 @@ Usage
     # all elements in list must be like: "black_name white_name winner time_step handicap extras" 
     whr.load(["shusaku shusai B 1 0", "shusaku shusai W 2 0", "shusaku shusai W 3 0"])
 
+    # You can save and load a base (you don't have to redo all iterations)
+    whr.save_base(path)
+    whr2 = whole_history_rating.Base.load_base(path)
