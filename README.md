@@ -46,4 +46,8 @@ Usage
     # Base.probability_future_match() arguments: black player name, white player name, handicap
     whr.probability_future_match("shusaku", "shusai",0) =>
       win probability: shusaku:37.24%; shusai:62.76%
+      
+    # You can load several games all together using a file or a list of string representing the game
+    # all elements in list must be like: "black_name white_name winner time_step handicap extras" 
+    whr.load(["shusaku shusai B 1 0", "shusaku shusai W 2 0", "shusaku shusai W 3 0"])
 
