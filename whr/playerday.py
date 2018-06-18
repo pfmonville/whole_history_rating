@@ -34,8 +34,7 @@ class PlayerDay:
             for g in self.won_games:
                 other_gamma = g.opponents_adjusted_gamma(self.player)
                 if other_gamma == 0 or other_gamma is None or other_gamma > sys.maxsize:
-                    print("other_gamma ({}) = {}".format(
-                        g.opponent(self.player).__str__, other_gamma))
+                    print(f"other_gamma ({g.opponent(self.player).__str__()}) = {other_gamma}")
                 self._won_game_terms.append([1.0, 0.0, 1.0, other_gamma])
             if self.is_first_day:
                 # win against virtual player ranked with gamma = 1.0
@@ -48,8 +47,7 @@ class PlayerDay:
             for g in self.lost_games:
                 other_gamma = g.opponents_adjusted_gamma(self.player)
                 if other_gamma == 0 or other_gamma is None or other_gamma > sys.maxsize:
-                    print("other_gamma ({}) = {}".format(
-                        g.opponent(self.player).__str__, other_gamma))
+                    print(f"other_gamma ({g.opponent(self.player).__(str__())}) = {other_gamma}")
                 self._lost_game_terms.append([0.0, other_gamma, 1.0, other_gamma])
             if self.is_first_day:
                 # win against virtual player ranked with gamma = 1.0

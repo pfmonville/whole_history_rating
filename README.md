@@ -49,7 +49,9 @@ Usage
       
     # You can load several games all together using a file or a list of string representing the game
     # all elements in list must be like: "black_name white_name winner time_step handicap extras" 
-    whr.load(["shusaku shusai B 1 0", "shusaku shusai W 2 0", "shusaku shusai W 3 0"])
+    # you can exclude handicap (default=0) and extras (default={})
+    whr.load_games(["shusaku shusai B 1 0", "shusaku shusai W 2", "shusaku shusai W 3 0"])
+    whr.load_games(["firstname1 name1, firstname2 name2, W, 1"], separator=",")
 
     # You can save and load a base (you don't have to redo all iterations)
     whr.save_base(path)

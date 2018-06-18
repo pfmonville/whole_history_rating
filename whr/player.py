@@ -28,8 +28,7 @@ class Player():
 				result += self.days[i].log_likelihood()
 			else:
 				if self.days[i].log_likelihood() >= sys.maxsize or math.log(prior) >= sys.maxsize:
-					print("Infinity at {}: {} + {}: prior = {}, days = {}".format(self.__str__,
-						  self.days[i].log_likelihood(), math.log(prior), self.days))
+					print(f"Infinity at {self.__str__()}: {self.days[i].log_likelihood()} + {math.log(prior)}: prior = {prior}, days = {self.days}")
 					return
 				result += self.days[i].log_likelihood() + math.log(prior)
 		return result
@@ -65,8 +64,7 @@ class Player():
 			if idx > 0:
 				prior += -(r[idx] - r[idx - 1]) / sigma2[idx - 1]
 			if self.debug:
-				print("g[{}] = {} + {}".format(idx,
-					  day.log_likelihood_derivative(), prior))
+				print(f"g[{idx}] = {day.log_likelihood_derivative()} + {prior}")
 			g.append(day.log_likelihood_derivative() + prior)
 		return g
 
@@ -87,19 +85,6 @@ class Player():
 	def update_by_ndim_newton(self):
 		# r
 		r = [d.r for d in self.days]
-		
-		# if self.debug:
-		# 	print("Updating {inspect}".format())
-		# 	days.each do |day|
-		# 	    print("day[#{day.day}] r = #{day.r}")
-		# 	    print("day[#{day.day}] win terms = #{day.won_game_terms}")
-		# 	    print("day[#{day.day}] win games = #{day.won_games}")
-		# 	    print("day[#{day.day}] lose terms = #{day.lost_game_terms}")
-		# 	    print("day[#{day.day}] lost games = #{day.lost_games}")
-		# 	    print("day[#{day.day}] log(p) = #{day.log_likelihood}")
-		# 	    print("day[#{day.day}] dlp = #{day.log_likelihood_derivative}")
-		# 	    print("day[#{day.day}] dlp2 = #{day.log_likelihood_second_derivative}")
-		
 
 		# sigma squared (used in the prior)
 		sigma2 = self.compute_sigma2()

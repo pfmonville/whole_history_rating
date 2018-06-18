@@ -15,7 +15,7 @@ class Base:
 			self.config = defaultdict(lambda: None)
 		else:
 			self.config = config
-		if self.config.get("w2", None) is None:
+		if self.config.get("w2") is None:
 			self.config["w2"] = 300.0
 		self.games = []
 		self.players = {}
@@ -28,9 +28,9 @@ class Base:
 		for p in players:
 			if len(p.days) > 0:
 				if current:
-					print("{} => {}".format(p.name, p.days[-1].elo()))
+					print(f"{p.name} => {p.days[-1].elo()}")
 				else:
-					print("{} => {}".format(p.name, [x.elo() for x in p.days]))
+					print(f"{p.name} => {[x.elo() for x in p.days]}")
 
 	def get_ordered_ratings(self, current = False, compact = False):
 		"""gets all ratings for each player (for each of his playing days) ordered
@@ -103,6 +103,7 @@ class Base:
 			return None
 		white_player = self.player_by_name(white)
 		black_player = self.player_by_name(black)
+		print(type(extras), extras)
 		game = Game(black_player, white_player, winner, time_step, handicap, extras)
 		return game
 
@@ -120,6 +121,7 @@ class Base:
 		Returns:
 		    Game: the added game
 		"""
+		print(type(extras), extras)
 		game = self._setup_game(black, white, winner, time_step, handicap, extras)
 		return self._add_game(game)
 
@@ -218,7 +220,7 @@ class Base:
 			wpd_elo = wpd.elo()
 		player1_proba = bpd_gamma/(bpd_gamma + 10**((wpd_elo - handicap)/400.0))
 		player2_proba = wpd_gamma/(wpd_gamma + 10**((bpd_elo + handicap)/400.0))
-		print("win probability: {}:{:.2f}%; {}:{:.2f}%".format(name1,player1_proba,name2,player2_proba))
+		print(f"win probability: {name1}:{player1_proba:.2f}%; {name2}:{player2_proba:.2f}%")
 		return player1_proba, player2_proba
 
 
@@ -228,7 +230,7 @@ class Base:
 		for name,player in self.players.items():
 			player.run_one_newton_iteration()
 
-	def load_games(self, games):
+	def load_games(self, games, separator=' '):
 		"""loads all games at once
 		
 		given a string representing the path of a file or a list of string representing all games,
@@ -254,25 +256,31 @@ class Base:
 		for line in data:
 			handicap = 0
 			extras = None
-			arguments = line.split()
+			arguments = line.split(separator)
+			is_correct = False
 			if len(arguments) == 6:
-				black, white, winner, time_step, handicap, extras = line.split()
+				black, white, winner, time_step, handicap, extras = arguments
+				extras = eval(extras)
+				is_correct = True
 			if len(arguments) == 5:
-				black, white, winner, time_step, last = line.split()
+				black, white, winner, time_step, last = arguments
 				try:
 					eval_last = eval(last)
 					if isinstance(eval_last,dict):
 						extras = eval_last
+						is_correct = True
 					elif isinstance(eval_last,int):
 						handicap = eval_last
-					else:
-						raise(AttributeError("loaded game must have this format: 'black_name white_name winner time_step handicap extras' with handicap and extras optional. the handicap|extras argument is: {}".foramt(last)))
+						is_correct = True
 				except Exception as e:
-					raise(AttributeError("the last argument couldn't be evaluated as an int or a dict: {}".format(last)))
-
+					raise(AttributeError(f"the last argument couldn't be evaluated as an int or a dict: {last}"))
 			if len(arguments) == 4:
-				black, white, winner, time_step = line.split()
+				black, white, winner, time_step = arguments
+				is_correct = True
+			if not is_correct:
+				raise(AttributeError(f"loaded game must have this format: 'black_name white_name winner time_step handicap extras' with handicap and extras optional. the handicap|extras argument is: {last}"))
 			time_step, handicap = int(time_step), int(handicap)
+			print(type(extras),extras)
 			self.create_game(black, white, winner, time_step, handicap, extras=extras)
 
 	def save_base(self, path):
@@ -302,13 +310,13 @@ class Base:
 
 if __name__ == "__main__":
 	whr = Base()
-	games = ["shusaku shusai B 1", "shusaku shusai W 2 0", "shusaku shusai W 3 {'w2':300}", "shusaku nobody B 3 0 {'w2':300}"]
+	games = ["shusaku;shusai;B;1", "shusaku;shusai;W;2;0", "shusaku;shusai;W;3;{'w2':300}", "shusaku;nobody;B;3;0;{'w2':300}"]
 	# whr.create_game("shusaku", "shusai", "B", 1, 0)
 	# whr.create_game("shusaku", "shusai", "W", 2, 0)
 	# whr.create_game("shusaku", "shusai", "W", 3, 0)
-	# a = whr.create_game("shusaku", "PF", "W", 3, 0)
+	# a = whr.create_game("shusaku", "nobody", "B", 3, 0)
 	# print(a.bpd)
-	whr.load_games(games)
+	whr.load_games(games, separator=";")
 	print(whr.auto_iterate())
 	print(whr.ratings_for_player("shusaku"))
 	print(whr.ratings_for_player("shusai"))
@@ -318,5 +326,6 @@ if __name__ == "__main__":
 	whr.print_ordered_ratings(current=True)
 	Base.save_base(whr,"test_whr")
 	whr2 = Base.load_base('test_whr')
+	print(whr2.games[0].inspect())
 
 
