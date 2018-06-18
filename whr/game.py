@@ -9,7 +9,6 @@ class Game:
 		self.winner = winner
 		self.handicap = handicap
 		self.handicap_proc = handicap
-		print(type(extras), extras)
 		if extras is None:
 			self.extras = dict()
 			self.extras["komi"] = 6.5

@@ -280,7 +280,6 @@ class Base:
 			if not is_correct:
 				raise(AttributeError(f"loaded game must have this format: 'black_name white_name winner time_step handicap extras' with handicap and extras optional. the handicap|extras argument is: {last}"))
 			time_step, handicap = int(time_step), int(handicap)
-			print(type(extras),extras)
 			self.create_game(black, white, winner, time_step, handicap, extras=extras)
 
 	def save_base(self, path):
