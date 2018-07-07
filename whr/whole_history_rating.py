@@ -15,6 +15,8 @@ class Base:
 			self.config = defaultdict(lambda: None)
 		else:
 			self.config = config
+			if self.config.get("debug") is None:
+				self.config["debug"] = False
 		if self.config.get("w2") is None:
 			self.config["w2"] = 300.0
 		self.games = []
@@ -256,7 +258,7 @@ class Base:
 		for line in data:
 			handicap = 0
 			extras = None
-			arguments = line.split(separator)
+			arguments = [x.strip() for x in line.split(separator)]
 			is_correct = False
 			if len(arguments) == 6:
 				black, white, winner, time_step, handicap, extras = arguments
@@ -308,8 +310,8 @@ class Base:
 
 
 if __name__ == "__main__":
-	whr = Base()
-	games = ["shusaku;shusai;B;1", "shusaku;shusai;W;2;0", "shusaku;shusai;W;3;{'w2':300}", "shusaku;nobody;B;3;0;{'w2':300}"]
+	whr = Base(config={"w2":14})
+	games = ["shusaku; shusai; B; 1", "shusaku;shusai;W;2;0", " shusaku ; shusai ;W ; 3; {'w2':300}", "shusaku;nobody;B;3;0;{'w2':300}"]
 	# whr.create_game("shusaku", "shusai", "B", 1, 0)
 	# whr.create_game("shusaku", "shusai", "W", 2, 0)
 	# whr.create_game("shusaku", "shusai", "W", 3, 0)
