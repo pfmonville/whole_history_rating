@@ -105,7 +105,6 @@ class Base:
 			return None
 		white_player = self.player_by_name(white)
 		black_player = self.player_by_name(black)
-		print(type(extras), extras)
 		game = Game(black_player, white_player, winner, time_step, handicap, extras)
 		return game
 
@@ -123,7 +122,6 @@ class Base:
 		Returns:
 		    Game: the added game
 		"""
-		print(type(extras), extras)
 		game = self._setup_game(black, white, winner, time_step, handicap, extras)
 		return self._add_game(game)
 
