@@ -56,3 +56,15 @@ Usage
     # You can save and load a base (you don't have to redo all iterations)
     whr.save_base(path)
     whr2 = whole_history_rating.Base.load_base(path)
+    
+    
+Optional Configuration
+----------------------
+
+One of the meta parameters to WHR is the variance of rating change over one time step, :w2,
+which determines how much that a player's rating is likely change in one day.  Higher numbers allow for faster progress.
+The default value is 300, which is fairly high.  
+Rémi Coulom in his paper, used w2=14 to get his [results](https://www.remi-coulom.fr/WHR/WHR.pdf)
+
+
+    whr = whole_history_rating.Base({'w2'=14})
