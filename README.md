@@ -67,4 +67,4 @@ The default value is 300, which is fairly high.
 Rémi Coulom in his paper, used w2=14 to get his [results](https://www.remi-coulom.fr/WHR/WHR.pdf)
 
 
-    whr = whole_history_rating.Base({'w2'=14})
+    whr = whole_history_rating.Base({'w2':14})
