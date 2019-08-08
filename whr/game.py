@@ -6,7 +6,7 @@ class Game:
 		self.day = time_step
 		self.white_player = white
 		self.black_player = black
-		self.winner = winner
+		self.winner = winner.upper()
 		self.handicap = handicap
 		self.handicap_proc = handicap
 		if extras is None:

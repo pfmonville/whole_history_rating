@@ -68,3 +68,7 @@ Rémi Coulom in his paper, used w2=14 to get his [results](https://www.remi-coul
 
 
     whr = whole_history_rating.Base({'w2':14})
+
+You can also set the base not case sensitive. "shusaku" and "ShUsAkU" will be the same.
+
+    whr = whole_history_rating.Base({'uncased':True})
