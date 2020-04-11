@@ -28,7 +28,7 @@ Usage
     # Or let the module iterate until the elo is stable (precision by default 10E-3) with a time limit of 10 seconds by default
     whr.auto_iterate(time_limit = 10, precision = 10E-3)
 
-    # Results are stored in one triplet for each day: [day_number, elo_rating, uncertainty]
+    # Results are stored in one triplet for each game: [day_number, elo_rating, uncertainty]
     whr.ratings_for_player("shusaku") => 
       [[1, -43, 84], 
        [2, -45, 84], 
@@ -39,8 +39,8 @@ Usage
        [3, 45, 84]]
 
     # You can print or get all ratings ordered
-    whr.print_ordered_ratings()
-    whr.get_ordered_ratings()
+    whr.print_ordered_ratings(current=False) # current to True to only get the last rank estimation
+    whr.get_ordered_ratings(current=False, compact=False) # compact to True to not have the name before each ranks
 
     # You can get a prediction for a future game between two players (even non existing players)
     # Base.probability_future_match() arguments: black player name, white player name, handicap
