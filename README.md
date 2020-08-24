@@ -7,7 +7,7 @@ the original code can be found [here](https://github.com/goshrine/whole_history_
 Installation
 ------------
 
-    pip install whole_history_rating
+    pip install whole-history-rating
 
 Usage
 -----
