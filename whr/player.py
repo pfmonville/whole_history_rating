@@ -1,5 +1,6 @@
 import math
 import sys
+import bisect
 
 import numpy as np
 
@@ -186,16 +187,21 @@ class Player:
         return 5
 
     def add_game(self, game):
-        if len(self.days) == 0 or self.days[-1].day != game.day:
+        all_days = [x.day for x in self.days]
+        if game.day not in all_days:
+            day_index = bisect.bisect_right(all_days, game.day)
             new_pday = PlayerDay(self, game.day)
             if len(self.days) == 0:
                 new_pday.is_first_day = True
                 new_pday.set_gamma(1)
             else:
-                new_pday.set_gamma(self.days[-1].gamma())
-            self.days.append(new_pday)
-        if game.white_player == self:
-            game.wpd = self.days[-1]
+                # still not perfect because gamma of day index can more farther if more games were not added in order
+                new_pday.set_gamma(self.days[day_index-1].gamma())
+            self.days.insert(day_index, new_pday)
         else:
-            game.bpd = self.days[-1]
-        self.days[-1].add_game(game)
+            day_index = all_days.index(game.day)
+        if game.white_player == self:
+            game.wpd = self.days[day_index]
+        else:
+            game.bpd = self.days[day_index]
+        self.days[day_index].add_game(game)

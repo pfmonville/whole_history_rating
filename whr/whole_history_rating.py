@@ -226,7 +226,7 @@ class Base:
         player1_proba = bpd_gamma / (bpd_gamma + 10 ** ((wpd_elo - handicap) / 400.0))
         player2_proba = wpd_gamma / (wpd_gamma + 10 ** ((bpd_elo + handicap) / 400.0))
         print(
-            f"win probability: {name1}:{player1_proba:.2f}%; {name2}:{player2_proba:.2f}%"
+            f"win probability: {name1}:{player1_proba*100:.2f}%; {name2}:{player2_proba*100:.2f}%"
         )
         return player1_proba, player2_proba
 
