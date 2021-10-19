@@ -212,9 +212,9 @@ class Base:
         player1 = self.player_by_name(name1)
         player2 = self.player_by_name(name2)
         bpd_gamma = 1
-        bpd_elo = (math.log(1) * 400) / (math.log(10))
+        bpd_elo = 0
         wpd_gamma = 1
-        wpd_elo = (math.log(1) * 400) / (math.log(10))
+        wpd_elo = 0
         if len(player1.days) > 0:
             bpd = player1.days[-1]
             bpd_gamma = bpd.gamma()
