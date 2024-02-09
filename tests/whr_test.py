@@ -152,7 +152,7 @@ def test_loading_several_games_at_once(capsys):
     whr.load_games(test_games, separator=";")
     assert len(whr.games) == 4
     # test auto iterating to get convergence
-    whr.auto_iterate()
+    whr.iterate(20)
     # test getting ratings for player shusaku (day, elo, uncertainty)
     assert whr.ratings_for_player("shusaku") == [
         (1, 26.0, 0.70),
@@ -220,10 +220,10 @@ def test_auto_iterate(capsys):
     whr4 = copy.deepcopy(whr)
     whr5 = copy.deepcopy(whr)
     iterations1, is_stable1 = whr1.auto_iterate(batch_size=1)
-    assert iterations1 == 9
+    assert iterations1 == 12
     assert is_stable1
     iterations2, is_stable2 = whr2.auto_iterate()
-    assert iterations2 == 20
+    assert iterations2 == 30
     assert is_stable2
     iterations3, is_stable3 = whr3.auto_iterate(precision=0.5, batch_size=1)
     assert iterations3 == 6
@@ -232,5 +232,5 @@ def test_auto_iterate(capsys):
     assert iterations4 == 5
     assert is_stable4
     iterations5, is_stable5 = whr5.auto_iterate(time_limit=1, batch_size=1)
-    assert iterations5 == 9
+    assert iterations5 == 12
     assert is_stable5

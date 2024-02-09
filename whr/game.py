@@ -26,12 +26,10 @@ class Game:
         self.bpd: PD.PlayerDay | None = None
         self.wpd: PD.PlayerDay | None = None
         if extras is None:
-            self.extras = dict()
-            self.extras["komi"] = 6.5
+            self.extras = {"komi": 6.5}
         else:
             self.extras = extras
-            if self.extras.get("komi") is None:
-                self.extras["komi"] = 6.5
+            self.extras.setdefault("komi", 6.5)
 
     def __str__(self) -> str:
         return f"W:{self.white_player.name}(r={self.wpd.r if self.wpd is not None else '?'}) B:{self.black_player.name}(r={self.bpd.r if self.bpd is not None else '?'}) winner = {self.winner}, komi = {self.extras['komi']}, handicap = {self.handicap}"

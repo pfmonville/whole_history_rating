@@ -13,9 +13,9 @@ from whr.game import Game
 class Base:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config if config is not None else {}
-        self.config["debug"] = self.config.get("debug", False)
-        self.config["w2"] = self.config.get("w2", 300.0)
-        self.config["uncased"] = self.config.get("uncased", False)
+        self.config.setdefault("debug", False)
+        self.config.setdefault("w2", 300.0)
+        self.config.setdefault("uncased", False)
         self.games = []
         self.players = {}
 
