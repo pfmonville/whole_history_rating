@@ -1,3 +1,4 @@
+import copy
 import sys
 import os
 import pytest
@@ -60,20 +61,38 @@ def test_output():
     whr.create_game("shusaku", "shusai", "B", 1, 0)
     whr.create_game("shusaku", "shusai", "W", 2, 0)
     whr.create_game("shusaku", "shusai", "W", 3, 0)
+    whr.iterate(50)
+    assert [
+        (1, -43, 0.84),
+        (2, -45, 0.84),
+        (3, -45, 0.84),
+    ] == whr.ratings_for_player("shusaku")
+    assert [
+        (1, 43, 0.84),
+        (2, 45, 0.84),
+        (3, 45, 0.84),
+    ] == whr.ratings_for_player("shusai")
+
+
+def test_output2():
+    whr = whole_history_rating.Base()
+    whr.create_game("shusaku", "shusai", "B", 1, 0)
+    whr.create_game("shusaku", "shusai", "W", 2, 0)
+    whr.create_game("shusaku", "shusai", "W", 3, 0)
     whr.create_game("shusaku", "shusai", "W", 4, 0)
     whr.create_game("shusaku", "shusai", "W", 4, 0)
     whr.iterate(50)
     assert [
-        [1, -92, 71],
-        [2, -94, 71],
-        [3, -95, 71],
-        [4, -96, 72],
+        (1, -92, 0.71),
+        (2, -94, 0.71),
+        (3, -95, 0.71),
+        (4, -96, 0.72),
     ] == whr.ratings_for_player("shusaku")
     assert [
-        [1, 92, 71],
-        [2, 94, 71],
-        [3, 95, 71],
-        [4, 96, 72],
+        (1, 92, 0.71),
+        (2, 94, 0.71),
+        (3, 95, 0.71),
+        (4, 96, 0.72),
     ] == whr.ratings_for_player("shusai")
 
 
@@ -136,22 +155,25 @@ def test_loading_several_games_at_once(capsys):
     whr.auto_iterate()
     # test getting ratings for player shusaku (day, elo, uncertainty)
     assert whr.ratings_for_player("shusaku") == [
-        [1, 26.0, 70.0],
-        [2, 25.0, 70.0],
-        [3, 24.0, 70.0],
+        (1, 26.0, 0.70),
+        (2, 25.0, 0.70),
+        (3, 24.0, 0.70),
     ]
     # test getting ratings for player shusai, only current elo and uncertainty
-    assert whr.ratings_for_player("shusai", current=True) == (87.0, 84.0)
+    assert whr.ratings_for_player("shusai", current=True) == (87.0, 0.84)
     # test getting probability of future match between shusaku and nobody2 (which default to 1 win 1 loss)
     assert whr.probability_future_match("shusai", "nobody2", 0) == (
         0.6224906898220315,
         0.3775093101779684,
     )
+    display = "win probability: shusai:62.25%; nobody2:37.75%\n"
+    captured = capsys.readouterr()
+    assert display == captured.out
     # test getting log likelihood of base
     assert whr.log_likelihood() == 0.7431542354571272
     # test printing ordered ratings
     whr.print_ordered_ratings()
-    display = "win probability: shusai:0.62%; nobody2:0.38%\nnobody => [-112.37545390067574]\nshusaku => [25.552142942931102, 24.669738398550702, 24.49953062693439]\nshusai => [84.74972643795506, 86.17200033461006, 86.88207745833284]\n"
+    display = "nobody => [-112.37545390067574]\nshusaku => [25.552142942931102, 24.669738398550702, 24.49953062693439]\nshusai => [84.74972643795506, 86.17200033461006, 86.88207745833284]\n"
     captured = capsys.readouterr()
     assert display == captured.out
     # test printing ordered ratings, only current elo
@@ -176,6 +198,39 @@ def test_loading_several_games_at_once(capsys):
     # test loading base
     whr2 = whole_history_rating.Base.load_base("test_whr.pkl")
     # test inspecting the first game
-    whr_games = [x.inspect() for x in whr.games]
-    whr2_games = [x.inspect() for x in whr2.games]
+    whr_games = [str(x) for x in whr.games]
+    whr2_games = [str(x) for x in whr2.games]
     assert whr_games == whr2_games
+
+
+def test_auto_iterate(capsys):
+    whr = whole_history_rating.Base()
+    # test loading several games at once
+    test_games = [
+        "shusaku; shusai; B; 1",
+        "shusaku;shusai;W;2;0",
+        " shusaku ; shusai ;W ; 3; {'w2':300}",
+        "shusaku;nobody;B;3;0;{'w2':300}",
+    ]
+    whr.load_games(test_games, separator=";")
+    # test auto iterating to get convergence
+    whr1 = copy.deepcopy(whr)
+    whr2 = copy.deepcopy(whr)
+    whr3 = copy.deepcopy(whr)
+    whr4 = copy.deepcopy(whr)
+    whr5 = copy.deepcopy(whr)
+    iterations1, is_stable1 = whr1.auto_iterate(batch_size=1)
+    assert iterations1 == 9
+    assert is_stable1
+    iterations2, is_stable2 = whr2.auto_iterate()
+    assert iterations2 == 20
+    assert is_stable2
+    iterations3, is_stable3 = whr3.auto_iterate(precision=0.5, batch_size=1)
+    assert iterations3 == 6
+    assert is_stable3
+    iterations4, is_stable4 = whr4.auto_iterate(precision=0.9, batch_size=1)
+    assert iterations4 == 5
+    assert is_stable4
+    iterations5, is_stable5 = whr5.auto_iterate(time_limit=1, batch_size=1)
+    assert iterations5 == 9
+    assert is_stable5

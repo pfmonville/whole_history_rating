@@ -1,20 +1,28 @@
-class UnstableRatingException(Exception):
-	pass
+from __future__ import annotations
 
-def test_stability(v1, v2, precision=10e-3):
-    """tests if two lists of lists of floats are equal but a certain precision
-    
+
+class UnstableRatingException(Exception):
+    pass
+
+
+def test_stability(
+    v1: list[list[float]], v2: list[list[float]], precision: float = 10e-3
+) -> bool:
+    """Tests whether two lists of lists of floats are approximately equal within a specified precision.
+
+    This function flattens each list of lists into a single list and compares each corresponding element from the two lists. If the absolute difference between any pair of elements exceeds the given precision, the lists are considered not equal.
+
     Args:
-        v1 (list[list[float]]): first list containing ints
-        v2 (list[list[float]]): second list containing ints
-        precision (float, optional): the precision after which v1 and v2 are not equal
-    
+        v1 (list[list[float]]): The first list of lists of floats.
+        v2 (list[list[float]]): The second list of lists of floats.
+        precision (float, optional): The precision threshold below which the values are considered equal. Defaults to 0.01.
+
     Returns:
-        bool: True if the two lists are close enought, False otherwise
+        bool: True if the two lists are considered close enough, i.e., no pair of corresponding elements differs by more than the specified precision. False otherwise.
     """
-    v1 = [x for y in v1 for x in y]
-    v2 = [x for y in v2 for x in y]
-    for x1, x2 in zip(v1, v2):
+    v1_flattened = [x for y in v1 for x in y]
+    v2_flattened = [x for y in v2 for x in y]
+    for x1, x2 in zip(v1_flattened, v2_flattened):
         if abs(x2 - x1) > precision:
             return False
     return True

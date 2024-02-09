@@ -1,34 +1,29 @@
+from __future__ import annotations
+
 import time
-import math
 import ast
 import pickle
-from collections import defaultdict
+from typing import Any
 
+from whr.utils import test_stability
 from whr.player import Player
 from whr.game import Game
-from whr.utils import test_stability
 
 
 class Base:
-    def __init__(self, config=None):
-        if config is None:
-            self.config = defaultdict(lambda: None)
-        else:
-            self.config = config
-            if self.config.get("debug") is None:
-                self.config["debug"] = False
-        if self.config.get("w2") is None:
-            self.config["w2"] = 300.0
-        if self.config.get("uncased") is None:
-            self.config["uncased"] = False
+    def __init__(self, config: dict[str, Any] | None = None):
+        self.config = config if config is not None else {}
+        self.config["debug"] = self.config.get("debug", False)
+        self.config["w2"] = self.config.get("w2", 300.0)
+        self.config["uncased"] = self.config.get("uncased", False)
         self.games = []
         self.players = {}
 
-    def print_ordered_ratings(self, current=False):
-        """displays all ratings for each player (for each of his playing days) ordered
+    def print_ordered_ratings(self, current: bool = False) -> None:
+        """Displays all ratings for each player (for each of their playing days), ordered.
 
         Args:
-            current (bool, optional): True to let only the last estimation of the elo, False gets all estimation for each day played
+            current (bool, optional): If True, displays only the latest elo rating. If False, displays all elo ratings for each day played.
         """
         players = [x for x in self.players.values() if len(x.days) > 0]
         players.sort(key=lambda x: x.days[-1].gamma())
@@ -39,15 +34,17 @@ class Base:
                 else:
                     print(f"{p.name} => {[x.elo for x in p.days]}")
 
-    def get_ordered_ratings(self, current=False, compact=False):
-        """gets all ratings for each player (for each of his playing days) ordered
-        
-        Returns:
-            list[list[float]]: for each player and each of his playing day, the corresponding elo
-        
+    def get_ordered_ratings(
+        self, current: bool = False, compact: bool = False
+    ) -> list[list[float]]:
+        """Retrieves all ratings for each player (for each of their playing days), ordered.
+
         Args:
-            current (bool, optional): True to let only the last estimation of the elo, False gets all estimation for each day played
-            compact (bool, optional): True to get only a list of elos, False to get the name before
+            current (bool, optional): If True, retrieves only the latest elo rating estimation. If False, retrieves all elo rating estimations for each day played.
+            compact (bool, optional): If True, returns only a list of elo ratings. If False, includes the player's name before their elo ratings.
+
+        Returns:
+            list[list[float]]: A list containing the elo ratings for each player and each of their playing days.
         """
         result = []
         players = [x for x in self.players.values() if len(x.days) > 0]
@@ -64,13 +61,13 @@ class Base:
                     result.append((p.name, [x.elo for x in p.days]))
         return result
 
-    def log_likelihood(self):
-        """gets the likelihood of the current state
-        
-        the more iteration you do the higher the likelihood becomes
-        
+    def log_likelihood(self) -> float:
+        """Calculates the likelihood of the current state.
+
+        The likelihood increases with more iterations.
+
         Returns:
-            float: the likelihood
+            float: The likelihood.
         """
         score = 0.0
         for p in self.players.values():
@@ -78,14 +75,14 @@ class Base:
                 score += p.log_likelihood()
         return score
 
-    def player_by_name(self, name):
-        """gets the player object corresponding to the name
-        
+    def player_by_name(self, name: str) -> Player:
+        """Retrieves the player object corresponding to the given name.
+
         Args:
-            name (str): the name of the player
-        
+            name (str): The name of the player.
+
         Returns:
-            Player: the corresponding player
+            Player: The corresponding player object.
         """
         if self.config["uncased"]:
             name = name.lower()
@@ -93,15 +90,17 @@ class Base:
             self.players[name] = Player(name, self.config)
         return self.players[name]
 
-    def ratings_for_player(self, name, current=False):
-        """gets all rating for each day played for the player
-        
+    def ratings_for_player(
+        self, name, current: bool = False
+    ) -> list[tuple[int, float, float]] | tuple[float, float]:
+        """Retrieves all ratings for each day played by the specified player.
+
         Args:
-            name (str): the player's name
-            current (bool, optional): True to let only the last estimation of the elo and uncertainty, False gets all estimation for each day played
-        
+            name (str): The name of the player.
+            current (bool, optional): If True, retrieves only the latest elo rating and uncertainty. If False, retrieves all elo ratings and uncertainties for each day played.
+
         Returns:
-            list[list[int, float, float]]: for each day, the time_step the elo the uncertainty
+            list[tuple[int, float, float]] | tuple[float, float]: For each day, includes the time step, the elo rating, and the uncertainty if current is False, else just return the elo and uncertainty of the last day
         """
         if self.config["uncased"]:
             name = name.lower()
@@ -109,11 +108,19 @@ class Base:
         if current:
             return (
                 round(player.days[-1].elo),
-                round(player.days[-1].uncertainty * 100),
+                round(player.days[-1].uncertainty, 2),
             )
-        return [[d.day, round(d.elo), round(d.uncertainty * 100)] for d in player.days]
+        return [(d.day, round(d.elo), round(d.uncertainty, 2)) for d in player.days]
 
-    def _setup_game(self, black, white, winner, time_step, handicap, extras=None):
+    def _setup_game(
+        self,
+        black: str,
+        white: str,
+        winner: str,
+        time_step: int,
+        handicap: float,
+        extras: dict[str, Any] | None = None,
+    ) -> Game:
         if extras is None:
             extras = {}
         if black == white:
@@ -123,19 +130,27 @@ class Base:
         game = Game(black_player, white_player, winner, time_step, handicap, extras)
         return game
 
-    def create_game(self, black, white, winner, time_step, handicap, extras=None):
-        """creates a new game to be added to the base
-        
+    def create_game(
+        self,
+        black: str,
+        white: str,
+        winner: str,
+        time_step: int,
+        handicap: float,
+        extras: dict[str, Any] | None = None,
+    ) -> Game:
+        """Creates a new game to be added to the base.
+
         Args:
-            black (str): the black name
-            white (str): the white name
-            winner (str): "B" if black won, "W" if white won
-            time_step (int): the day of the match from origin
-            handicap (float): the handicap (in elo)
-            extras (dict, optional): extra parameters
-        
+            black (str): The name of the black player.
+            white (str): The name of the white player.
+            winner (str): "B" if black won, "W" if white won.
+            time_step (int): The day of the match from the origin.
+            handicap (float): The handicap (in elo points).
+            extras (dict[str, Any] | None, optional): Extra parameters.
+
         Returns:
-            Game: the added game
+            Game: The newly added game.
         """
         if extras is None:
             extras = {}
@@ -145,7 +160,7 @@ class Base:
         game = self._setup_game(black, white, winner, time_step, handicap, extras)
         return self._add_game(game)
 
-    def _add_game(self, game):
+    def _add_game(self, game: Game) -> Game:
         game.white_player.add_game(game)
         game.black_player.add_game(game)
         if game.bpd is None:
@@ -153,55 +168,61 @@ class Base:
         self.games.append(game)
         return game
 
-    def iterate(self, count):
-        """do a number of "count" iterations of the algorithm
-        
+    def iterate(self, count: int) -> None:
+        """Performs a specified number of iterations of the algorithm.
+
         Args:
-            count (int): the number of iterations desired
+            count (int): The number of iterations to perform.
         """
         for _ in range(count):
             self._run_one_iteration()
         for player in self.players.values():
             player.update_uncertainty()
 
-    def auto_iterate(self, time_limit=10, precision=10e-3):
-        """iterates automatically until it converges or reaches the time limit
-        iterates iteratively ten by ten
-        
+    def auto_iterate(
+        self,
+        time_limit: int | None = None,
+        precision: float = 1e-3,
+        batch_size: int = 10,
+    ) -> tuple[int, bool]:
+        """Automatically iterates until the algorithm converges or reaches the time limit.
+
         Args:
-            time_limit (int, optional): the maximal time after which no more iteration are launched
-            precision (float, optional): the precision of the stability desired
-        
+            time_limit (int | None, optional): The maximum time, in seconds, after which no more iterations will be launched. If None, no timeout is set
+            precision (float, optional): The desired precision of stability.
+            batch_size (int, optional): The number of iterations to perform at each step, with precision and timeout checks after each batch.
+
         Returns:
-            tuple(int, bool): the number of iterations and True if it has reached stability, False otherwise
+            tuple[int, bool]: The number of iterations performed and a boolean indicating whether stability was reached.
         """
         start = time.time()
-        self.iterate(10)
-        a = self.get_ordered_ratings(compact=True)
-        i = 10
+        a = None
+        i = 0
         while True:
-            self.iterate(10)
-            i += 10
+            self.iterate(batch_size)
+            i += batch_size
             b = self.get_ordered_ratings(compact=True)
-            if test_stability(a, b, precision):
+            if a is not None and test_stability(a, b, precision):
                 return i, True
-            if time.time() - start > time_limit:
+            if time_limit is not None and time.time() - start > time_limit:
                 return i, False
             a = b
 
-    def probability_future_match(self, name1, name2, handicap=0):
-        """gets the probability of winning for an hypothetical match against name1 and name2
-        
-        displays the probability of winning for name1 and name2 in percent rounded to the second decimal
-        
+    def probability_future_match(
+        self, name1: str, name2: str, handicap: float = 0
+    ) -> tuple[float, float]:
+        """Calculates the winning probability for a hypothetical match between two players.
+
         Args:
-            name1 (str): name1's name
-            name2 (str): name2's name
-            handicap (int, optional): the handicap (in elo)
-            extras (dict, optional): extra parameters
-        
+            name1 (str): The name of the first player.
+            name2 (str): The name of the second player.
+            handicap (float, optional): The handicap (in elo points).
+
         Returns:
-            tuple(int, int): the probability between 0 and 1 for name1 first then name2
+            tuple[float, float]: The winning probabilities for name1 and name2, respectively, as percentages rounded to the second decimal.
+
+        Raises:
+            AttributeError: Raised if name1 and name2 are equal
         """
         # Avoid self-played games (no info)
         if self.config["uncased"]:
@@ -230,101 +251,80 @@ class Base:
         )
         return player1_proba, player2_proba
 
-    def _run_one_iteration(self):
-        """runs one iteration of the whr algorithm
-        """
+    def _run_one_iteration(self) -> None:
+        """Runs one iteration of the WHR algorithm."""
         for player in self.players.values():
             player.run_one_newton_iteration()
 
-    def load_games(self, games, separator=" "):
-        """loads all games at once
-        
-        given a string representing the path of a file or a list of string representing all games,
-        this function loads all games in the base
-        all match must comply to this format:
-            "black_name white_name winner time_step handicap extras"
-            black_name (required)
-            white_name (required)
-            winner is B or W (required)
-            time_step (required)
-            handicap (optional: default 0)
-            extras is a dict (optional)
-        
-        Args:
-            games (str|list[str]): a path or a list of string representing games
-            separator (str, optional): the separator between all elements of a game, space by default (every element will be trim eventually)
-        """
-        data = None
-        if isinstance(games, str):
-            with open(games, "r") as f:
-                data = f.readlines()
-        else:
-            data = games
-        for line in data:
-            handicap = 0
-            extras = None
-            arguments = [x.strip() for x in line.split(separator)]
-            is_correct = False
-            if len(arguments) == 6:
-                try:
-                    black, white, winner, time_step, handicap, extras = arguments
-                    extras = last = ast.literal_eval(extras)
-                    if isinstance(extras, dict):
-                        is_correct = True
-                except Exception as e:
-                    raise (
-                        AttributeError(
-                            f"the extras argument couldn't be evaluated as a dict: {extras}\n{e}"
-                        )
-                    )
-            if len(arguments) == 5:
-                black, white, winner, time_step, last = arguments
-                try:
-                    eval_last = ast.literal_eval(last)
-                    if isinstance(eval_last, dict):
-                        extras = eval_last
-                        is_correct = True
-                    elif isinstance(eval_last, int):
-                        handicap = eval_last
-                        is_correct = True
-                except Exception as e:
-                    raise (
-                        AttributeError(
-                            f"the last argument couldn't be evaluated as an int or a dict: {last}\n{e}"
-                        )
-                    )
-            if len(arguments) == 4:
-                black, white, winner, time_step = arguments
-                is_correct = True
-            if not is_correct:
-                raise (
-                    AttributeError(
-                        f"loaded game must have this format: 'black_name white_name winner time_step handicap extras' with handicap (int or dict) and extras (dict) optional. the handicap|extras argument is: {last}"
-                    )
-                )
-            time_step, handicap = int(time_step), int(handicap)
-            if self.config["uncased"]:
-                black = black.lower()
-                white = white.lower()
-            self.create_game(black, white, winner, time_step, handicap, extras=extras)
+    def load_games(self, games: list[str], separator: str = " ") -> None:
+        """Loads all games at once.
 
-    def save_base(self, path):
-        """saves the current state of the base to a file at "path"
-        
+        Each game string must follow the format: "black_name white_name winner time_step handicap extras",
+        where handicap and extras are optional. Handicap defaults to 0 if not provided, and extras must be a valid dictionary.
+
         Args:
-            path (str): the path where to save the base
+            games (list[str]): A list of strings representing games.
+            separator (str, optional): The separator used between elements of a game, defaulting to a space.
+
+        Raises:
+            ValueError: If any game string does not comply with the expected format or if parsing fails.
+        """
+        for line in games:
+            parts = [part.strip() for part in line.split(separator)]
+            if len(parts) < 4 or len(parts) > 6:
+                raise ValueError(f"Invalid game format: '{line}'")
+
+            black, white, winner, time_step, *rest = parts
+            handicap = 0
+            extras = {}
+
+            if len(rest) == 1:
+                try:
+                    handicap = int(rest[0])
+                except ValueError:
+                    try:
+                        extras = ast.literal_eval(rest[0])
+                        if not isinstance(extras, dict):
+                            raise ValueError()
+                    except (ValueError, SyntaxError):
+                        raise ValueError(
+                            f"Invalid handicap or extra value in: '{line}'"
+                        )
+
+            if len(rest) == 2:
+                try:
+                    handicap = int(rest[0])
+                except ValueError:
+                    raise ValueError(f"Invalid handicap value in: '{line}'")
+                try:
+                    extras = ast.literal_eval(rest[1])
+                    if not isinstance(extras, dict):
+                        raise ValueError()
+                except (ValueError, SyntaxError):
+                    raise ValueError(f"Invalid extras dictionary in: '{line}'")
+
+            if self.config["uncased"]:
+                black, white = black.lower(), white.lower()
+
+            self.create_game(black, white, winner, int(time_step), handicap, extras)
+
+    def save_base(self, path: str) -> None:
+        """Saves the current state of the base to a specified path.
+
+        Args:
+            path (str): The path where the base will be saved.
         """
         pickle.dump([self.players, self.games, self.config["w2"]], open(path, "wb"))
 
     @staticmethod
-    def load_base(path):
-        """loads a saved base
-        
+    def load_base(path: str) -> Base:
+        """Loads a saved base from a specified path.
+
         Args:
-            path (str): the path to the saved base
-        
+            path (str): The path to the saved base.
+
         Returns:
-            Base: the loaded base
+            Base: The loaded base.
         """
         players, games, config = pickle.load(open(path, "rb"))
         result = Base()
