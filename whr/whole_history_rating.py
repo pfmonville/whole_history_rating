@@ -314,7 +314,24 @@ class Base:
         Args:
             path (str): The path where the base will be saved.
         """
-        pickle.dump([self.players, self.games, self.config["w2"]], open(path, "wb"))
+        try:
+            pickle.dump([self.players, self.games, self.config], open(path, "wb"))
+        except pickle.PicklingError:
+            pickle.dump(
+                [
+                    self.players,
+                    self.games,
+                    {
+                        k: v
+                        for k, v in self.config.items()
+                        if k in ["w2", "debug", "uncased"]
+                    },
+                ],
+                open(path, "wb"),
+            )
+            print(
+                "WARNING: some elements in self.config you configured can't be pickled, only 'w2', 'debug' and 'uncased' parameters will be saved for self.config"
+            )
 
     @staticmethod
     def load_base(path: str) -> Base:
@@ -328,5 +345,5 @@ class Base:
         """
         players, games, config = pickle.load(open(path, "rb"))
         result = Base()
-        result.config["w2"], result.games, result.players = config, games, players
+        result.config, result.games, result.players = config, games, players
         return result

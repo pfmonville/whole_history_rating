@@ -138,6 +138,7 @@ def test_creating_games():
     assert isinstance(
         whr.create_game("ShUsAkU", "ShUsAi", "W", 6, 0), whole_history_rating.Game
     )
+    assert list(whr.players.keys()) == ["shusai", "shusaku"]
 
 
 def test_loading_several_games_at_once(capsys):
@@ -201,6 +202,15 @@ def test_loading_several_games_at_once(capsys):
     whr_games = [str(x) for x in whr.games]
     whr2_games = [str(x) for x in whr2.games]
     assert whr_games == whr2_games
+
+
+def test_save_and_load():
+    whr = whole_history_rating.Base(
+        config={"w2": 1000, "uncased": True, "debug": True, "extra_parameter": "hello"}
+    )
+    whole_history_rating.Base.save_base(whr, "test_whr.pkl")
+    whr2 = whole_history_rating.Base.load_base("test_whr.pkl")
+    assert whr.config == whr2.config
 
 
 def test_auto_iterate(capsys):
