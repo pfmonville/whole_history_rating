@@ -174,7 +174,7 @@ def test_loading_several_games_at_once(capsys):
     assert whr.log_likelihood() == 0.7431542354571272
     # test printing ordered ratings
     whr.print_ordered_ratings()
-    display = "nobody => [-112.37545390067574]\nshusaku => [25.552142942931102, 24.669738398550702, 24.49953062693439]\nshusai => [84.74972643795506, 86.17200033461006, 86.88207745833284]\n"
+    display = "nobody => [np.float64(-112.37545390067574)]\nshusaku => [np.float64(25.552142942931102), np.float64(24.669738398550702), np.float64(24.49953062693439)]\nshusai => [np.float64(84.74972643795506), np.float64(86.17200033461006), np.float64(86.88207745833284)]\n"
     captured = capsys.readouterr()
     assert display == captured.out
     # test printing ordered ratings, only current elo

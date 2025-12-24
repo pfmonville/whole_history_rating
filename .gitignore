@@ -5,3 +5,4 @@ setup*
 build/*
 dist/*
 whole_history_rating.egg-info/*
+.envrc
