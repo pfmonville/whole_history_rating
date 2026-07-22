@@ -22,7 +22,7 @@ def test_stability(
     """
     v1_flattened = [x for y in v1 for x in y]
     v2_flattened = [x for y in v2 for x in y]
-    for x1, x2 in zip(v1_flattened, v2_flattened):
+    for x1, x2 in zip(v1_flattened, v2_flattened, strict=False):
         if abs(x2 - x1) > precision:
             return False
     return True

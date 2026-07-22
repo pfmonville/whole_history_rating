@@ -17,13 +17,16 @@ pip install whole-history-rating
 
 ### Basic Setup
 
-Start by importing the library and initializing the base WHR object:
+Start by importing the library and initializing the WHR object:
 
 ```python
-from whr import whole_history_rating
+from whr import WHR
 
-whr = whole_history_rating.Base()
+whr = WHR()
 ```
+
+> The class used to be called `Base`. That name still works as a deprecated
+> alias (it emits a `DeprecationWarning`); prefer `WHR` in new code.
 
 ### Creating Games
 
@@ -72,19 +75,20 @@ Retrieve and view player ratings, which include the day number, elo rating, and 
 ```python
 # Example output for whr.ratings_for_player("shusaku")
 print(whr.ratings_for_player("shusaku"))
-# Output:
-#   [[1, -43, 0.84], 
-#    [2, -45, 0.84], 
-#    [3, -45, 0.84]]
+# Output (one (day, elo, uncertainty) tuple per playing day):
+#   [(1, -43, 0.84),
+#    (2, -45, 0.84),
+#    (3, -45, 0.84)]
 
 # Example output for whr.ratings_for_player("shusai")
 print(whr.ratings_for_player("shusai"))
 # Output:
-#   [[1, 43, 0.84], 
-#    [2, 45, 0.84], 
-#    [3, 45, 0.84]]
-
+#   [(1, 43, 0.84),
+#    (2, 45, 0.84),
+#    (3, 45, 0.84)]
 ```
+
+Querying an unknown player raises a `ValueError`.
 
 You can also view or retrieve all ratings in order:
 
@@ -98,12 +102,13 @@ ratings = whr.get_ordered_ratings(current=False, compact=False)  # Set `compact=
 Predict the outcome of future matches, including between non-existent players:
 
 ```python
-# Example of predicting a future match outcome
+# Example of predicting a future match outcome. It is a pure query: it does
+# not print anything, and unknown players are treated as an even (gamma = 1)
+# reference without being added to the base.
 probability = whr.probability_future_match("shusaku", "shusai", 0)
 print(f"Win probability: shusaku: {probability[0]*100}%; shusai: {probability[1]*100}%")
 # Output:
-#   Win probability: shusaku: 37.24%; shusai: 62.76%  <== this is printed
-#   (0.3724317501643667, 0.6275682498356332)
+#   Win probability: shusaku: 37.24%; shusai: 62.76%
 ```
 
 
@@ -143,19 +148,24 @@ Save the current state to a file and reload it later to avoid recalculating:
 
 ```python
 whr.save_base('path_to_save.whr')
-whr2 = whole_history_rating.Base.load_base('path_to_save.whr')
+whr2 = WHR.load_base('path_to_save.whr')
 ```
+
+The state is serialized as a flat description (config, games and computed
+ratings) rather than the raw object graph, so saving and loading works for a
+history of any size and the computed ratings are preserved on reload. Files
+written by older versions are still readable.
 
 ## Optional Configuration
 
 Adjust the `w2` parameter, which influences the variance of rating change over time, allowing for faster or slower progression. The default is set to 300, but Rémi Coulom used a value of 14 in his paper to achieve his results.
 
 ```python
-whr = whole_history_rating.Base({'w2': 14})
+whr = WHR({'w2': 14})
 ```
 
 Enable case-insensitive player names to treat "shusaku" and "ShUsAkU" as the same entity:
 
 ```python
-whr = whole_history_rating.Base({'uncased': True})
+whr = WHR({'uncased': True})
 ```

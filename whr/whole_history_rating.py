@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import time
 import ast
 import pickle
+import time
 import warnings
-from typing import Any
+from typing import Any, cast
 
-from whr.utils import test_stability
-from whr.player import Player
 from whr.game import Game
+from whr.player import Player
+from whr.utils import test_stability
 
 
 class WHR:
@@ -19,8 +19,8 @@ class WHR:
         self.config.setdefault("debug", False)
         self.config.setdefault("w2", 300.0)
         self.config.setdefault("uncased", False)
-        self.games = []
-        self.players = {}
+        self.games: list[Game] = []
+        self.players: dict[str, Player] = {}
 
     def print_ordered_ratings(self, current: bool = False) -> None:
         """Displays all ratings for each player (for each of their playing days), ordered.
@@ -39,7 +39,12 @@ class WHR:
 
     def get_ordered_ratings(
         self, current: bool = False, compact: bool = False
-    ) -> list[list[float]]:
+    ) -> (
+        list[float]
+        | list[tuple[str, float]]
+        | list[list[float]]
+        | list[tuple[str, list[float]]]
+    ):
         """Retrieves all ratings for each player (for each of their playing days), ordered.
 
         Args:
@@ -47,9 +52,9 @@ class WHR:
             compact (bool, optional): If True, returns only a list of elo ratings. If False, includes the player's name before their elo ratings.
 
         Returns:
-            list[list[float]]: A list containing the elo ratings for each player and each of their playing days.
+            The elo ratings for each player, ordered. The exact shape depends on ``current`` and ``compact``: a plain list of elos, a list of ``(name, elo)`` tuples, a list of per-day elo lists, or a list of ``(name, per-day elos)`` tuples.
         """
-        result = []
+        result: list[Any] = []
         players = [x for x in self.players.values() if len(x.days) > 0]
         players.sort(key=lambda x: x.days[-1].gamma())
         for p in players:
@@ -210,12 +215,13 @@ class WHR:
             tuple[int, bool]: The number of iterations performed and a boolean indicating whether stability was reached.
         """
         start = time.time()
-        a = None
+        a: list[list[float]] | None = None
         i = 0
         while True:
             self.iterate(batch_size)
             i += batch_size
-            b = self.get_ordered_ratings(compact=True)
+            # compact=True yields the list[list[float]] shape test_stability needs.
+            b = cast("list[list[float]]", self.get_ordered_ratings(compact=True))
             if a is not None and test_stability(a, b, precision):
                 return i, True
             if time_limit is not None and time.time() - start > time_limit:
@@ -247,10 +253,10 @@ class WHR:
         # Pure query: look players up without creating persistent entries.
         player1 = self._existing_player(name1)
         player2 = self._existing_player(name2)
-        bpd_gamma = 1
-        bpd_elo = 0
-        wpd_gamma = 1
-        wpd_elo = 0
+        bpd_gamma = 1.0
+        bpd_elo = 0.0
+        wpd_gamma = 1.0
+        wpd_elo = 0.0
         if player1 is not None and len(player1.days) > 0:
             bpd = player1.days[-1]
             bpd_gamma = bpd.gamma()
@@ -301,19 +307,21 @@ class WHR:
                     except (ValueError, SyntaxError):
                         raise ValueError(
                             f"Invalid handicap or extra value in: '{line}'"
-                        )
+                        ) from None
 
             if len(rest) == 2:
                 try:
                     handicap = int(rest[0])
                 except ValueError:
-                    raise ValueError(f"Invalid handicap value in: '{line}'")
+                    raise ValueError(f"Invalid handicap value in: '{line}'") from None
                 try:
                     extras = ast.literal_eval(rest[1])
                     if not isinstance(extras, dict):
                         raise ValueError()
                 except (ValueError, SyntaxError):
-                    raise ValueError(f"Invalid extras dictionary in: '{line}'")
+                    raise ValueError(
+                        f"Invalid extras dictionary in: '{line}'"
+                    ) from None
 
             if self.config["uncased"]:
                 black, white = black.lower(), white.lower()
@@ -354,9 +362,7 @@ class WHR:
             pickle.dumps(config)
         except Exception:
             config = {
-                k: v
-                for k, v in self.config.items()
-                if k in ["w2", "debug", "uncased"]
+                k: v for k, v in self.config.items() if k in ["w2", "debug", "uncased"]
             }
             warnings.warn(
                 "Some elements in config cannot be pickled; only 'w2', 'debug' "
