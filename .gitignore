@@ -8,3 +8,5 @@ whole_history_rating.egg-info/*
 .DS_Store
 .python-version
 .venv/
+.coverage
+htmlcov/

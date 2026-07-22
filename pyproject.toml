@@ -46,6 +46,7 @@ Issues = "https://github.com/pfmonville/whole_history_rating/issues"
 [dependency-groups]
 dev = [
     "pytest>=8",
+    "pytest-cov>=5",
     "ruff>=0.6",
     "mypy>=1.11",
 ]
@@ -57,6 +58,7 @@ packages = ["whr"]
 testpaths = ["tests"]
 pythonpath = ["."]
 filterwarnings = ["error"]
+addopts = "--cov=whr --cov-report=term-missing --cov-fail-under=95"
 
 [tool.ruff]
 line-length = 88
