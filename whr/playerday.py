@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import math
 
-from whr import player as P
 from whr import game as G
+from whr import player as P
 
 
 class PlayerDay:
@@ -11,10 +11,10 @@ class PlayerDay:
         self.day = day
         self.player = player
         self.is_first_day = False
-        self.won_games = []
-        self.lost_games = []
-        self._won_game_terms = None
-        self._lost_game_terms = None
+        self.won_games: list[G.Game] = []
+        self.lost_games: list[G.Game] = []
+        self._won_game_terms: list[list[float]] | None = None
+        self._lost_game_terms: list[list[float]] | None = None
         self.uncertainty: float = -1
         # natural-rating (log-gamma); overwritten by set_gamma / the elo setter
         self.r: float = 0.0
@@ -121,10 +121,10 @@ class PlayerDay:
             float: The log likelihood.
         """
         tally = 0.0
-        for a, b, c, d in self.won_game_terms():
+        for a, _b, c, d in self.won_game_terms():
             tally += math.log(a * self.gamma())
             tally -= math.log(c * self.gamma() + d)
-        for a, b, c, d in self.lost_game_terms():
+        for _a, b, c, d in self.lost_game_terms():
             tally += math.log(b)
             tally -= math.log(c * self.gamma() + d)
         return tally

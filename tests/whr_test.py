@@ -1,13 +1,11 @@
 import copy
-import sys
-import os
 import pickle
+import sys
 import warnings
+
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-from whr import whole_history_rating
-from whr import utils
+from whr import utils, whole_history_rating
 
 
 def setup_game_with_elo(white_elo, black_elo, handicap):
@@ -143,7 +141,7 @@ def test_creating_games():
     assert list(whr.players.keys()) == ["shusai", "shusaku"]
 
 
-def test_loading_several_games_at_once(capsys):
+def test_loading_several_games_at_once(capsys, tmp_path):
     whr = whole_history_rating.WHR()
     # test loading several games at once
     test_games = [
@@ -174,7 +172,7 @@ def test_loading_several_games_at_once(capsys):
     assert capsys.readouterr().out == ""
     assert "nobody2" not in whr.players
     # test getting log likelihood of base
-    assert whr.log_likelihood() == 0.7431542354571272
+    assert whr.log_likelihood() == pytest.approx(0.7431542354571272)
     # test printing ordered ratings
     whr.print_ordered_ratings()
     display = "nobody => [-112.37545390067574]\nshusaku => [25.552142942931102, 24.669738398550702, 24.49953062693439]\nshusai => [84.74972643795506, 86.17200033461006, 86.88207745833284]\n"
@@ -192,27 +190,27 @@ def test_loading_several_games_at_once(capsys):
         [84.74972643795506, 86.17200033461006, 86.88207745833284],
     ]
     # test getting ordered ratings, only current elo with compact form
-    assert whr.get_ordered_ratings(compact=True, current=True) == [
-        -112.37545390067574,
-        24.49953062693439,
-        86.88207745833284,
-    ]
+    assert whr.get_ordered_ratings(compact=True, current=True) == pytest.approx(
+        [-112.37545390067574, 24.49953062693439, 86.88207745833284]
+    )
     # test saving base
-    whole_history_rating.WHR.save_base(whr, "test_whr.pkl")
+    path = str(tmp_path / "state.pkl")
+    whole_history_rating.WHR.save_base(whr, path)
     # test loading base
-    whr2 = whole_history_rating.WHR.load_base("test_whr.pkl")
+    whr2 = whole_history_rating.WHR.load_base(path)
     # test inspecting the first game
     whr_games = [str(x) for x in whr.games]
     whr2_games = [str(x) for x in whr2.games]
     assert whr_games == whr2_games
 
 
-def test_save_and_load():
+def test_save_and_load(tmp_path):
     whr = whole_history_rating.WHR(
         config={"w2": 1000, "uncased": True, "debug": True, "extra_parameter": "hello"}
     )
-    whole_history_rating.WHR.save_base(whr, "test_whr.pkl")
-    whr2 = whole_history_rating.WHR.load_base("test_whr.pkl")
+    path = str(tmp_path / "state.pkl")
+    whole_history_rating.WHR.save_base(whr, path)
+    whr2 = whole_history_rating.WHR.load_base(path)
     assert whr.config == whr2.config
 
 
@@ -222,7 +220,7 @@ def test_save_and_load_large_history_does_not_hit_recursion_limit(tmp_path):
     # so serialization must not rely on recursively walking it.
     whr = whole_history_rating.WHR()
     for i in range(2000):
-        whr.create_game(f"p{i}", f"p{i+1}", "B", i + 1, 0)
+        whr.create_game(f"p{i}", f"p{i + 1}", "B", i + 1, 0)
     whr.iterate(10)
 
     path = str(tmp_path / "large.pkl")

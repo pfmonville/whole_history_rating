@@ -52,3 +52,24 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["whr"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+# Line length is governed by the formatter; long docstrings/strings are left as-is.
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["whr"]
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
