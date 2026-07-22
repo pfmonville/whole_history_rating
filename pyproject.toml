@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "whole-history-rating"
+version = "0.1.0"
+description = "Python implementation of Rémi Coulom's Whole-History Rating (WHR) algorithm."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENCE.txt" }
+authors = [
+    { name = "Pierre-François Monville", email = "pfmonville@users.noreply.github.com" },
+]
+keywords = [
+    "whr",
+    "whole-history-rating",
+    "elo",
+    "rating",
+    "ranking",
+    "bayesian",
+    "go",
+    "chess",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = [
+    "numpy>=2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/pfmonville/whole_history_rating"
+Repository = "https://github.com/pfmonville/whole_history_rating"
+Issues = "https://github.com/pfmonville/whole_history_rating/issues"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["whr"]
