@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import bisect
 import math
 import sys
-import bisect
 from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 
-from whr.utils import UnstableRatingException
-from whr import playerday as PD
 from whr import game as G
+from whr import playerday as PD
+from whr.utils import UnstableRatingException
 
 
 class Player:
@@ -32,7 +32,7 @@ class Player:
         sigma2 = self.compute_sigma2()
         n = len(self.days)
         for i in range(n):
-            prior = 0
+            prior = 0.0
             if i < (n - 1):
                 rd = self.days[i].r - self.days[i + 1].r
                 prior += (1 / (math.sqrt(2 * math.pi * sigma2[i]))) * math.exp(
@@ -75,7 +75,7 @@ class Player:
         diagonal = np.zeros((n,))
         sub_diagonal = np.zeros((n - 1,))
         for row in range(n):
-            prior = 0
+            prior = 0.0
             if row < (n - 1):
                 prior += -1 / sigma2[row]
             if row > 0:
@@ -101,7 +101,7 @@ class Player:
         g = []
         n = len(days)
         for idx, day in enumerate(days):
-            prior = 0
+            prior = 0.0
             if idx < (n - 1):
                 prior += -(r[idx] - r[idx + 1]) / sigma2[idx]
             if idx > 0:
@@ -127,7 +127,7 @@ class Player:
             list[float]: A list of variance values between consecutive rating days.
         """
         sigma2 = []
-        for d1, d2 in zip(self.days, self.days[1:]):
+        for d1, d2 in zip(self.days, self.days[1:], strict=False):
             sigma2.append(abs(d2.day - d1.day) * self.w2)
         return sigma2
 
@@ -164,7 +164,7 @@ class Player:
         for i in range(n - 2, -1, -1):
             x[i] = (y[i] - b[i] * x[i + 1]) / d[i]
 
-        new_r = [ri - xi for ri, xi in zip(r, x)]
+        new_r = [ri - xi for ri, xi in zip(r, x, strict=True)]
 
         for candidate in new_r:
             if candidate > 650:
