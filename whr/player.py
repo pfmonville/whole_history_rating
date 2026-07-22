@@ -127,7 +127,7 @@ class Player:
             list[float]: A list of variance values between consecutive rating days.
         """
         sigma2 = []
-        for d1, d2 in zip(*(self.days[i:] for i in range(2))):
+        for d1, d2 in zip(self.days, self.days[1:]):
             sigma2.append(abs(d2.day - d1.day) * self.w2)
         return sigma2
 
@@ -166,8 +166,8 @@ class Player:
 
         new_r = [ri - xi for ri, xi in zip(r, x)]
 
-        for r in new_r:
-            if r > 650:
+        for candidate in new_r:
+            if candidate > 650:
                 raise UnstableRatingException("unstable r on player")
 
         for idx, day in enumerate(self.days):
@@ -225,21 +225,19 @@ class Player:
 
         return mat
 
-    def update_uncertainty(self) -> float | None:
+    def update_uncertainty(self) -> None:
         """Updates the uncertainty measure for each day based on the covariance matrix.
 
-        If the player has played on multiple days, this method calculates the variance for each day from the covariance matrix and updates each day's uncertainty value accordingly. If the player has not played on any day, a default uncertainty value is returned.
-
-        Returns:
-            float | None: The default uncertainty value of 5 if the player has no recorded days, otherwise None after updating the uncertainty values for all recorded days.
+        For each day the variance is read from the diagonal of the covariance
+        matrix and stored as that day's uncertainty. Players with no recorded
+        day are left untouched.
         """
-        if len(self.days) > 0:
-            c = self.covariance()
-            u = [c[i, i] for i in range(len(self.days))]  # u = variance
-            for i, d in enumerate(self.days):
-                d.uncertainty = float(u[i])
-            return None
-        return 5
+        if len(self.days) == 0:
+            return
+        c = self.covariance()
+        u = [c[i, i] for i in range(len(self.days))]  # u = variance
+        for i, d in enumerate(self.days):
+            d.uncertainty = float(u[i])
 
     def add_game(self, game: G.Game) -> None:
         """Adds a game to the player's record, updating or creating a new PD.PlayerDay instance as necessary.
