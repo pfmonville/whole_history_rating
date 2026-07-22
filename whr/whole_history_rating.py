@@ -311,27 +311,46 @@ class Base:
     def save_base(self, path: str) -> None:
         """Saves the current state of the base to a specified path.
 
+        Instead of pickling the interconnected object graph (players, days and
+        games all reference each other), a flat description is saved: the config,
+        the list of games, and the computed ratings for every player day. This
+        avoids the deep recursive traversal that pickle would otherwise perform,
+        which overflows the stack on large histories (see issue #12), while still
+        preserving the computed state so the history does not have to be
+        re-rated after loading.
+
         Args:
             path (str): The path where the base will be saved.
         """
-        try:
-            pickle.dump([self.players, self.games, self.config], open(path, "wb"))
-        except pickle.PicklingError:
-            pickle.dump(
-                [
-                    self.players,
-                    self.games,
-                    {
-                        k: v
-                        for k, v in self.config.items()
-                        if k in ["w2", "debug", "uncased"]
-                    },
-                ],
-                open(path, "wb"),
+        games = [
+            (
+                game.black_player.name,
+                game.white_player.name,
+                game.winner,
+                game.day,
+                game.handicap,
+                game.extras,
             )
+            for game in self.games
+        ]
+        ratings = {
+            name: [(day.day, day.r, day.uncertainty) for day in player.days]
+            for name, player in self.players.items()
+        }
+        config = self.config
+        try:
+            pickle.dumps(config)
+        except Exception:
+            config = {
+                k: v
+                for k, v in self.config.items()
+                if k in ["w2", "debug", "uncased"]
+            }
             print(
                 "WARNING: some elements in self.config you configured can't be pickled, only 'w2', 'debug' and 'uncased' parameters will be saved for self.config"
             )
+        with open(path, "wb") as f:
+            pickle.dump({"config": config, "games": games, "ratings": ratings}, f)
 
     @staticmethod
     def load_base(path: str) -> Base:
@@ -343,7 +362,16 @@ class Base:
         Returns:
             Base: The loaded base.
         """
-        players, games, config = pickle.load(open(path, "rb"))
-        result = Base()
-        result.config, result.games, result.players = config, games, players
+        with open(path, "rb") as f:
+            data = pickle.load(f)
+        result = Base(data["config"])
+        for black, white, winner, time_step, handicap, extras in data["games"]:
+            result.create_game(black, white, winner, time_step, handicap, extras)
+        for name, days in data["ratings"].items():
+            player = result.players[name]
+            day_by_time_step = {day.day: day for day in player.days}
+            for time_step, r, uncertainty in days:
+                player_day = day_by_time_step[time_step]
+                player_day.r = r
+                player_day.uncertainty = uncertainty
         return result

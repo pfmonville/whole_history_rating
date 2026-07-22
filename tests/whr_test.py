@@ -213,6 +213,25 @@ def test_save_and_load():
     assert whr.config == whr2.config
 
 
+def test_save_and_load_large_history_does_not_hit_recursion_limit(tmp_path):
+    # A large, densely connected history produces a deep object graph.
+    # Pickling that graph directly overflows the (C) stack (see issue #12),
+    # so serialization must not rely on recursively walking it.
+    whr = whole_history_rating.Base()
+    for i in range(2000):
+        whr.create_game(f"p{i}", f"p{i+1}", "B", i + 1, 0)
+    whr.iterate(10)
+
+    path = str(tmp_path / "large.pkl")
+    whr.save_base(path)
+    whr2 = whole_history_rating.Base.load_base(path)
+
+    # Computed ratings must survive the round-trip so the history does not
+    # have to be re-rated from scratch after loading.
+    assert whr2.get_ordered_ratings() == whr.get_ordered_ratings()
+    assert whr2.ratings_for_player("p10") == whr.ratings_for_player("p10")
+
+
 def test_auto_iterate(capsys):
     whr = whole_history_rating.Base()
     # test loading several games at once
