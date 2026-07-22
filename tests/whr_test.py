@@ -1,6 +1,7 @@
 import copy
 import sys
 import os
+import pickle
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
@@ -230,6 +231,22 @@ def test_save_and_load_large_history_does_not_hit_recursion_limit(tmp_path):
     # have to be re-rated from scratch after loading.
     assert whr2.get_ordered_ratings() == whr.get_ordered_ratings()
     assert whr2.ratings_for_player("p10") == whr.ratings_for_player("p10")
+
+
+def test_load_base_reads_legacy_format(tmp_path):
+    # Files written by previous versions pickled the object graph as a plain
+    # list [players, games, config]. load_base must still read them.
+    whr = whole_history_rating.Base()
+    whr.load_games(["a b B 1", "a b W 2", "a c B 3"])
+    whr.iterate(10)
+
+    path = str(tmp_path / "legacy.pkl")
+    with open(path, "wb") as f:
+        pickle.dump([whr.players, whr.games, whr.config], f)
+
+    loaded = whole_history_rating.Base.load_base(path)
+    assert loaded.get_ordered_ratings() == whr.get_ordered_ratings()
+    assert [str(g) for g in loaded.games] == [str(g) for g in whr.games]
 
 
 def test_auto_iterate(capsys):

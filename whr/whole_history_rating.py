@@ -364,6 +364,12 @@ class Base:
         """
         with open(path, "rb") as f:
             data = pickle.load(f)
+        if not isinstance(data, dict):
+            # Legacy format: a pickled object graph as [players, games, config].
+            players, games, config = data
+            result = Base()
+            result.config, result.games, result.players = config, games, players
+            return result
         result = Base(data["config"])
         for black, white, winner, time_step, handicap, extras in data["games"]:
             result.create_game(black, white, winner, time_step, handicap, extras)
