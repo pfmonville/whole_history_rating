@@ -374,7 +374,9 @@ class Base:
         for black, white, winner, time_step, handicap, extras in data["games"]:
             result.create_game(black, white, winner, time_step, handicap, extras)
         for name, days in data["ratings"].items():
-            player = result.players[name]
+            # player_by_name (re)creates players that have no games, so those
+            # queried for predictions are preserved rather than dropped.
+            player = result.player_by_name(name)
             day_by_time_step = {day.day: day for day in player.days}
             for time_step, r, uncertainty in days:
                 player_day = day_by_time_step[time_step]

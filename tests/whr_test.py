@@ -233,6 +233,24 @@ def test_save_and_load_large_history_does_not_hit_recursion_limit(tmp_path):
     assert whr2.ratings_for_player("p10") == whr.ratings_for_player("p10")
 
 
+def test_save_and_load_preserves_players_without_games(tmp_path):
+    # Querying a future match (or ratings) creates a player that has no games
+    # and therefore no rated days. Such players must survive save/load instead
+    # of making load_base raise a KeyError.
+    whr = whole_history_rating.Base()
+    whr.load_games(["a b B 1"])
+    whr.iterate(5)
+    whr.probability_future_match("a", "ghost")
+    assert "ghost" in whr.players
+
+    path = str(tmp_path / "ghost.pkl")
+    whr.save_base(path)
+    loaded = whole_history_rating.Base.load_base(path)
+
+    assert "ghost" in loaded.players
+    assert loaded.get_ordered_ratings() == whr.get_ordered_ratings()
+
+
 def test_load_base_reads_legacy_format(tmp_path):
     # Files written by previous versions pickled the object graph as a plain
     # list [players, games, config]. load_base must still read them.
