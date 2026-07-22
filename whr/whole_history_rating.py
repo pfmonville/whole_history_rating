@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import ast
 import pickle
+import warnings
 from typing import Any
 
 from whr.utils import test_stability
@@ -10,9 +11,11 @@ from whr.player import Player
 from whr.game import Game
 
 
-class Base:
+class WHR:
     def __init__(self, config: dict[str, Any] | None = None):
-        self.config = config if config is not None else {}
+        # Copy the caller's dict so we never mutate it and instances never
+        # share the same config object.
+        self.config = dict(config) if config is not None else {}
         self.config.setdefault("debug", False)
         self.config.setdefault("w2", 300.0)
         self.config.setdefault("uncased", False)
@@ -90,6 +93,12 @@ class Base:
             self.players[name] = Player(name, self.config)
         return self.players[name]
 
+    def _existing_player(self, name: str) -> Player | None:
+        """Returns the player with the given name, or None, without creating it."""
+        if self.config["uncased"]:
+            name = name.lower()
+        return self.players.get(name)
+
     def ratings_for_player(
         self, name, current: bool = False
     ) -> list[tuple[int, float, float]] | tuple[float, float]:
@@ -101,10 +110,13 @@ class Base:
 
         Returns:
             list[tuple[int, float, float]] | tuple[float, float]: For each day, includes the time step, the elo rating, and the uncertainty if current is False, else just return the elo and uncertainty of the last day
+
+        Raises:
+            ValueError: If the player is unknown or has no rated day.
         """
-        if self.config["uncased"]:
-            name = name.lower()
-        player = self.player_by_name(name)
+        player = self._existing_player(name)
+        if player is None or len(player.days) == 0:
+            raise ValueError(f"No ratings available for unknown player {name!r}")
         if current:
             return (
                 round(player.days[-1].elo),
@@ -164,7 +176,9 @@ class Base:
         game.white_player.add_game(game)
         game.black_player.add_game(game)
         if game.bpd is None:
-            print("Bad game")
+            raise RuntimeError(
+                "Game could not be attached to the black player's playing day"
+            )
         self.games.append(game)
         return game
 
@@ -219,7 +233,7 @@ class Base:
             handicap (float, optional): The handicap (in elo points).
 
         Returns:
-            tuple[float, float]: The winning probabilities for name1 and name2, respectively, as percentages rounded to the second decimal.
+            tuple[float, float]: The winning probabilities for name1 and name2 respectively. Unknown players are treated as an even (gamma = 1) reference without being added to the base.
 
         Raises:
             AttributeError: Raised if name1 and name2 are equal
@@ -230,25 +244,23 @@ class Base:
             name2 = name2.lower()
         if name1 == name2:
             raise AttributeError("Invalid game (black == white)")
-        player1 = self.player_by_name(name1)
-        player2 = self.player_by_name(name2)
+        # Pure query: look players up without creating persistent entries.
+        player1 = self._existing_player(name1)
+        player2 = self._existing_player(name2)
         bpd_gamma = 1
         bpd_elo = 0
         wpd_gamma = 1
         wpd_elo = 0
-        if len(player1.days) > 0:
+        if player1 is not None and len(player1.days) > 0:
             bpd = player1.days[-1]
             bpd_gamma = bpd.gamma()
             bpd_elo = bpd.elo
-        if len(player2.days) != 0:
+        if player2 is not None and len(player2.days) > 0:
             wpd = player2.days[-1]
             wpd_gamma = wpd.gamma()
             wpd_elo = wpd.elo
         player1_proba = bpd_gamma / (bpd_gamma + 10 ** ((wpd_elo - handicap) / 400.0))
         player2_proba = wpd_gamma / (wpd_gamma + 10 ** ((bpd_elo + handicap) / 400.0))
-        print(
-            f"win probability: {name1}:{player1_proba*100:.2f}%; {name2}:{player2_proba*100:.2f}%"
-        )
         return player1_proba, player2_proba
 
     def _run_one_iteration(self) -> None:
@@ -346,31 +358,33 @@ class Base:
                 for k, v in self.config.items()
                 if k in ["w2", "debug", "uncased"]
             }
-            print(
-                "WARNING: some elements in self.config you configured can't be pickled, only 'w2', 'debug' and 'uncased' parameters will be saved for self.config"
+            warnings.warn(
+                "Some elements in config cannot be pickled; only 'w2', 'debug' "
+                "and 'uncased' will be saved.",
+                stacklevel=2,
             )
         with open(path, "wb") as f:
             pickle.dump({"config": config, "games": games, "ratings": ratings}, f)
 
     @staticmethod
-    def load_base(path: str) -> Base:
+    def load_base(path: str) -> WHR:
         """Loads a saved base from a specified path.
 
         Args:
             path (str): The path to the saved base.
 
         Returns:
-            Base: The loaded base.
+            WHR: The loaded base.
         """
         with open(path, "rb") as f:
             data = pickle.load(f)
         if not isinstance(data, dict):
             # Legacy format: a pickled object graph as [players, games, config].
             players, games, config = data
-            result = Base()
+            result = WHR()
             result.config, result.games, result.players = config, games, players
             return result
-        result = Base(data["config"])
+        result = WHR(data["config"])
         for black, white, winner, time_step, handicap, extras in data["games"]:
             result.create_game(black, white, winner, time_step, handicap, extras)
         for name, days in data["ratings"].items():
@@ -383,3 +397,16 @@ class Base:
                 player_day.r = r
                 player_day.uncertainty = uncertainty
         return result
+
+
+class Base(WHR):
+    """Deprecated alias for :class:`WHR`, kept for backward compatibility."""
+
+    def __init__(self, config: dict[str, Any] | None = None):
+        warnings.warn(
+            "Base has been renamed to WHR; the Base alias will be removed in a "
+            "future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(config)
