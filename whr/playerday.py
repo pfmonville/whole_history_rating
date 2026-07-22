@@ -16,6 +16,8 @@ class PlayerDay:
         self._won_game_terms = None
         self._lost_game_terms = None
         self.uncertainty: float = -1
+        # natural-rating (log-gamma); overwritten by set_gamma / the elo setter
+        self.r: float = 0.0
 
     def set_gamma(self, value: float) -> None:
         """Sets the player's performance rating (gamma) for this day.
