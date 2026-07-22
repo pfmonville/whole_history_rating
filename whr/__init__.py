@@ -13,7 +13,7 @@ from whr.game import Game
 from whr.player import Player
 from whr.playerday import PlayerDay
 from whr.utils import UnstableRatingException
-from whr.whole_history_rating import Base
+from whr.whole_history_rating import WHR, Base
 
 try:
     __version__ = version("whole-history-rating")
@@ -21,6 +21,7 @@ except PackageNotFoundError:  # running from a source checkout without an instal
     __version__ = "0.0.0.dev0"
 
 __all__ = [
+    "WHR",
     "Base",
     "Game",
     "Player",
