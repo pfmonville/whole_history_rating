@@ -22,7 +22,6 @@ class Game:
         self.black_player = black
         self.winner = winner.upper()
         self.handicap = handicap
-        self.handicap_proc = handicap
         self.bpd: PD.PlayerDay | None = None
         self.wpd: PD.PlayerDay | None = None
         if extras is None:
