@@ -369,3 +369,71 @@ def test_log_likelihood_raises_instead_of_exiting_on_overflow(monkeypatch):
     )
     with pytest.raises(utils.UnstableRatingException):
         player.log_likelihood()
+
+
+def test_game_opponent_returns_the_other_player():
+    whr = whole_history_rating.WHR()
+    game = whr.create_game("black", "white", "B", 1, 0)
+    assert game.opponent(game.black_player) is game.white_player
+    assert game.opponent(game.white_player) is game.black_player
+
+
+def test_game_prediction_score():
+    # White much stronger and white wins -> correct prediction.
+    assert setup_game_with_elo(800, 200, 0).prediction_score() == 1.0
+    # White much weaker but recorded as the winner -> wrong prediction.
+    assert setup_game_with_elo(200, 800, 0).prediction_score() == 0.0
+
+
+def test_get_ordered_ratings_current_non_compact_returns_name_elo_tuples():
+    whr = whole_history_rating.WHR()
+    whr.create_game("a", "b", "B", 1, 0)
+    whr.create_game("a", "b", "W", 2, 0)
+    whr.iterate(5)
+    result = whr.get_ordered_ratings(current=True)
+    assert all(
+        isinstance(row, tuple)
+        and len(row) == 2
+        and isinstance(row[0], str)
+        and isinstance(row[1], float)
+        for row in result
+    )
+    assert {row[0] for row in result} == {"a", "b"}
+
+
+def test_probability_future_match_rejects_self_match():
+    whr = whole_history_rating.WHR()
+    with pytest.raises(AttributeError):
+        whr.probability_future_match("a", "a")
+
+
+def test_load_games_rejects_malformed_input():
+    whr = whole_history_rating.WHR()
+    with pytest.raises(ValueError):
+        whr.load_games(["a b B"])  # too few fields
+    with pytest.raises(ValueError):
+        whr.load_games(["a b B 1 not_a_number"])  # bad handicap / extras
+    with pytest.raises(ValueError):
+        whr.load_games(["a b B 1 0 not_a_dict"])  # bad extras dict
+
+
+def test_save_base_with_unpicklable_config_warns_and_falls_back(tmp_path):
+    whr = whole_history_rating.WHR(
+        config={"w2": 300, "uncased": False, "debug": False, "bad": lambda x: x}
+    )
+    whr.create_game("a", "b", "B", 1, 0)
+    whr.iterate(3)
+    path = str(tmp_path / "state.pkl")
+    with pytest.warns(UserWarning):
+        whr.save_base(path)
+    loaded = whole_history_rating.WHR.load_base(path)
+    assert "bad" not in loaded.config
+    assert loaded.config["w2"] == 300
+
+
+def test_auto_iterate_returns_not_stable_on_timeout():
+    whr = whole_history_rating.WHR()
+    whr.load_games(["shusaku shusai B 1", "shusaku shusai W 2", "shusaku shusai W 3"])
+    iterations, is_stable = whr.auto_iterate(time_limit=0, batch_size=1)
+    assert not is_stable
+    assert iterations >= 1
