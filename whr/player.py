@@ -50,10 +50,11 @@ class Player:
                     self.days[i].log_likelihood() >= sys.maxsize
                     or math.log(prior) >= sys.maxsize
                 ):
-                    print(
-                        f"Infinity at {self.__str__()}: {self.days[i].log_likelihood()} + {math.log(prior)}: prior = {prior}, days = {self.days}"
+                    raise UnstableRatingException(
+                        f"Infinity while computing log likelihood at {self}: "
+                        f"day log likelihood = {self.days[i].log_likelihood()}, "
+                        f"log(prior) = {math.log(prior)}, prior = {prior}"
                     )
-                    sys.exit()
                 result += self.days[i].log_likelihood() + math.log(prior)
         return result
 

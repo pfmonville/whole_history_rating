@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import sys
 
 from whr import player as P
 from whr import game as G
@@ -66,11 +65,8 @@ class PlayerDay:
         if self._won_game_terms is None:
             self._won_game_terms = []
             for g in self.won_games:
+                # opponents_adjusted_gamma already raises on a non-finite gamma.
                 other_gamma = g.opponents_adjusted_gamma(self.player)
-                if other_gamma == 0 or other_gamma is None or other_gamma > sys.maxsize:
-                    print(
-                        f"other_gamma ({g.opponent(self.player).__str__()}) = {other_gamma}"
-                    )
                 self._won_game_terms.append([1.0, 0.0, 1.0, other_gamma])
             if self.is_first_day:
                 # win against virtual player ranked with gamma = 1.0
@@ -86,11 +82,8 @@ class PlayerDay:
         if self._lost_game_terms is None:
             self._lost_game_terms = []
             for g in self.lost_games:
+                # opponents_adjusted_gamma already raises on a non-finite gamma.
                 other_gamma = g.opponents_adjusted_gamma(self.player)
-                if other_gamma == 0 or other_gamma is None or other_gamma > sys.maxsize:
-                    print(
-                        f"other_gamma ({g.opponent(self.player).__str__()}) = {other_gamma}"
-                    )
                 self._lost_game_terms.append([0.0, other_gamma, 1.0, other_gamma])
             if self.is_first_day:
                 # win against virtual player ranked with gamma = 1.0
