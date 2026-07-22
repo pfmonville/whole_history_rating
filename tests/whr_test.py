@@ -251,6 +251,21 @@ def test_save_and_load_preserves_players_without_games(tmp_path):
     assert loaded.get_ordered_ratings() == whr.get_ordered_ratings()
 
 
+def test_ratings_are_plain_python_floats():
+    # After the multidimensional Newton update the ratings would otherwise be
+    # numpy scalars, which render as "np.float64(...)" under numpy 2.x and leak
+    # into printed/returned ratings.
+    whr = whole_history_rating.Base()
+    whr.load_games(["a b B 1", "a b W 2", "a c B 3"])
+    whr.iterate(10)
+
+    for _, elos in whr.get_ordered_ratings():
+        for elo in elos:
+            assert type(elo) is float
+    for _, _, uncertainty in whr.ratings_for_player("a"):
+        assert type(uncertainty) is float
+
+
 def test_load_base_reads_legacy_format(tmp_path):
     # Files written by previous versions pickled the object graph as a plain
     # list [players, games, config]. load_base must still read them.

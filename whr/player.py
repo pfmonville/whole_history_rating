@@ -170,7 +170,7 @@ class Player:
                 raise UnstableRatingException("unstable r on player")
 
         for idx, day in enumerate(self.days):
-            day.r = day.r - x[idx]
+            day.r = float(day.r - x[idx])
 
     def covariance(self) -> npt.NDArray[np.float64]:
         """Computes the covariance matrix of the player's rating estimations.
@@ -236,7 +236,7 @@ class Player:
             c = self.covariance()
             u = [c[i, i] for i in range(len(self.days))]  # u = variance
             for i, d in enumerate(self.days):
-                d.uncertainty = u[i]
+                d.uncertainty = float(u[i])
             return None
         return 5
 
