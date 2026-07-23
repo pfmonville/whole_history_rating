@@ -54,6 +54,63 @@ class WHR:
         if komi not in self.komi_gamma:
             self.komi_gamma[komi] = 1.0
 
+    def _newton_handicap_komi(self) -> None:
+        """One Newton step on each non-pinned handicap/komi advantage gamma
+        (Coulom's NewtonKomiHandicap)."""
+        h_grad: dict[Any, float] = {}
+        h_hess: dict[Any, float] = {}
+        k_grad: dict[Any, float] = {}
+        k_hess: dict[Any, float] = {}
+        h_games: dict[Any, int] = {}
+        h_wins: dict[Any, int] = {}
+        k_games: dict[Any, int] = {}
+        k_wins: dict[Any, int] = {}
+        for g in self.games:
+            if g.bpd is None or g.wpd is None:
+                continue
+            h = g.handicap
+            k = g.extras["komi"]
+            gh = self.handicap_gamma[h]
+            gk = self.komi_gamma[k]
+            gb = g.bpd.gamma()
+            gw = g.wpd.gamma()
+            c_komi = gw
+            d_komi = gb * gh
+            c_handicap = gb
+            d_handicap = gw * gk
+            div = 1.0 / (d_komi + d_handicap)
+            h_grad[h] = h_grad.get(h, 0.0) + c_handicap * div
+            h_hess[h] = h_hess.get(h, 0.0) + c_handicap * d_handicap * div * div
+            k_grad[k] = k_grad.get(k, 0.0) + c_komi * div
+            k_hess[k] = k_hess.get(k, 0.0) + c_komi * d_komi * div * div
+            h_games[h] = h_games.get(h, 0) + 1
+            k_games[k] = k_games.get(k, 0) + 1
+            if g.winner == "B":
+                h_wins[h] = h_wins.get(h, 0) + 1
+            else:
+                k_wins[k] = k_wins.get(k, 0) + 1
+        damping = self.config["hessian_damping"]
+        for h in list(self.handicap_gamma):
+            if h in self._pinned_handicap_keys:
+                continue
+            games = h_games.get(h, 0)
+            wins = h_wins.get(h, 0)
+            if games > 0 and 0 < wins < games:
+                gamma = self.handicap_gamma[h]
+                grad = wins - gamma * h_grad.get(h, 0.0)
+                hess = -gamma * h_hess.get(h, 0.0) - damping
+                self.handicap_gamma[h] = gamma * math.exp(-grad / hess)
+        for k in list(self.komi_gamma):
+            if k in self._pinned_komi_keys:
+                continue
+            games = k_games.get(k, 0)
+            wins = k_wins.get(k, 0)
+            if games > 0 and 0 < wins < games:
+                gamma = self.komi_gamma[k]
+                grad = wins - gamma * k_grad.get(k, 0.0)
+                hess = -gamma * k_hess.get(k, 0.0) - damping
+                self.komi_gamma[k] = gamma * math.exp(-grad / hess)
+
     def print_ordered_ratings(self, current: bool = False) -> None:
         """Displays all ratings for each player (for each of their playing days), ordered.
 
@@ -416,6 +473,7 @@ class WHR:
         """Runs one iteration of the WHR algorithm."""
         for player in self.players.values():
             player.run_one_newton_iteration()
+        self._newton_handicap_komi()
 
     def load_games(self, games: list[str], separator: str = " ") -> None:
         """Loads all games at once.
@@ -549,6 +607,15 @@ class WHR:
             for player in result.players.values():
                 player.initial_prior_wins = result.config["initial_prior_wins"]
                 player.hessian_damping = result.config["hessian_damping"]
+            # Games pickled by older versions predate the handicap_gamma/
+            # komi_gamma tables (phase-3): rewire each game onto this
+            # instance's shared tables (discarding any stale per-game dict
+            # from the pickle) and backfill an entry for every key so
+            # _newton_handicap_komi can look them up.
+            for game in result.games:
+                game.handicap_gamma = result.handicap_gamma
+                game.komi_gamma = result.komi_gamma
+                result._ensure_advantage_keys(game.handicap, game.extras["komi"])
             return result
         result = WHR(data["config"])
         for black, white, winner, time_step, handicap, extras in data["games"]:
