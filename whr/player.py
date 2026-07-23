@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import bisect
 import math
-import sys
 from typing import Any
 
 import numpy as np
@@ -23,41 +22,20 @@ class Player:
         self.days: list[PD.PlayerDay] = []
 
     def log_likelihood(self) -> float:
-        """Computes the log likelihood of the player's ratings over all days.
+        """Log-posterior contribution of this player.
 
-        Incorporates both the likelihood of the observed game outcomes and the prior based on changes in rating over time.
-
-        Returns:
-            float: The log likelihood value for the player's ratings.
+        Sum of the per-day game log-likelihoods, the first-day anchor prior,
+        and the Gaussian Wiener prior log-density over consecutive days.
         """
         result = 0.0
+        for day in self.days:
+            result += day.log_likelihood()
+        if self.days:
+            result += self.days[0].anchor_log_likelihood()
         sigma2 = self.compute_sigma2()
-        n = len(self.days)
-        for i in range(n):
-            prior = 0.0
-            if i < (n - 1):
-                rd = self.days[i].r - self.days[i + 1].r
-                prior += (1 / (math.sqrt(2 * math.pi * sigma2[i]))) * math.exp(
-                    -(rd**2) / 2 / sigma2[i]
-                )
-            if i > 0:
-                rd = self.days[i].r - self.days[i - 1].r
-                prior += (1 / (math.sqrt(2 * math.pi * sigma2[i - 1]))) * math.exp(
-                    -(rd**2) / (2 * sigma2[i - 1])
-                )
-            if prior == 0:
-                result += self.days[i].log_likelihood()
-            else:
-                if (
-                    self.days[i].log_likelihood() >= sys.maxsize
-                    or math.log(prior) >= sys.maxsize
-                ):
-                    raise UnstableRatingException(
-                        f"Infinity while computing log likelihood at {self}: "
-                        f"day log likelihood = {self.days[i].log_likelihood()}, "
-                        f"log(prior) = {math.log(prior)}, prior = {prior}"
-                    )
-                result += self.days[i].log_likelihood() + math.log(prior)
+        for i, s2 in enumerate(sigma2):
+            rd = self.days[i + 1].r - self.days[i].r
+            result += -(rd**2) / (2 * s2) - 0.5 * math.log(2 * math.pi * s2)
         return result
 
     @staticmethod

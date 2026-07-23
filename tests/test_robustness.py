@@ -71,3 +71,29 @@ def test_hessian_uses_damping_param():
     diag_small, _ = Player.hessian(p.days, sigma2, 0.0)
     diag_big, _ = Player.hessian(p.days, sigma2, 5.0)
     assert diag_big[1] == pytest.approx(diag_small[1] - 5.0)
+
+
+def test_player_log_likelihood_closed_form():
+    w = whole_history_rating.WHR()  # initial_prior_wins == 0.5
+    w.create_game("a", "b", "B", 1, 0)  # a (black) beats b on day 1
+    a = w.player_by_name("a")
+    b = w.player_by_name("b")
+    a.days[0].set_gamma(3.0)
+    b.days[0].set_gamma(1.0)
+    ga, k = 3.0, 0.5
+    expected_game = math.log(ga / (ga + 1.0))  # one day, opponent gamma == 1
+    expected_anchor = k * (math.log(ga) - 2 * math.log(1 + ga))
+    assert a.log_likelihood() == pytest.approx(expected_game + expected_anchor)
+
+
+def test_total_log_likelihood_finite_and_improves():
+    w = whole_history_rating.WHR()
+    w.create_game("a", "b", "B", 1, 0)
+    w.create_game("a", "b", "W", 2, 0)
+    w.create_game("a", "b", "B", 3, 0)
+    w.iterate(1)
+    start = w.log_likelihood()
+    w.iterate(30)
+    end = w.log_likelihood()
+    assert math.isfinite(start) and math.isfinite(end)
+    assert end >= start - 1e-6

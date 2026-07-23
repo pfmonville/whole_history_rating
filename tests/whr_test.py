@@ -1,6 +1,5 @@
 import copy
 import pickle
-import sys
 import warnings
 
 import pytest
@@ -361,21 +360,6 @@ def test_ratings_for_player_unknown_raises_clear_error():
     with pytest.raises(ValueError):
         whr.ratings_for_player("unknown", current=True)
     assert "unknown" not in whr.players  # and does not create the player
-
-
-@pytest.mark.skip(reason="re-baselined in phase-1 robustness plan, Task 7")
-def test_log_likelihood_raises_instead_of_exiting_on_overflow(monkeypatch):
-    whr = whole_history_rating.WHR()
-    whr.create_game("a", "b", "B", 1, 0)
-    whr.create_game("a", "b", "W", 2, 0)
-    whr.iterate(1)
-    player = whr.players["a"]
-    # Force the overflow guard that previously called sys.exit().
-    monkeypatch.setattr(
-        type(player.days[0]), "log_likelihood", lambda self: float(sys.maxsize)
-    )
-    with pytest.raises(utils.UnstableRatingException):
-        player.log_likelihood()
 
 
 def test_game_opponent_returns_the_other_player():
