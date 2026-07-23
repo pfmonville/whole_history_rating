@@ -19,6 +19,8 @@ class WHR:
         self.config.setdefault("debug", False)
         self.config.setdefault("w2", 300.0)
         self.config.setdefault("uncased", False)
+        self.config.setdefault("initial_prior_wins", 0.5)
+        self.config.setdefault("hessian_damping", 1.0)
         self.games: list[Game] = []
         self.players: dict[str, Player] = {}
 

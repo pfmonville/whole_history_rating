@@ -18,6 +18,8 @@ class Player:
         self.name = name
         self.debug = config["debug"]
         self.w2 = (math.sqrt(config["w2"]) * math.log(10) / 400) ** 2
+        self.initial_prior_wins = config["initial_prior_wins"]
+        self.hessian_damping = config["hessian_damping"]
         self.days: list[PD.PlayerDay] = []
 
     def log_likelihood(self) -> float:
