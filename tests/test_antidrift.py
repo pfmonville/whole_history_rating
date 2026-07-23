@@ -60,6 +60,68 @@ def test_compute_drift_zero_support_day_is_zero_not_error():
     assert all(math.isfinite(v) for v in drift.values())
 
 
+def test_remove_drift_rejects_huge_day_span():
+    # `time_step` values that are epoch timestamps (or otherwise not a compact
+    # day index) blow up the O(day-span) arrays allocated by _compute_drift.
+    # A span > 1_000_000 must raise a clear ValueError instead of silently
+    # hanging or exhausting memory.
+    w = WHR()
+    w.create_game("a", "b", "B", 0, 0)
+    w.create_game("a", "b", "B", 1_500_000, 0)
+    w.iterate(5)
+    with pytest.raises(ValueError, match="day span"):
+        w.remove_drift()
+
+
+def test_remove_drift_rejects_invalid_drift_kernel_radius():
+    # radius=0 currently produced an opaque IndexError (zero-length kernel
+    # array) rather than a clear, actionable error.
+    w = WHR(config={"drift_kernel_radius": 0})
+    w.create_game("a", "b", "B", 1, 0)
+    w.iterate(5)
+    with pytest.raises(ValueError, match="drift_kernel_radius must be an int >= 1"):
+        w.remove_drift()
+
+
+def test_remove_drift_rejects_non_int_drift_kernel_radius():
+    w = WHR(config={"drift_kernel_radius": 30.5})
+    w.create_game("a", "b", "B", 1, 0)
+    w.iterate(5)
+    with pytest.raises(ValueError, match="drift_kernel_radius must be an int >= 1"):
+        w.remove_drift()
+
+
+def test_remove_drift_is_idempotent_on_interior_days():
+    # Recreate a history with a strong linear drift (as in
+    # test_remove_drift_cancels_linear_drift, so the first remove_drift()
+    # call applies a large, non-trivial correction), then call remove_drift()
+    # a second time: on already-de-drifted ratings, a further pass should
+    # apply ~0 additional correction, since the Gaussian smoothing exactly
+    # reconstructs (and thus fully cancels) a linear field away from the
+    # domain's edges. Near the two edges (within 2*radius of the boundary)
+    # residual boundary-truncation effects from the *first* pass are, in
+    # turn, picked up by the second pass, so we only assert idempotence on
+    # days safely in the interior (more than 2*radius away from both ends).
+    radius = 100
+    n_days = 1000
+    w = WHR(config={"drift_kernel_radius": radius})
+    for d in range(1, n_days + 1):
+        w.create_game(f"b{d}", f"w{d}", "B", d, 0)
+    for game in w.games:
+        assert game.bpd is not None and game.wpd is not None
+        game.bpd.elo = float(game.day)
+        game.wpd.elo = float(game.day)
+
+    first = w.remove_drift()
+    assert max(abs(v) for v in first.values()) > 1.0  # non-trivial correction
+
+    second = w.remove_drift()
+    margin = 2 * radius
+    interior_days = [d for d in second if margin < d < n_days - margin + 1]
+    assert interior_days
+    assert max(abs(second[d]) for d in interior_days) < 1e-6
+
+
 def test_remove_drift_cancels_linear_drift():
     # One fresh, independent matchup per day for 300 days; inject a linear
     # drift by setting every player-day's elo equal to its day number, so the

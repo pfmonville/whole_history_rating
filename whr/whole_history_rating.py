@@ -10,6 +10,12 @@ from typing import Any
 from whr.game import Game
 from whr.player import Player
 
+# _compute_drift allocates arrays sized to the CALENDAR SPAN of day values
+# (max_day - min_day), not to the number of games. If `time_step` is an epoch
+# timestamp instead of a compact day index, this guard prevents a silent
+# hang/OOM.
+_MAX_DRIFT_DAY_SPAN = 1_000_000
+
 
 class WHR:
     def __init__(self, config: dict[str, Any] | None = None):
@@ -246,10 +252,20 @@ class WHR:
         """
         if not self.games:
             return {}
+        radius = self.config["drift_kernel_radius"]
+        if not isinstance(radius, int) or radius < 1:
+            raise ValueError(f"drift_kernel_radius must be an int >= 1, got {radius!r}")
         days = [g.day for g in self.games]
         min_day, max_day = min(days), max(days)
+        span = max_day - min_day
+        if span > _MAX_DRIFT_DAY_SPAN:
+            raise ValueError(
+                f"remove_drift() cost scales with the day span "
+                f"(max_day - min_day = {span}); this exceeds "
+                f"{_MAX_DRIFT_DAY_SPAN}. `time_step` must be a compact day index "
+                f"from an origin (e.g. day number), not an epoch timestamp."
+            )
         n = max_day - min_day + 1
-        radius = self.config["drift_kernel_radius"]
 
         total_elo = [0.0] * (n + 2 * radius)
         game_count = [0.0] * (n + 2 * radius)
@@ -290,13 +306,26 @@ class WHR:
     def remove_drift(self) -> dict[int, float]:
         """Cancel global rating drift over time (Coulom's RemoveDrift).
 
-        Call after iterate()/auto_iterate(). Shifts every player-day's rating by
-        the negated smoothed per-day drift so the average player strength per day
-        is recentred near 0 elo, making ratings comparable across eras. Mutates
-        the stored ratings in place and returns the applied per-day corrections
-        ({day: correction_elo}). Because the shift is uniform per day, within-day
-        rating differences (hence same-day win probabilities) are unchanged.
-        Uncertainties are not recomputed.
+        Call after iterate()/auto_iterate() — and call it last, since a
+        subsequent iterate()/auto_iterate() call would revert the correction.
+        Shifts every player-day's rating by the negated smoothed per-day drift
+        so the average player strength per day is recentred near 0 elo, making
+        ratings comparable across eras. Mutates the stored ratings in place and
+        returns the applied per-day corrections ({day: correction_elo}). Because
+        the shift is uniform per day, within-day rating differences (hence
+        same-day win probabilities) are unchanged. Uncertainties are not
+        recomputed; this is only approximate, since the first-day anchor
+        curvature is not exactly invariant under the shift, but the effect is
+        output-only and has no downstream effect on iteration.
+
+        `time_step` (the day index used when creating games) must be a compact
+        day index counted from some origin (e.g. a day number), not an epoch
+        timestamp: this method's cost scales with the CALENDAR SPAN of day
+        values (max day - min day), not with the number of games.
+
+        Raises:
+            ValueError: If `drift_kernel_radius` is not an int >= 1, or if the
+                day span (max day - min day) is implausibly large (see above).
         """
         drift = self._compute_drift()
         factor = math.log(10) / 400.0

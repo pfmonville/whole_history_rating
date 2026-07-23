@@ -192,13 +192,15 @@ whr = WHR({'drift_kernel_radius': 100})
 
 Over long histories, the whole population's average strength can drift or inflate over time even though individual ratings are locally accurate, making players from different eras hard to compare. `remove_drift()` (a faithful port of Coulom's `RemoveDrift`) corrects for this by recentring the per-day mean player strength near 0 elo, using a Gaussian-smoothed estimate of the drift at each day (controlled by `drift_kernel_radius`).
 
-Call it once after ratings have converged, i.e. after `iterate()` or `auto_iterate()`:
+Call it once after ratings have converged, i.e. after `iterate()` or `auto_iterate()` — and call it last, since a subsequent `iterate()`/`auto_iterate()` call would revert the correction:
 
 ```python
 whr = WHR()
 whr.load_games([...])
 whr.auto_iterate()
-corrections = whr.remove_drift()  # optional, after convergence
+corrections = whr.remove_drift()  # optional, after convergence; call last
 ```
 
-This step is opt-in: it does not run automatically and does not change what `iterate()`/`auto_iterate()` compute. It mutates the stored ratings in place, shifting every player-day's rating by that day's negated drift, and returns the applied corrections as `{day: correction_elo}`. Because the shift is uniform within a day, the relative rating (and thus win probability, e.g. `Game.white_win_probability()`) of two players active on the *same* day is unchanged; `probability_future_match` is only invariant when the two players' last recorded days happen to coincide, and generally is not, since it compares each player's own last day, which typically receive different corrections. Uncertainties (from `ratings_for_player`) are not recomputed by this step.
+This step is opt-in: it does not run automatically and does not change what `iterate()`/`auto_iterate()` compute. It mutates the stored ratings in place, shifting every player-day's rating by that day's negated drift, and returns the applied corrections as `{day: correction_elo}`. Because the shift is uniform within a day, the relative rating (and thus win probability, e.g. `Game.white_win_probability()`) of two players active on the *same* day is unchanged; `probability_future_match` is only invariant when the two players' last recorded days happen to coincide, and generally is not, since it compares each player's own last day, which typically receive different corrections. Uncertainties (from `ratings_for_player`) are not recomputed by this step; this is only approximate, since the first-day anchor curvature is not exactly invariant under the shift, but the effect is output-only and has no downstream effect on iteration.
+
+`time_step` must be a compact day index counted from some origin (e.g. a day number), not an epoch timestamp: `remove_drift()`'s cost scales with the CALENDAR SPAN of day values (`max_day - min_day`), not with the number of games, so an epoch timestamp will silently hang or exhaust memory.
