@@ -450,12 +450,13 @@ class WHR:
                     "uncased",
                     "initial_prior_wins",
                     "hessian_damping",
+                    "drift_kernel_radius",
                 ]
             }
             warnings.warn(
                 "Some elements in config cannot be pickled; only 'w2', "
-                "'uncased', 'initial_prior_wins' and 'hessian_damping' will be "
-                "saved.",
+                "'uncased', 'initial_prior_wins', 'hessian_damping' and "
+                "'drift_kernel_radius' will be saved.",
                 stacklevel=2,
             )
         with open(path, "wb") as f:

@@ -438,6 +438,7 @@ def test_save_base_with_unpicklable_config_warns_and_falls_back(tmp_path):
             "uncased": False,
             "initial_prior_wins": 0.25,
             "hessian_damping": 2.0,
+            "drift_kernel_radius": 42,
             "bad": lambda x: x,
         }
     )
@@ -453,6 +454,9 @@ def test_save_base_with_unpicklable_config_warns_and_falls_back(tmp_path):
     # phase-1 final commit) and must round-trip through the fallback.
     assert loaded.config["initial_prior_wins"] == 0.25
     assert loaded.config["hessian_damping"] == 2.0
+    # drift_kernel_radius (added in phase 2) must also survive the fallback
+    # allowlist rather than being silently reset to its default (100).
+    assert loaded.config["drift_kernel_radius"] == 42
 
 
 def test_auto_iterate_returns_not_stable_on_timeout():
