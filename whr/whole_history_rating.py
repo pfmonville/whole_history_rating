@@ -251,20 +251,39 @@ class WHR:
         Trains a fresh model (this instance's config, each candidate w2) on each
         fold's earlier games and scores pooled predictive log-loss on the fold's
         held-out later games. Does NOT mutate this instance. See the design spec
-        for details. Raises ValueError if a temporal split is impossible.
+        for details. Raises ValueError if a temporal split is impossible, or if
+        ``candidates`` is an explicitly empty list. Warns (``UserWarning``) if
+        every test game is cold-start (none can be scored), in which case
+        ``log_loss`` is all-``inf`` and ``best_w2`` is not meaningful.
         """
         if candidates is None:
             candidates = [10.0, 30.0, 100.0, 300.0, 1000.0, 3000.0]
+        if not candidates:
+            raise ValueError("candidates must be a non-empty list of w2 values")
         folds = self._temporal_folds(n_splits)
         eps = 1e-15
-        log_loss: dict[float, float] = {}
+
+        # Whether a test game is cold-start (skipped) depends only on whether
+        # its players appear in that fold's training games -- it does not
+        # depend on w2. Compute the scored/skipped totals once, up front, so
+        # every candidate shares identical counts (previously these were
+        # reassigned per-candidate and only the LAST candidate's counts were
+        # kept, which happened to be correct but was undocumented and fragile
+        # if a future change made skip depend on w2).
         n_scored = 0
         n_skipped = 0
+        for train, test in folds:
+            trained_names = {d[0] for d in train} | {d[1] for d in train}
+            for black, white, *_rest in test:
+                if black in trained_names and white in trained_names:
+                    n_scored += 1
+                else:
+                    n_skipped += 1
+
+        log_loss: dict[float, float] = {}
         for w2 in candidates:
             sub_config = {**self.config, "w2": w2}
             total = 0.0
-            scored = 0
-            skipped = 0
             for train, test in folds:
                 model = WHR(sub_config)
                 for black, white, winner, day, handicap, extras in train:
@@ -276,15 +295,21 @@ class WHR:
                         black, white, handicap, komi
                     )
                     if p_black is None:
-                        skipped += 1
                         continue
                     p_actual = p_black if winner == "B" else 1.0 - p_black
                     p_actual = min(max(p_actual, eps), 1.0 - eps)
                     total += -math.log(p_actual)
-                    scored += 1
-            log_loss[w2] = total / scored if scored else float("inf")
-            n_scored, n_skipped = scored, skipped
+            log_loss[w2] = total / n_scored if n_scored else float("inf")
         best_w2 = min(candidates, key=lambda w: log_loss[w])
+        if n_scored == 0:
+            warnings.warn(
+                "fit_w2: no test games could be scored across any fold/candidate "
+                "(all cold-start) -- log_loss is all inf and best_w2 is not "
+                "meaningful. Check n_test_scored/n_test_skipped; try fewer "
+                "n_splits or provide more historical data.",
+                UserWarning,
+                stacklevel=2,
+            )
         return {
             "best_w2": best_w2,
             "log_loss": log_loss,

@@ -138,6 +138,28 @@ def test_fit_w2_raises_on_single_day():
         w.fit_w2(n_splits=5)
 
 
+def test_fit_w2_raises_on_empty_candidates():
+    w = _linear_history(10)
+    with pytest.raises(ValueError, match="non-empty list of w2 values"):
+        w.fit_w2(candidates=[], n_splits=2, iterations=10)
+
+
+def test_fit_w2_warns_when_all_test_games_are_cold_start():
+    # Train-window players (a, b) and test-window players (c, d) never
+    # overlap, so every held-out test game is cold-start for both players,
+    # in every fold, for every candidate.
+    w = WHR()
+    for d in range(1, 4):
+        w.create_game("a", "b", "B", d, 0)
+    for d in range(4, 7):
+        w.create_game("c", "d", "B", d, 0)
+    with pytest.warns(UserWarning, match="cold-start"):
+        result = w.fit_w2(candidates=[10.0, 300.0], n_splits=1, iterations=5)
+    assert result["n_test_scored"] == 0
+    assert result["n_test_skipped"] > 0
+    assert all(math.isinf(v) for v in result["log_loss"].values())
+
+
 def test_predict_black_win_probability_cold_start_is_none():
     w = _linear_history(4)
     w.iterate(5)

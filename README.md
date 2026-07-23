@@ -254,8 +254,8 @@ It works by temporal cross-validation: your games are cut into `n_splits` expand
 `fit_w2()` is a **pure query**: it builds its own throwaway models internally and never touches `self.config` or any rating already computed on this instance. Apply the result yourself:
 
 ```python
-result = whr.fit_w2(candidates=[10, 30, 100, 300, 1000, 3000], n_splits=5, iterations=50)
-# result == {'best_w2': 100, 'log_loss': {10: 0.71, 30: 0.66, 100: 0.64, ...},
+result = whr.fit_w2(candidates=[10.0, 30.0, 100.0, 300.0, 1000.0, 3000.0], n_splits=5, iterations=50)
+# result == {'best_w2': 100.0, 'log_loss': {10.0: 0.71, 30.0: 0.66, 100.0: 0.64, ...},
 #            'n_splits': 5, 'n_test_scored': 812, 'n_test_skipped': 3}
 
 whr = WHR({'w2': result['best_w2']})
@@ -263,7 +263,7 @@ whr.load_games([...])
 whr.auto_iterate()
 ```
 
-- `candidates`: the `w2` values to try (default `[10, 30, 100, 300, 1000, 3000]`).
+- `candidates`: the `w2` values to try (default `[10.0, 30.0, 100.0, 300.0, 1000.0, 3000.0]`).
 - `n_splits`: number of expanding-window folds (default `5`); raises `ValueError` if there aren't enough distinct days to form them.
 - `iterations`: how many `iterate()` steps each fold's fresh model runs before scoring (default `50`).
 
