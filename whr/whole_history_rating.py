@@ -27,8 +27,32 @@ class WHR:
         self.config.setdefault("initial_prior_wins", 0.5)
         self.config.setdefault("hessian_damping", 1.0)
         self.config.setdefault("drift_kernel_radius", 100)
+        self.config.setdefault("pinned_handicap", {})
+        self.config.setdefault("pinned_komi", {})
+        self.config.setdefault("estimate_handicap_zero", False)
         self.games: list[Game] = []
         self.players: dict[str, Player] = {}
+        self.handicap_gamma: dict[Any, float] = {}
+        self.komi_gamma: dict[Any, float] = {}
+        self._pinned_handicap_keys: set[Any] = set()
+        self._pinned_komi_keys: set[Any] = set()
+        for key, elo in self.config["pinned_handicap"].items():
+            self.handicap_gamma[key] = 10 ** (elo / 400.0)
+            self._pinned_handicap_keys.add(key)
+        for key, elo in self.config["pinned_komi"].items():
+            self.komi_gamma[key] = 10 ** (elo / 400.0)
+            self._pinned_komi_keys.add(key)
+        if not self.config["estimate_handicap_zero"] and 0 not in self.handicap_gamma:
+            self.handicap_gamma[0] = 1.0
+            self._pinned_handicap_keys.add(0)
+
+    def _ensure_advantage_keys(self, handicap: Any, komi: Any) -> None:
+        """Ensure the advantage tables have an entry (default gamma 1.0) for a
+        game's handicap and komi keys, without overwriting existing/pinned ones."""
+        if handicap not in self.handicap_gamma:
+            self.handicap_gamma[handicap] = 1.0
+        if komi not in self.komi_gamma:
+            self.komi_gamma[komi] = 1.0
 
     def print_ordered_ratings(self, current: bool = False) -> None:
         """Displays all ratings for each player (for each of their playing days), ordered.
