@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - unreleased
+
+### Changed
+- **Ratings values change.** The first-day anchor now uses Coulom's
+  `initial_prior_wins` strength (default 0.5 instead of an implicit 1.0),
+  reducing the compression of weakly-connected players toward 0 elo.
+- Newton stability now comes from a configurable `hessian_damping`
+  (default 1.0, Coulom's `HessianEpsilon`) instead of a fixed `-0.001` nudge.
+- `auto_iterate(precision=...)` now converges on the gradient infinity-norm
+  (natural-rating units) rather than the change in ratings between batches.
+- `WHR.log_likelihood()` is now a correct log-posterior (game likelihood +
+  first-day prior + Gaussian Wiener prior).
+
+### Added
+- Config keys `initial_prior_wins` (default 0.5) and `hessian_damping`
+  (default 1.0).
+
+### Removed
+- The `> 650` elo guard and the `sys.maxsize` log-likelihood guard.
+  `UnstableRatingException` now fires only on a genuinely non-finite result;
+  undefeated/isolated players converge to a finite rating via the prior.
+
 ## [2.0.0] - 2026-07-22
 
 This is a substantial rework of the packaging and public API. It contains

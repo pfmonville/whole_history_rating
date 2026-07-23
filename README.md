@@ -62,7 +62,7 @@ whr.auto_iterate(time_limit=10, precision=1e-3, batch_size=10)
 ```
 
 - `time_limit` (optional): Sets a maximum duration (in seconds) for the iteration process. If `None` (the default), the algorithm will run indefinitely until the specified precision is achieved.
-- `precision` (optional): Defines the desired level of accuracy for the ratings' stability. The default value is `0.001`, indicating that iteration will stop when changes between iterations are less than or equal to this threshold.
+- `precision` (optional): Defines the desired level of accuracy for the ratings' stability. The default value is `0.001`. Convergence is measured on the gradient infinity-norm (the largest absolute gradient component across all player-days, in natural-rating units); iteration stops once that value drops below this threshold.
 - `batch_size` (optional): Determines the number of iterations to perform before checking for convergence and, if a `time_limit` is set, before evaluating whether the time limit has been reached. The default value is `10`, balancing between frequent convergence checks and computational efficiency.
 
 This automated process allows the algorithm to efficiently converge to stable ratings, adjusting the number of iterations dynamically based on the complexity of the data and the specified precision and time constraints.
@@ -168,4 +168,16 @@ Enable case-insensitive player names to treat "shusaku" and "ShUsAkU" as the sam
 
 ```python
 whr = WHR({'uncased': True})
+```
+
+Adjust `initial_prior_wins`, the strength of the first-day Bradley-Terry anchor (Coulom's `InitialPriorWins`). The default is `0.5`; lower values reduce the compression of weakly-connected players toward 0 elo.
+
+```python
+whr = WHR({'initial_prior_wins': 0.5})
+```
+
+Adjust `hessian_damping`, the damping subtracted from the Newton Hessian diagonal (Coulom's `HessianEpsilon`) for numerical stability. The default is `1.0` and does not bias the converged ratings.
+
+```python
+whr = WHR({'hessian_damping': 1.0})
 ```
