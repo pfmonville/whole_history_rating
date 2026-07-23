@@ -581,7 +581,16 @@ class WHR:
                 stacklevel=2,
             )
         with open(path, "wb") as f:
-            pickle.dump({"config": config, "games": games, "ratings": ratings}, f)
+            pickle.dump(
+                {
+                    "config": config,
+                    "games": games,
+                    "ratings": ratings,
+                    "handicap_gamma": dict(self.handicap_gamma),
+                    "komi_gamma": dict(self.komi_gamma),
+                },
+                f,
+            )
 
     @staticmethod
     def load_base(path: str) -> WHR:
@@ -607,11 +616,20 @@ class WHR:
             for player in result.players.values():
                 player.initial_prior_wins = result.config["initial_prior_wins"]
                 player.hessian_damping = result.config["hessian_damping"]
+            # Preserve advantages carried by pickled games (phase-3+ bases saved in
+            # the legacy shape); genuinely-old games have no such attribute.
+            for game in games:
+                old_h = getattr(game, "handicap_gamma", None)
+                old_k = getattr(game, "komi_gamma", None)
+                if isinstance(old_h, dict):
+                    result.handicap_gamma.update(old_h)
+                if isinstance(old_k, dict):
+                    result.komi_gamma.update(old_k)
             # Games pickled by older versions predate the handicap_gamma/
             # komi_gamma tables (phase-3): rewire each game onto this
             # instance's shared tables (discarding any stale per-game dict
-            # from the pickle) and backfill an entry for every key so
-            # _newton_handicap_komi can look them up.
+            # from the pickle, now preserved above) and backfill an entry for
+            # every key so _newton_handicap_komi can look them up.
             for game in result.games:
                 game.handicap_gamma = result.handicap_gamma
                 game.komi_gamma = result.komi_gamma
@@ -620,6 +638,8 @@ class WHR:
         result = WHR(data["config"])
         for black, white, winner, time_step, handicap, extras in data["games"]:
             result.create_game(black, white, winner, time_step, handicap, extras)
+        result.handicap_gamma.update(data.get("handicap_gamma", {}))
+        result.komi_gamma.update(data.get("komi_gamma", {}))
         for name, days in data["ratings"].items():
             # player_by_name (re)creates players that have no games, so those
             # queried for predictions are preserved rather than dropped.

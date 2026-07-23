@@ -1,4 +1,5 @@
 import math
+import pickle
 
 import pytest
 
@@ -163,3 +164,70 @@ def test_all_win_category_guard_leaves_gamma_untouched():
         w.create_game("a", "b", "B", d, 3)  # handicap 3, always black win
     w.iterate(50)
     assert w.handicap_gamma[3] == 1.0
+
+
+def _build_base_with_learned_handicap_advantage() -> WHR:
+    # Same balanced colour-swap + pinned-komi design as
+    # test_recovers_known_handicap_advantage, so handicap_gamma[2] estimates
+    # to a clearly-non-1 value.
+    w = WHR(config={"pinned_komi": {6.5: 0.0}})
+    for _ in range(76):
+        w.create_game("a", "b", "B", 1, 2)
+    for _ in range(24):
+        w.create_game("a", "b", "W", 1, 2)
+    for _ in range(76):
+        w.create_game("b", "a", "B", 1, 2)
+    for _ in range(24):
+        w.create_game("b", "a", "W", 1, 2)
+    w.iterate(200)
+    return w
+
+
+def test_save_load_round_trip_preserves_learned_advantage(tmp_path):
+    w = _build_base_with_learned_handicap_advantage()
+    pre_gamma = w.handicap_gamma[2]
+    pre_prob = w.games[0].black_win_probability()
+    assert pre_gamma != pytest.approx(1.0)
+
+    path = tmp_path / "base.pkl"
+    w.save_base(str(path))
+    loaded = WHR.load_base(str(path))
+
+    assert loaded.handicap_gamma[2] == pytest.approx(pre_gamma, abs=1e-9)
+    assert loaded.games[0].black_win_probability() == pytest.approx(pre_prob, abs=1e-9)
+
+
+def test_legacy_load_preserves_learned_advantage(tmp_path):
+    w = _build_base_with_learned_handicap_advantage()
+    pre_gamma = w.handicap_gamma[2]
+    assert pre_gamma != pytest.approx(1.0)
+
+    path = tmp_path / "legacy_base.pkl"
+    with open(path, "wb") as f:
+        pickle.dump([w.players, w.games, w.config], f)
+    loaded = WHR.load_base(str(path))
+
+    assert loaded.handicap_gamma[2] == pytest.approx(pre_gamma, abs=1e-9)
+
+
+def test_legacy_load_without_advantage_attrs_still_predicts(tmp_path):
+    # Simulate a genuinely pre-phase-3 legacy pickle: games/players predate
+    # the handicap_gamma/komi_gamma and initial_prior_wins/hessian_damping
+    # attributes entirely.
+    w = _build_base_with_learned_handicap_advantage()
+    for game in w.games:
+        del game.handicap_gamma
+        del game.komi_gamma
+    for player in w.players.values():
+        del player.initial_prior_wins
+        del player.hessian_damping
+
+    path = tmp_path / "old_legacy_base.pkl"
+    with open(path, "wb") as f:
+        pickle.dump([w.players, w.games, w.config], f)
+    loaded = WHR.load_base(str(path))
+
+    assert loaded.handicap_gamma[2] == pytest.approx(1.0)
+    for game in loaded.games:
+        assert math.isfinite(game.black_win_probability())
+        assert math.isfinite(game.white_win_probability())
