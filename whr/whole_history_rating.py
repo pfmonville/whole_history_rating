@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import math
 import pickle
 import time
 import warnings
@@ -19,6 +20,7 @@ class WHR:
         self.config.setdefault("uncased", False)
         self.config.setdefault("initial_prior_wins", 0.5)
         self.config.setdefault("hessian_damping", 1.0)
+        self.config.setdefault("drift_kernel_radius", 100)
         self.games: list[Game] = []
         self.players: dict[str, Player] = {}
 
@@ -232,6 +234,79 @@ class WHR:
                 return i, True
             if time_limit is not None and time.time() - start > time_limit:
                 return i, False
+
+    def _compute_drift(self) -> dict[int, float]:
+        """Smoothed per-day drift in elo (Coulom's ComputeDrift).
+
+        For every game, accumulate ``elo_black + elo_white`` and a game count
+        on its day; convolve both with a Gaussian kernel (radius
+        ``drift_kernel_radius``, sigma = radius * 0.5, centre half-weighted);
+        the per-day drift is ``filtered_elo / (2 * filtered_count)``. Days with
+        no smoothing support (or a non-finite result) get a 0 drift.
+        """
+        if not self.games:
+            return {}
+        days = [g.day for g in self.games]
+        min_day, max_day = min(days), max(days)
+        n = max_day - min_day + 1
+        radius = self.config["drift_kernel_radius"]
+
+        total_elo = [0.0] * (n + 2 * radius)
+        game_count = [0.0] * (n + 2 * radius)
+        for g in self.games:
+            if g.bpd is None or g.wpd is None:
+                continue
+            j = g.day - min_day + radius
+            total_elo[j] += g.bpd.elo + g.wpd.elo
+            game_count[j] += 1.0
+
+        sigma = radius * 0.5
+        kernel = [0.0] * radius
+        total = 1.0
+        for k in range(1, radius):
+            x = math.exp(-(k * k) / (2.0 * sigma * sigma))
+            kernel[k] = x
+            total += 2.0 * x
+        norm = 1.0 / total
+        kernel[0] = norm * 0.5
+        for k in range(1, radius):
+            kernel[k] *= norm
+
+        drift: dict[int, float] = {}
+        for i in range(n):
+            j = i + radius
+            filtered_elo = 0.0
+            filtered_count = 0.0
+            for k in range(radius):
+                filtered_elo += (total_elo[j + k] + total_elo[j - k]) * kernel[k]
+                filtered_count += (game_count[j + k] + game_count[j - k]) * kernel[k]
+            if filtered_count > 0:
+                d = filtered_elo / (2.0 * filtered_count)
+                drift[min_day + i] = d if math.isfinite(d) else 0.0
+            else:
+                drift[min_day + i] = 0.0
+        return drift
+
+    def remove_drift(self) -> dict[int, float]:
+        """Cancel global rating drift over time (Coulom's RemoveDrift).
+
+        Call after iterate()/auto_iterate(). Shifts every player-day's rating by
+        the negated smoothed per-day drift so the average player strength per day
+        is recentred near 0 elo, making ratings comparable across eras. Mutates
+        the stored ratings in place and returns the applied per-day corrections
+        ({day: correction_elo}). Because the shift is uniform per day, within-day
+        rating differences (hence same-day win probabilities) are unchanged.
+        Uncertainties are not recomputed.
+        """
+        drift = self._compute_drift()
+        factor = math.log(10) / 400.0
+        applied: dict[int, float] = {}
+        for player in self.players.values():
+            for pd in player.days:
+                correction_elo = -drift.get(pd.day, 0.0)
+                pd.r += correction_elo * factor
+                applied[pd.day] = correction_elo
+        return applied
 
     def probability_future_match(
         self, name1: str, name2: str, handicap: float = 0
