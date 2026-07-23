@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reducing the compression of weakly-connected players toward 0 elo.
 - Newton stability now comes from a configurable `hessian_damping`
   (default 1.0, Coulom's `HessianEpsilon`) instead of a fixed `-0.001` nudge.
+  Single-day players now apply this damping in their 1-D Newton step as well,
+  consistent with multi-day players and `covariance()`; their ratings differ
+  slightly as a result.
 - `auto_iterate(precision=...)` now converges on the gradient infinity-norm
   (natural-rating units) rather than the change in ratings between batches.
 - `WHR.log_likelihood()` is now a correct log-posterior (game likelihood +
@@ -28,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `> 650` elo guard and the `sys.maxsize` log-likelihood guard.
   `UnstableRatingException` now fires only on a genuinely non-finite result;
   undefeated/isolated players converge to a finite rating via the prior.
+- The undocumented `debug` config key, which was accepted but had no effect.
 
 ## [2.0.0] - 2026-07-22
 

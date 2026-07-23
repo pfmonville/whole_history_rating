@@ -15,7 +15,6 @@ class WHR:
         # Copy the caller's dict so we never mutate it and instances never
         # share the same config object.
         self.config = dict(config) if config is not None else {}
-        self.config.setdefault("debug", False)
         self.config.setdefault("w2", 300.0)
         self.config.setdefault("uncased", False)
         self.config.setdefault("initial_prior_wins", 0.5)
@@ -373,14 +372,13 @@ class WHR:
                 if k
                 in [
                     "w2",
-                    "debug",
                     "uncased",
                     "initial_prior_wins",
                     "hessian_damping",
                 ]
             }
             warnings.warn(
-                "Some elements in config cannot be pickled; only 'w2', 'debug', "
+                "Some elements in config cannot be pickled; only 'w2', "
                 "'uncased', 'initial_prior_wins' and 'hessian_damping' will be "
                 "saved.",
                 stacklevel=2,

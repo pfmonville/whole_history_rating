@@ -15,7 +15,6 @@ from whr.utils import UnstableRatingException
 class Player:
     def __init__(self, name: str, config: dict[str, Any]):
         self.name = name
-        self.debug = config["debug"]
         self.w2 = (math.sqrt(config["w2"]) * math.log(10) / 400) ** 2
         self.initial_prior_wins = config["initial_prior_wins"]
         self.hessian_damping = config["hessian_damping"]
@@ -158,12 +157,16 @@ class Player:
         for i in range(n - 2, -1, -1):
             x[i] = (y[i] - b[i] * x[i + 1]) / d[i]
 
-        for idx, day in enumerate(self.days):
-            new_r = float(day.r - x[idx])
+        # Compute every new rating and validate them all before mutating any
+        # day, so a mid-list non-finite value cannot leave earlier days already
+        # updated (the update is all-or-nothing).
+        new_rs = [float(day.r - x[idx]) for idx, day in enumerate(self.days)]
+        for day, new_r in zip(self.days, new_rs, strict=True):
             if not math.isfinite(new_r):
                 raise UnstableRatingException(
                     f"Non-finite rating for {self.name} on day {day.day}"
                 )
+        for day, new_r in zip(self.days, new_rs, strict=True):
             day.r = new_r
 
     def covariance(self) -> npt.NDArray[np.float64]:
@@ -243,7 +246,6 @@ class Player:
             day_index = bisect.bisect_right(all_days, game.day)
             new_pday = PD.PlayerDay(self, game.day)
             if len(self.days) == 0:
-                new_pday.is_first_day = True
                 new_pday.set_gamma(1)
             else:
                 # still not perfect because gamma of day index can more farther if more games were not added in order

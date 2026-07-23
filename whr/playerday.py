@@ -10,7 +10,6 @@ class PlayerDay:
     def __init__(self, player: P.Player, day: int):
         self.day = day
         self.player = player
-        self.is_first_day = False
         self.won_games: list[G.Game] = []
         self.lost_games: list[G.Game] = []
         self._won_game_terms: list[list[float]] | None = None
@@ -155,8 +154,18 @@ class PlayerDay:
             self.lost_games.append(game)
 
     def update_by_1d_newtons_method(self) -> None:
-        """Updates the player's rating using one-dimensional Newton's method."""
+        """Updates the player's rating using one-dimensional Newton's method.
+
+        The Hessian damping (Coulom's ``HessianEpsilon``) is subtracted from the
+        second derivative exactly as ``Player.hessian`` does for multi-day
+        players, so a single-day player is damped consistently with the
+        covariance computation that reads back through ``Player.hessian``.
+        """
         dlogp = self.log_likelihood_derivative() + self.anchor_gradient()
-        d2logp = self.log_likelihood_second_derivative() + self.anchor_hessian()
+        d2logp = (
+            self.log_likelihood_second_derivative()
+            + self.anchor_hessian()
+            - self.player.hessian_damping
+        )
         dr = dlogp / d2logp
         self.r = self.r - dr

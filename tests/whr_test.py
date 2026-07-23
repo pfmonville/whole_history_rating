@@ -162,45 +162,47 @@ def test_loading_several_games_at_once(capsys, tmp_path):
     assert len(whr.games) == 4
     # test auto iterating to get convergence
     whr.iterate(20)
-    # re-baselined for phase-1 (anchor 0.5, damping 1.0)
+    # re-baselined: single-day player "nobody" is now damped in its 1-D Newton
+    # step (consistent with covariance()), which shifts every coupled value
+    # (anchor 0.5, damping 1.0).
     # test getting ratings for player shusaku (day, elo, uncertainty)
     assert whr.ratings_for_player("shusaku") == [
-        (1, 30.0, 0.25),
-        (2, 29.0, 0.24),
-        (3, 28.0, 0.25),
+        (1, 32, 0.25),
+        (2, 32, 0.24),
+        (3, 31, 0.25),
     ]
     # test getting ratings for player shusai, only current elo and uncertainty
-    assert whr.ratings_for_player("shusai", current=True) == (107.0, 0.26)
+    assert whr.ratings_for_player("shusai", current=True) == (110, 0.26)
     # test getting probability of future match between shusai and nobody2 (an
     # unknown player, treated as an even gamma=1 reference); it is a pure query
     # that neither prints nor persists nobody2.
     assert whr.probability_future_match("shusai", "nobody2", 0) == (
-        0.6489873612734756,
-        0.3510126387265245,
+        0.6533788507262572,
+        0.3466211492737428,
     )
     assert capsys.readouterr().out == ""
     assert "nobody2" not in whr.players
     # test getting log likelihood of base
-    assert whr.log_likelihood() == pytest.approx(-1.0850915435749378)
+    assert whr.log_likelihood() == pytest.approx(-1.081000492536898)
     # test printing ordered ratings
     whr.print_ordered_ratings()
-    display = "nobody => [-176.98939868375248]\nshusaku => [29.53517114840089, 28.571832529347308, 28.293483750436405]\nshusai => [104.79326424890274, 106.10875653404163, 106.76539401633076]\n"
+    display = "nobody => [-176.60238580629516]\nshusaku => [32.46885411614499, 31.508925707068432, 31.230159171616652]\nshusai => [108.14428636123016, 109.46483984112977, 110.12400590321403]\n"
     captured = capsys.readouterr()
     assert display == captured.out
     # test printing ordered ratings, only current elo
     whr.print_ordered_ratings(current=True)
-    display = "nobody => -176.98939868375248\nshusaku => 28.293483750436405\nshusai => 106.76539401633076\n"
+    display = "nobody => -176.60238580629516\nshusaku => 31.230159171616652\nshusai => 110.12400590321403\n"
     captured = capsys.readouterr()
     assert display == captured.out
     # test getting ordered ratings, compact form
     assert whr.get_ordered_ratings(compact=True) == [
-        [-176.98939868375248],
-        [29.53517114840089, 28.571832529347308, 28.293483750436405],
-        [104.79326424890274, 106.10875653404163, 106.76539401633076],
+        [-176.60238580629516],
+        [32.46885411614499, 31.508925707068432, 31.230159171616652],
+        [108.14428636123016, 109.46483984112977, 110.12400590321403],
     ]
     # test getting ordered ratings, only current elo with compact form
     assert whr.get_ordered_ratings(compact=True, current=True) == pytest.approx(
-        [-176.98939868375248, 28.293483750436405, 106.76539401633076]
+        [-176.60238580629516, 31.230159171616652, 110.12400590321403]
     )
     # test saving base
     path = str(tmp_path / "state.pkl")
@@ -215,7 +217,7 @@ def test_loading_several_games_at_once(capsys, tmp_path):
 
 def test_save_and_load(tmp_path):
     whr = whole_history_rating.WHR(
-        config={"w2": 1000, "uncased": True, "debug": True, "extra_parameter": "hello"}
+        config={"w2": 1000, "uncased": True, "extra_parameter": "hello"}
     )
     path = str(tmp_path / "state.pkl")
     whole_history_rating.WHR.save_base(whr, path)
@@ -427,8 +429,17 @@ def test_load_games_rejects_malformed_input():
 
 
 def test_save_base_with_unpicklable_config_warns_and_falls_back(tmp_path):
+    # Non-default values for the allowlisted keys so the assertions below prove
+    # they survived the fallback via the allowlist, rather than being silently
+    # re-supplied by WHR.__init__'s setdefault on load.
     whr = whole_history_rating.WHR(
-        config={"w2": 300, "uncased": False, "debug": False, "bad": lambda x: x}
+        config={
+            "w2": 300,
+            "uncased": False,
+            "initial_prior_wins": 0.25,
+            "hessian_damping": 2.0,
+            "bad": lambda x: x,
+        }
     )
     whr.create_game("a", "b", "B", 1, 0)
     whr.iterate(3)
@@ -438,6 +449,10 @@ def test_save_base_with_unpicklable_config_warns_and_falls_back(tmp_path):
     loaded = whole_history_rating.WHR.load_base(path)
     assert "bad" not in loaded.config
     assert loaded.config["w2"] == 300
+    # initial_prior_wins and hessian_damping are in the allowlist (added in the
+    # phase-1 final commit) and must round-trip through the fallback.
+    assert loaded.config["initial_prior_wins"] == 0.25
+    assert loaded.config["hessian_damping"] == 2.0
 
 
 def test_auto_iterate_returns_not_stable_on_timeout():
