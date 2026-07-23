@@ -1,10 +1,10 @@
-import copy
+import math
 import pickle
 import warnings
 
 import pytest
 
-from whr import utils, whole_history_rating
+from whr import whole_history_rating
 
 
 def setup_game_with_elo(white_elo, black_elo, handicap):
@@ -55,7 +55,7 @@ def test_winrates_should_be_inversely_proportional_with_handicap():
     )
 
 
-@pytest.mark.skip(reason="re-baselined in phase-1 robustness plan, Task 7")
+# re-baselined for phase-1 (anchor 0.5, damping 1.0)
 def test_output():
     whr = whole_history_rating.WHR()
     whr.create_game("shusaku", "shusai", "B", 1, 0)
@@ -63,18 +63,18 @@ def test_output():
     whr.create_game("shusaku", "shusai", "W", 3, 0)
     whr.iterate(50)
     assert [
-        (1, -43, 0.84),
-        (2, -45, 0.84),
-        (3, -45, 0.84),
+        (1, -50, 0.26),
+        (2, -51, 0.26),
+        (3, -52, 0.26),
     ] == whr.ratings_for_player("shusaku")
     assert [
-        (1, 43, 0.84),
-        (2, 45, 0.84),
-        (3, 45, 0.84),
+        (1, 50, 0.26),
+        (2, 51, 0.26),
+        (3, 52, 0.26),
     ] == whr.ratings_for_player("shusai")
 
 
-@pytest.mark.skip(reason="re-baselined in phase-1 robustness plan, Task 7")
+# re-baselined for phase-1 (anchor 0.5, damping 1.0)
 def test_output2():
     whr = whole_history_rating.WHR()
     whr.create_game("shusaku", "shusai", "B", 1, 0)
@@ -84,21 +84,23 @@ def test_output2():
     whr.create_game("shusaku", "shusai", "W", 4, 0)
     whr.iterate(50)
     assert [
-        (1, -92, 0.71),
-        (2, -94, 0.71),
-        (3, -95, 0.71),
-        (4, -96, 0.72),
+        (1, -102, 0.2),
+        (2, -104, 0.2),
+        (3, -105, 0.2),
+        (4, -106, 0.2),
     ] == whr.ratings_for_player("shusaku")
     assert [
-        (1, 92, 0.71),
-        (2, 94, 0.71),
-        (3, 95, 0.71),
-        (4, 96, 0.72),
+        (1, 104, 0.2),
+        (2, 106, 0.2),
+        (3, 107, 0.2),
+        (4, 108, 0.2),
     ] == whr.ratings_for_player("shusai")
 
 
-@pytest.mark.skip(reason="re-baselined in phase-1 robustness plan, Task 7")
-def test_unstable_exception_raised_in_certain_cases():
+# re-baselined for phase-1 (anchor 0.5, damping 1.0): the huge handicap no
+# longer destabilizes the Newton update, so this now checks convergence to
+# finite ratings instead of raising UnstableRatingException.
+def test_large_handicap_converges_to_finite_ratings():
     whr = whole_history_rating.WHR()
     for _ in range(10):
         whr.create_game("anchor", "player", "B", 1, 0)
@@ -106,11 +108,14 @@ def test_unstable_exception_raised_in_certain_cases():
     for _ in range(10):
         whr.create_game("anchor", "player", "B", 180, 600)
         whr.create_game("anchor", "player", "W", 180, 600)
-    with pytest.raises(utils.UnstableRatingException):
-        whr.iterate(10)
+    whr.iterate(10)  # no longer raises
+    for _, elo, unc in whr.ratings_for_player("player"):
+        assert math.isfinite(elo) and math.isfinite(unc)
 
 
-@pytest.mark.skip(reason="re-baselined in phase-1 robustness plan, Task 7")
+# re-baselined for phase-1 (anchor 0.5, damping 1.0): only day 0 (the
+# first-day anchor) changes value; days 1 and 2 have no anchor term and are
+# unaffected.
 def test_log_likelihood():
     whr = whole_history_rating.WHR()
     whr.create_game("shusaku", "shusai", "B", 1, 0)
@@ -120,8 +125,8 @@ def test_log_likelihood():
     player.days[0].r = 1
     player.days[1].r = 2
     player.days[2].r = 0
-    assert abs(-69.65648196168772 - player.log_likelihood()) <= 0.0001
-    assert abs(-1.9397850625546684 - player.days[0].log_likelihood()) <= 0.0001
+    assert abs(-52.915032319363306 - player.log_likelihood()) <= 0.0001
+    assert abs(-0.3132616875182228 - player.days[0].log_likelihood()) <= 0.0001
     assert abs(-2.1269280110429727 - player.days[1].log_likelihood()) <= 0.0001
     assert abs(-0.6931471805599453 - player.days[2].log_likelihood()) <= 0.0001
 
@@ -144,7 +149,6 @@ def test_creating_games():
     assert list(whr.players.keys()) == ["shusai", "shusaku"]
 
 
-@pytest.mark.skip(reason="re-baselined in phase-1 robustness plan, Task 7")
 def test_loading_several_games_at_once(capsys, tmp_path):
     whr = whole_history_rating.WHR()
     # test loading several games at once
@@ -158,44 +162,45 @@ def test_loading_several_games_at_once(capsys, tmp_path):
     assert len(whr.games) == 4
     # test auto iterating to get convergence
     whr.iterate(20)
+    # re-baselined for phase-1 (anchor 0.5, damping 1.0)
     # test getting ratings for player shusaku (day, elo, uncertainty)
     assert whr.ratings_for_player("shusaku") == [
-        (1, 26.0, 0.70),
-        (2, 25.0, 0.70),
-        (3, 24.0, 0.70),
+        (1, 30.0, 0.25),
+        (2, 29.0, 0.24),
+        (3, 28.0, 0.25),
     ]
     # test getting ratings for player shusai, only current elo and uncertainty
-    assert whr.ratings_for_player("shusai", current=True) == (87.0, 0.84)
+    assert whr.ratings_for_player("shusai", current=True) == (107.0, 0.26)
     # test getting probability of future match between shusai and nobody2 (an
     # unknown player, treated as an even gamma=1 reference); it is a pure query
     # that neither prints nor persists nobody2.
     assert whr.probability_future_match("shusai", "nobody2", 0) == (
-        0.6224906898220315,
-        0.3775093101779684,
+        0.6489873612734756,
+        0.3510126387265245,
     )
     assert capsys.readouterr().out == ""
     assert "nobody2" not in whr.players
     # test getting log likelihood of base
-    assert whr.log_likelihood() == pytest.approx(0.7431542354571272)
+    assert whr.log_likelihood() == pytest.approx(-1.0850915435749378)
     # test printing ordered ratings
     whr.print_ordered_ratings()
-    display = "nobody => [-112.37545390067574]\nshusaku => [25.552142942931102, 24.669738398550702, 24.49953062693439]\nshusai => [84.74972643795506, 86.17200033461006, 86.88207745833284]\n"
+    display = "nobody => [-176.98939868375248]\nshusaku => [29.53517114840089, 28.571832529347308, 28.293483750436405]\nshusai => [104.79326424890274, 106.10875653404163, 106.76539401633076]\n"
     captured = capsys.readouterr()
     assert display == captured.out
     # test printing ordered ratings, only current elo
     whr.print_ordered_ratings(current=True)
-    display = "nobody => -112.37545390067574\nshusaku => 24.49953062693439\nshusai => 86.88207745833284\n"
+    display = "nobody => -176.98939868375248\nshusaku => 28.293483750436405\nshusai => 106.76539401633076\n"
     captured = capsys.readouterr()
     assert display == captured.out
     # test getting ordered ratings, compact form
     assert whr.get_ordered_ratings(compact=True) == [
-        [-112.37545390067574],
-        [25.552142942931102, 24.669738398550702, 24.49953062693439],
-        [84.74972643795506, 86.17200033461006, 86.88207745833284],
+        [-176.98939868375248],
+        [29.53517114840089, 28.571832529347308, 28.293483750436405],
+        [104.79326424890274, 106.10875653404163, 106.76539401633076],
     ]
     # test getting ordered ratings, only current elo with compact form
     assert whr.get_ordered_ratings(compact=True, current=True) == pytest.approx(
-        [-112.37545390067574, 24.49953062693439, 86.88207745833284]
+        [-176.98939868375248, 28.293483750436405, 106.76539401633076]
     )
     # test saving base
     path = str(tmp_path / "state.pkl")
@@ -286,38 +291,21 @@ def test_load_base_reads_legacy_format(tmp_path):
     assert [str(g) for g in loaded.games] == [str(g) for g in whr.games]
 
 
-@pytest.mark.skip(reason="re-baselined in phase-1 robustness plan, Task 7")
-def test_auto_iterate(capsys):
-    whr = whole_history_rating.WHR()
-    # test loading several games at once
-    test_games = [
-        "shusaku; shusai; B; 1",
-        "shusaku;shusai;W;2;0",
-        " shusaku ; shusai ;W ; 3; {'w2':300}",
-        "shusaku;nobody;B;3;0;{'w2':300}",
-    ]
-    whr.load_games(test_games, separator=";")
-    # test auto iterating to get convergence
-    whr1 = copy.deepcopy(whr)
-    whr2 = copy.deepcopy(whr)
-    whr3 = copy.deepcopy(whr)
-    whr4 = copy.deepcopy(whr)
-    whr5 = copy.deepcopy(whr)
-    iterations1, is_stable1 = whr1.auto_iterate(batch_size=1)
-    assert iterations1 == 12
-    assert is_stable1
-    iterations2, is_stable2 = whr2.auto_iterate()
-    assert iterations2 == 30
-    assert is_stable2
-    iterations3, is_stable3 = whr3.auto_iterate(precision=0.5, batch_size=1)
-    assert iterations3 == 6
-    assert is_stable3
-    iterations4, is_stable4 = whr4.auto_iterate(precision=0.9, batch_size=1)
-    assert iterations4 == 5
-    assert is_stable4
-    iterations5, is_stable5 = whr5.auto_iterate(time_limit=1, batch_size=1)
-    assert iterations5 == 12
-    assert is_stable5
+# re-baselined for phase-1 (anchor 0.5, damping 1.0): precision is now a
+# gradient-norm tolerance, so the old fixed iteration-count assertions are
+# replaced with property assertions that hold regardless of the exact values.
+def test_auto_iterate():
+    def run(precision):
+        w = whole_history_rating.WHR()
+        for d in range(1, 6):
+            w.create_game("a", "b", "B", d, 0)
+            w.create_game("a", "b", "W", d, 0)
+        return w.auto_iterate(precision=precision, batch_size=1, time_limit=10)
+
+    it_loose, stable_loose = run(1e-1)
+    it_tight, stable_tight = run(1e-3)
+    assert stable_loose is True and stable_tight is True
+    assert it_loose <= it_tight  # looser tolerance converges no later
 
 
 def test_whr_is_the_public_name_and_base_is_deprecated():
@@ -422,7 +410,6 @@ def test_save_base_with_unpicklable_config_warns_and_falls_back(tmp_path):
     assert loaded.config["w2"] == 300
 
 
-@pytest.mark.skip(reason="re-baselined in phase-1 robustness plan, Task 7")
 def test_auto_iterate_returns_not_stable_on_timeout():
     whr = whole_history_rating.WHR()
     whr.load_games(["shusaku shusai B 1", "shusaku shusai W 2", "shusaku shusai W 3"])
