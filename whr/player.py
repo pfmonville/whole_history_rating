@@ -150,14 +150,13 @@ class Player:
         for i in range(n - 2, -1, -1):
             x[i] = (y[i] - b[i] * x[i + 1]) / d[i]
 
-        new_r = [ri - xi for ri, xi in zip(r, x, strict=True)]
-
-        for candidate in new_r:
-            if candidate > 650:
-                raise UnstableRatingException("unstable r on player")
-
         for idx, day in enumerate(self.days):
-            day.r = float(day.r - x[idx])
+            new_r = float(day.r - x[idx])
+            if not math.isfinite(new_r):
+                raise UnstableRatingException(
+                    f"Non-finite rating for {self.name} on day {day.day}"
+                )
+            day.r = new_r
 
     def covariance(self) -> npt.NDArray[np.float64]:
         """Computes the covariance matrix of the player's rating estimations.

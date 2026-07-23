@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from whr import whole_history_rating
+from whr import utils, whole_history_rating
 from whr.player import Player
 
 
@@ -97,3 +97,25 @@ def test_total_log_likelihood_finite_and_improves():
     end = w.log_likelihood()
     assert math.isfinite(start) and math.isfinite(end)
     assert end >= start - 1e-6
+
+
+def test_undefeated_player_is_finite_no_exception():
+    w = whole_history_rating.WHR()
+    for d in range(1, 11):
+        w.create_game("winner", "loser", "B", d, 0)  # winner (black) always wins
+    w.iterate(100)  # must NOT raise
+    elo, unc = w.ratings_for_player("winner", current=True)
+    assert math.isfinite(elo) and math.isfinite(unc)
+
+
+def test_non_finite_step_raises(monkeypatch):
+    from whr import playerday
+
+    w = whole_history_rating.WHR()
+    w.create_game("a", "b", "B", 1, 0)
+    w.create_game("a", "b", "W", 2, 0)
+    monkeypatch.setattr(
+        playerday.PlayerDay, "log_likelihood_derivative", lambda self: float("nan")
+    )
+    with pytest.raises(utils.UnstableRatingException):
+        w.iterate(1)
