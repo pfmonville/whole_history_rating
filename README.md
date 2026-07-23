@@ -244,3 +244,27 @@ The same mechanism generalises beyond Go: if every game shares a single komi key
 # Fold the learned 2-stone handicap advantage into the prediction:
 whr.probability_future_match("weaker", "stronger", 0, handicap_key=2)
 ```
+
+### Choosing `w2` from data
+
+`w2` controls how much a player's rating is allowed to drift from one playing day to the next (the variance of Coulom's Wiener prior over time) — a larger `w2` lets ratings move faster in response to recent results, a smaller `w2` keeps them stable and slow-moving. Picking it by hand (as in "Optional Configuration" above) is a guess; `WHR.fit_w2()` picks it from your own data instead.
+
+It works by temporal cross-validation: your games are cut into `n_splits` expanding-window folds by day (fold *i* trains on every game strictly before a cutoff day and tests on the games in the following window), so a candidate is always scored on games that happened *after* the ones it was trained on — there is no future leakage. For each candidate `w2`, a fresh model is trained on each fold's training games for `iterations` iterations and scored by predictive log-loss (lower is better) on that fold's held-out games, pooled across all folds; the candidate with the lowest pooled log-loss is `best_w2`. Test games where either player has no prior rated day (cold start) can't be scored and are skipped rather than counted against a candidate.
+
+`fit_w2()` is a **pure query**: it builds its own throwaway models internally and never touches `self.config` or any rating already computed on this instance. Apply the result yourself:
+
+```python
+result = whr.fit_w2(candidates=[10, 30, 100, 300, 1000, 3000], n_splits=5, iterations=50)
+# result == {'best_w2': 100, 'log_loss': {10: 0.71, 30: 0.66, 100: 0.64, ...},
+#            'n_splits': 5, 'n_test_scored': 812, 'n_test_skipped': 3}
+
+whr = WHR({'w2': result['best_w2']})
+whr.load_games([...])
+whr.auto_iterate()
+```
+
+- `candidates`: the `w2` values to try (default `[10, 30, 100, 300, 1000, 3000]`).
+- `n_splits`: number of expanding-window folds (default `5`); raises `ValueError` if there aren't enough distinct days to form them.
+- `iterations`: how many `iterate()` steps each fold's fresh model runs before scoring (default `50`).
+
+**Cost caveat.** `fit_w2()` trains `len(candidates) × n_splits` separate models for `iterations` iterations each — a full model fit, not an incremental update. On large histories this gets expensive fast; until the ratings loop is vectorised, consider a smaller `candidates` list, fewer `n_splits`, or a subsample of your history when exploring interactively.

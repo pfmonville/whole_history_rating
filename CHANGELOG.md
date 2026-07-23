@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   player ratings each iteration and readable via `WHR.handicap_gamma` /
   `WHR.komi_gamma` (dicts of key → gamma). `save_base`/`load_base` now persist
   these estimated advantage tables.
+- `WHR.fit_w2()`: selects `w2` by temporal expanding-window cross-validated
+  predictive log-loss (train on past games, predict future). It is a pure
+  query — it returns `{best_w2, log_loss, ...}` without mutating the
+  instance; apply the chosen value yourself.
 
 ### Removed
 - The `> 650` elo guard and the `sys.maxsize` log-likelihood guard.
