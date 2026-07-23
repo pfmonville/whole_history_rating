@@ -5,6 +5,7 @@ import math
 import pickle
 import time
 import warnings
+from collections.abc import Iterator
 from typing import Any
 
 from whr.game import Game
@@ -108,6 +109,34 @@ class WHR:
                 k_wins[k] = k_wins.get(k, 0) + 1
         return h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins
 
+    def _eligible_advantage_updates(
+        self,
+        table: dict[Any, float],
+        pinned: set[Any],
+        grad_terms: dict[Any, float],
+        games: dict[Any, int],
+        wins: dict[Any, int],
+    ) -> Iterator[tuple[Any, float, float]]:
+        """Yield ``(key, gamma, grad)`` for every non-pinned advantage key that
+        a Newton step would actually update: those seen in a game with a
+        non-degenerate ``0 < wins < games`` outcome. ``grad`` is the Newton
+        gradient ``wins - gamma * grad_term`` w.r.t. ``log(gamma_key)``.
+
+        Both the Newton updater (``_newton_handicap_komi``) and the convergence
+        gauge (``_handicap_komi_gradient_norm``) iterate through here, so they
+        can never disagree on which keys are eligible — a disagreement was the
+        phase-3 convergence bug.
+        """
+        for key in list(table):
+            if key in pinned:
+                continue
+            n_games = games.get(key, 0)
+            n_wins = wins.get(key, 0)
+            if n_games > 0 and 0 < n_wins < n_games:
+                gamma = table[key]
+                grad = n_wins - gamma * grad_terms.get(key, 0.0)
+                yield key, gamma, grad
+
     def _newton_handicap_komi(self) -> None:
         """One Newton step on each non-pinned handicap/komi advantage gamma
         (Coulom's NewtonKomiHandicap)."""
@@ -115,26 +144,16 @@ class WHR:
             self._accumulate_handicap_komi()
         )
         damping = self.config["hessian_damping"]
-        for h in list(self.handicap_gamma):
-            if h in self._pinned_handicap_keys:
-                continue
-            games = h_games.get(h, 0)
-            wins = h_wins.get(h, 0)
-            if games > 0 and 0 < wins < games:
-                gamma = self.handicap_gamma[h]
-                grad = wins - gamma * h_grad.get(h, 0.0)
-                hess = -gamma * h_hess.get(h, 0.0) - damping
-                self.handicap_gamma[h] = gamma * math.exp(-grad / hess)
-        for k in list(self.komi_gamma):
-            if k in self._pinned_komi_keys:
-                continue
-            games = k_games.get(k, 0)
-            wins = k_wins.get(k, 0)
-            if games > 0 and 0 < wins < games:
-                gamma = self.komi_gamma[k]
-                grad = wins - gamma * k_grad.get(k, 0.0)
-                hess = -gamma * k_hess.get(k, 0.0) - damping
-                self.komi_gamma[k] = gamma * math.exp(-grad / hess)
+        for key, gamma, grad in self._eligible_advantage_updates(
+            self.handicap_gamma, self._pinned_handicap_keys, h_grad, h_games, h_wins
+        ):
+            hess = -gamma * h_hess.get(key, 0.0) - damping
+            self.handicap_gamma[key] = gamma * math.exp(-grad / hess)
+        for key, gamma, grad in self._eligible_advantage_updates(
+            self.komi_gamma, self._pinned_komi_keys, k_grad, k_games, k_wins
+        ):
+            hess = -gamma * k_hess.get(key, 0.0) - damping
+            self.komi_gamma[key] = gamma * math.exp(-grad / hess)
 
     def _handicap_komi_gradient_norm(self) -> float:
         """Max absolute Newton gradient ``|wins - gamma * grad|`` over the
@@ -150,24 +169,14 @@ class WHR:
             self._accumulate_handicap_komi()
         )
         norm = 0.0
-        for h in list(self.handicap_gamma):
-            if h in self._pinned_handicap_keys:
-                continue
-            games = h_games.get(h, 0)
-            wins = h_wins.get(h, 0)
-            if games > 0 and 0 < wins < games:
-                gamma = self.handicap_gamma[h]
-                grad = wins - gamma * h_grad.get(h, 0.0)
-                norm = max(norm, abs(grad))
-        for k in list(self.komi_gamma):
-            if k in self._pinned_komi_keys:
-                continue
-            games = k_games.get(k, 0)
-            wins = k_wins.get(k, 0)
-            if games > 0 and 0 < wins < games:
-                gamma = self.komi_gamma[k]
-                grad = wins - gamma * k_grad.get(k, 0.0)
-                norm = max(norm, abs(grad))
+        for _key, _gamma, grad in self._eligible_advantage_updates(
+            self.handicap_gamma, self._pinned_handicap_keys, h_grad, h_games, h_wins
+        ):
+            norm = max(norm, abs(grad))
+        for _key, _gamma, grad in self._eligible_advantage_updates(
+            self.komi_gamma, self._pinned_komi_keys, k_grad, k_games, k_wins
+        ):
+            norm = max(norm, abs(grad))
         return norm
 
     def print_ordered_ratings(self, current: bool = False) -> None:
@@ -497,29 +506,57 @@ class WHR:
         return applied
 
     def probability_future_match(
-        self, name1: str, name2: str, handicap: float = 0
+        self,
+        name1: str,
+        name2: str,
+        handicap: float = 0,
+        handicap_key: Any = None,
+        komi_key: Any = None,
     ) -> tuple[float, float]:
         """Calculates the winning probability for a hypothetical match between two players.
 
-        Note: unlike ``create_game``, ``handicap`` here is a raw elo
-        adjustment added directly to name2's elo before computing the
-        Bradley-Terry probability — NOT the handicap *category key* used by
-        ``create_game``/``load_games``. This method does not look up or apply
-        the learned ``handicap_gamma``/``komi_gamma`` advantages at all; it is
-        a simple what-if adjustment independent of the estimated advantages
-        learned from the game history.
+        name1 plays the black role and name2 the white role, matching
+        ``create_game(black, white, ...)``.
+
+        Two independent, stackable advantage inputs are supported:
+
+        * ``handicap`` — a raw elo adjustment (NOT a category key) that shifts
+          the effective elo gap in name1's favour by ``handicap`` points.
+          Equivalently (and as the formula does it), name2's elo is lowered by
+          ``handicap`` when scoring name1 and name1's elo is raised by
+          ``handicap`` when scoring name2; both express the same gap shift.
+        * ``handicap_key`` / ``komi_key`` — *category keys* (as passed to
+          ``create_game``/``load_games``) whose learned/pinned advantage gammas
+          (``handicap_gamma`` boosting black = name1, ``komi_gamma`` boosting
+          white = name2) are folded in exactly as in a real game. Unseen keys
+          default to gamma 1.0 (no advantage). Leaving them ``None`` applies no
+          learned advantage.
+
+        When keys are supplied the raw ``handicap`` elo shift stacks on top of
+        the learned advantages. When both keys are ``None`` this is a pure
+        raw-elo what-if, independent of the estimated advantages learned from
+        the game history (backward-compatible with earlier releases).
 
         Args:
             name1 (str): The name of the first player.
             name2 (str): The name of the second player.
-            handicap (float, optional): A raw elo adjustment favouring name1
-                (added to name2's elo), not a handicap category key.
+            handicap (float, optional): A raw elo adjustment favouring name1 by
+                shifting the effective elo gap ``handicap`` points in name1's
+                favour, not a handicap category key.
+            handicap_key (Any, optional): A handicap *category key* whose
+                learned/pinned ``handicap_gamma`` advantage (favouring name1)
+                is folded in. ``None`` (default) applies no handicap advantage.
+            komi_key (Any, optional): A komi *category key* whose learned/pinned
+                ``komi_gamma`` advantage (favouring name2) is folded in.
+                ``None`` (default) applies no komi advantage.
 
         Returns:
             tuple[float, float]: The winning probabilities for name1 and name2 respectively. Unknown players are treated as an even (gamma = 1) reference without being added to the base.
 
         Raises:
-            AttributeError: Raised if name1 and name2 are equal
+            AttributeError: Raised if name1 and name2 are equal, or if a
+                supplied category key resolves to a non-finite/non-positive
+                advantage gamma.
         """
         # Avoid self-played games (no info)
         if self.config["uncased"]:
@@ -542,8 +579,29 @@ class WHR:
             wpd = player2.days[-1]
             wpd_gamma = wpd.gamma()
             wpd_elo = wpd.elo
-        player1_proba = bpd_gamma / (bpd_gamma + 10 ** ((wpd_elo - handicap) / 400.0))
-        player2_proba = wpd_gamma / (wpd_gamma + 10 ** ((bpd_elo + handicap) / 400.0))
+        if handicap_key is None and komi_key is None:
+            # Backward-compatible raw-elo path (byte-identical to prior
+            # releases): no learned advantages are consulted.
+            player1_proba = bpd_gamma / (
+                bpd_gamma + 10 ** ((wpd_elo - handicap) / 400.0)
+            )
+            player2_proba = wpd_gamma / (
+                wpd_gamma + 10 ** ((bpd_elo + handicap) / 400.0)
+            )
+            return player1_proba, player2_proba
+        # Learned-advantage path: fold the category-key advantage gammas into
+        # the opponent's gamma exactly as ``Game.opponents_adjusted_gamma``
+        # does (handicap boosts black = name1, komi boosts white = name2), and
+        # stack the raw ``handicap`` elo shift on top as a further name1 boost.
+        gh = 1.0 if handicap_key is None else self.handicap_gamma.get(handicap_key, 1.0)
+        gk = 1.0 if komi_key is None else self.komi_gamma.get(komi_key, 1.0)
+        if not math.isfinite(gh) or gh <= 0 or not math.isfinite(gk) or gk <= 0:
+            raise AttributeError("bad advantage gamma")
+        h_shift = 10 ** (handicap / 400.0)
+        opponent_of_name1 = wpd_gamma * gk / gh / h_shift
+        opponent_of_name2 = bpd_gamma * gh / gk * h_shift
+        player1_proba = bpd_gamma / (bpd_gamma + opponent_of_name1)
+        player2_proba = wpd_gamma / (wpd_gamma + opponent_of_name2)
         return player1_proba, player2_proba
 
     def _run_one_iteration(self) -> None:

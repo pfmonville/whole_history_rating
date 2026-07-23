@@ -238,4 +238,9 @@ The same mechanism generalises beyond Go: if every game shares a single komi key
 
 **Caveat — don't estimate what your data can't support.** Estimating a handicap/komi advantage well requires enough games where player strengths and colours are reasonably balanced (as in the recovery tests: many games, colours swapped, roughly even overall). With a small or skewed sample, the estimated advantage — especially komi, since most games share the same default komi key — can silently absorb what is really just a player-strength difference (e.g. if white happens to be the stronger player more often in your data, `komi_gamma` will drift up to explain it instead of the player ratings doing so). If you don't have enough data to support estimating it, pin the value to disable estimation, e.g. `WHR({'pinned_komi': {6.5: 0}})`.
 
-**Caveat — `probability_future_match`'s `handicap` is not this mechanism.** Its `handicap` argument is a raw elo adjustment added directly to the opponent's elo for a what-if query; it does not look up or apply the learned `handicap_gamma`/`komi_gamma` advantages at all, unlike `create_game`, where `handicap` is the category key described above.
+**Note — `probability_future_match`'s `handicap` is not this mechanism (but its `handicap_key`/`komi_key` are).** The positional `handicap` argument is a raw elo adjustment that shifts the effective elo gap in name1's favour for a what-if query; it is *not* a category key and applies no learned advantage. To have a prediction reflect the estimated advantages, pass the category keys explicitly via `handicap_key` (favouring name1, the black role) and/or `komi_key` (favouring name2, the white role); their learned/pinned gammas are then folded in exactly as in a real game, and any raw `handicap` elo stacks on top. Unseen keys default to no advantage.
+
+```python
+# Fold the learned 2-stone handicap advantage into the prediction:
+whr.probability_future_match("weaker", "stronger", 0, handicap_key=2)
+```

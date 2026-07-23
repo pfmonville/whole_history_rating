@@ -57,19 +57,25 @@ class Game:
             if self.komi_gamma is None
             else self.komi_gamma.get(self.extras["komi"], 1.0)
         )
+        # Resolve the opponent first: a player who isn't in this game must raise
+        # the specific "No opponent" error rather than being pre-empted by the
+        # gamma-divisor guard below. ``numerator``/``denominator`` are the
+        # opponent's gamma folded with the advantage gammas (γ_b·γ_h/γ_k for
+        # white's opponent, γ_w·γ_k/γ_h for black's).
+        if player == self.white_player:
+            numerator, denominator = self.bpd.gamma() * gh, gk
+        elif player == self.black_player:
+            numerator, denominator = self.wpd.gamma() * gk, gh
+        else:
+            raise AttributeError(
+                f"No opponent for {player.__str__()}, since they're not in this game: {self.__str__()}."
+            )
         # Validate the divisors before dividing: an underflowed/non-positive
         # gamma (e.g. from an extreme pinned elo value) must raise the
         # intended AttributeError below rather than a raw ZeroDivisionError.
         if not math.isfinite(gh) or gh <= 0 or not math.isfinite(gk) or gk <= 0:
             raise AttributeError("bad adjusted gamma")
-        if player == self.white_player:
-            rval = self.bpd.gamma() * gh / gk
-        elif player == self.black_player:
-            rval = self.wpd.gamma() * gk / gh
-        else:
-            raise AttributeError(
-                f"No opponent for {player.__str__()}, since they're not in this game: {self.__str__()}."
-            )
+        rval = numerator / denominator
         if not math.isfinite(rval) or rval <= 0:
             raise AttributeError("bad adjusted gamma")
         return rval

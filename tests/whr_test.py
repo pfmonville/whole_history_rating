@@ -27,7 +27,7 @@ def test_even_game_between_equal_strength_players_should_have_white_winrate_of_5
 # demonstrates the advantage via a pinned handicap of +200 elo.
 def test_handicap_should_confer_advantage():
     whr = whole_history_rating.WHR(config={"pinned_handicap": {2: 200.0}})
-    game = whr.create_game("black", "white", "W", 1, 2)
+    game = whr.create_game("anchor", "challenger", "W", 1, 2)
     game.black_player.days[0].elo = 500.0
     game.white_player.days[0].elo = 500.0
     assert game.black_win_probability() > 0.5
@@ -442,6 +442,71 @@ def test_probability_future_match_rejects_self_match():
     whr = whole_history_rating.WHR()
     with pytest.raises(AttributeError):
         whr.probability_future_match("a", "a")
+
+
+def _even_future_match_pair(config):
+    """Two players registered at an identical 500 elo, for future-match
+    prediction tests. ``name1`` plays the black role, ``name2`` the white."""
+    whr = whole_history_rating.WHR(config=config)
+    whr.create_game("name1", "name2", "W", 1, 0)
+    whr.player_by_name("name1").days[0].elo = 500.0
+    whr.player_by_name("name2").days[0].elo = 500.0
+    return whr
+
+
+def test_probability_future_match_applies_learned_handicap_key():
+    # A pinned +200 elo handicap category, applied via handicap_key, favours
+    # name1 (the black role that the handicap boosts).
+    whr = _even_future_match_pair({"pinned_handicap": {2: 200.0}})
+    p1_even, _ = whr.probability_future_match("name1", "name2", 0)
+    assert abs(p1_even - 0.5) < 1e-9
+    p1, p2 = whr.probability_future_match("name1", "name2", 0, handicap_key=2)
+    assert p1 > 0.5
+    assert p1 + p2 == pytest.approx(1.0)
+
+
+def test_probability_future_match_applies_learned_komi_key():
+    # Komi boosts the white role (name2), so a pinned komi advantage favours
+    # name2.
+    whr = _even_future_match_pair({"pinned_komi": {7.5: 200.0}})
+    p1, p2 = whr.probability_future_match("name1", "name2", 0, komi_key=7.5)
+    assert p2 > 0.5
+    assert p1 + p2 == pytest.approx(1.0)
+
+
+def test_probability_future_match_stacks_raw_handicap_and_learned_key():
+    # The raw-elo handicap stacks on top of the learned advantage: adding raw
+    # elo increases name1's edge beyond the key alone.
+    whr = _even_future_match_pair({"pinned_handicap": {2: 200.0}})
+    p1_key_only, _ = whr.probability_future_match("name1", "name2", 0, handicap_key=2)
+    p1_stacked, _ = whr.probability_future_match("name1", "name2", 100, handicap_key=2)
+    assert p1_stacked > p1_key_only
+
+
+def test_probability_future_match_ignores_learned_advantages_without_keys():
+    # Omitting the keys keeps the raw-elo-only behaviour even when advantages
+    # exist in the base (backward compatible).
+    whr = _even_future_match_pair({"pinned_handicap": {2: 500.0}})
+    p1, _ = whr.probability_future_match("name1", "name2", 0)
+    assert abs(p1 - 0.5) < 1e-9
+
+
+def test_probability_future_match_unknown_key_is_neutral():
+    # An unseen category key defaults to gamma 1.0 (no advantage).
+    whr = _even_future_match_pair({})
+    p1, _ = whr.probability_future_match(
+        "name1", "name2", 0, handicap_key=99, komi_key=99
+    )
+    assert abs(p1 - 0.5) < 1e-9
+
+
+def test_probability_future_match_rejects_degenerate_advantage_gamma():
+    # A supplied key resolving to a degenerate advantage gamma (e.g. one that
+    # underflowed to 0 during iteration) raises rather than dividing by zero.
+    whr = _even_future_match_pair({})
+    whr.handicap_gamma[2] = 0.0
+    with pytest.raises(AttributeError):
+        whr.probability_future_match("name1", "name2", 0, handicap_key=2)
 
 
 def test_load_games_rejects_malformed_input():
