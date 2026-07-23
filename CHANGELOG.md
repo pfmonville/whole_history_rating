@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Config keys `initial_prior_wins` (default 0.5) and `hessian_damping`
   (default 1.0).
+- `WHR.remove_drift()`: opt-in anti-inflation step (faithful port of Coulom's
+  `RemoveDrift`). Call it after convergence to cancel global rating drift over
+  time so ratings are comparable across eras; it mutates ratings in place,
+  returns the per-day elo corrections, and preserves same-day win
+  probabilities. New config key `drift_kernel_radius` (default 100).
 
 ### Removed
 - The `> 650` elo guard and the `sys.maxsize` log-likelihood guard.

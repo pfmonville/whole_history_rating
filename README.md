@@ -181,3 +181,24 @@ Adjust `hessian_damping`, the damping subtracted from the Newton Hessian diagona
 ```python
 whr = WHR({'hessian_damping': 1.0})
 ```
+
+Adjust `drift_kernel_radius`, the half-width (in days) of the Gaussian kernel used by `remove_drift()` to smooth per-day drift (Coulom's `RemoveDrift`). The default is `100`.
+
+```python
+whr = WHR({'drift_kernel_radius': 100})
+```
+
+### Removing Rating Drift
+
+Over long histories, the whole population's average strength can drift or inflate over time even though individual ratings are locally accurate, making players from different eras hard to compare. `remove_drift()` (a faithful port of Coulom's `RemoveDrift`) corrects for this by recentring the per-day mean player strength near 0 elo, using a Gaussian-smoothed estimate of the drift at each day (controlled by `drift_kernel_radius`).
+
+Call it once after ratings have converged, i.e. after `iterate()` or `auto_iterate()`:
+
+```python
+whr = WHR()
+whr.load_games([...])
+whr.auto_iterate()
+corrections = whr.remove_drift()  # optional, after convergence
+```
+
+This step is opt-in: it does not run automatically and does not change what `iterate()`/`auto_iterate()` compute. It mutates the stored ratings in place, shifting every player-day's rating by that day's negated drift, and returns the applied corrections as `{day: correction_elo}`. Because the shift is uniform within a day, same-day win probabilities (e.g. from `probability_future_match`) are unchanged. Uncertainties (from `ratings_for_player`) are not recomputed by this step.
