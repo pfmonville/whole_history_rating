@@ -62,13 +62,15 @@ class Player:
 
     @staticmethod
     def hessian(
-        days: list[PD.PlayerDay], sigma2: list[float]
+        days: list[PD.PlayerDay], sigma2: list[float], damping: float
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Computes the Hessian matrix for the log likelihood function.
 
         Args:
             days (list[PD.PlayerDay]): A list of PD.PlayerDay instances for the player.
             sigma2 (list[float]): A list of variance values between consecutive days.
+            damping (float): Diagonal damping term subtracted for numerical stability
+                (Coulom's HessianEpsilon).
 
         Returns:
             tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: A tuple containing the diagonal and sub-diagonal elements of the Hessian matrix.
@@ -82,7 +84,9 @@ class Player:
                 prior += -1 / sigma2[row]
             if row > 0:
                 prior += -1 / sigma2[row - 1]
-            diagonal[row] = days[row].log_likelihood_second_derivative() + prior - 0.001
+            diagonal[row] = (
+                days[row].log_likelihood_second_derivative() + prior - damping
+            )
         diagonal[0] += days[0].anchor_hessian()
         for i in range(n - 1):
             sub_diagonal[i] = 1 / sigma2[i]
@@ -143,7 +147,7 @@ class Player:
         # sigma squared (used in the prior)
         sigma2 = self.compute_sigma2()
 
-        diag, sub_diag = Player.hessian(self.days, sigma2)
+        diag, sub_diag = Player.hessian(self.days, sigma2, self.hessian_damping)
         g = self.gradient(r, self.days, sigma2)
         n = len(r)
         a = np.zeros((n,))
@@ -186,7 +190,7 @@ class Player:
         r = [d.r for d in self.days]
 
         sigma2 = self.compute_sigma2()
-        diag, sub_diag = Player.hessian(self.days, sigma2)
+        diag, sub_diag = Player.hessian(self.days, sigma2, self.hessian_damping)
         n = len(r)
 
         a = np.zeros((n,))

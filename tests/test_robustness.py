@@ -3,6 +3,7 @@ import math
 import pytest
 
 from whr import whole_history_rating
+from whr.player import Player
 
 
 def test_new_config_keys_defaults_and_copy():
@@ -48,3 +49,25 @@ def test_lower_prior_reduces_compression():
         return abs(elos["strong"] - elos["weak"])
 
     assert spread(0.5) > spread(1.0)
+
+
+def test_hessian_damping_configurable_and_stable():
+    for damping in (0.1, 1.0, 10.0):
+        w = whole_history_rating.WHR(config={"hessian_damping": damping})
+        for d in range(1, 6):
+            w.create_game("a", "b", "B", d, 0)
+            w.create_game("a", "b", "W", d, 0)
+        w.iterate(50)
+        elo, _ = w.ratings_for_player("a", current=True)
+        assert math.isfinite(elo)
+
+
+def test_hessian_uses_damping_param():
+    w = whole_history_rating.WHR(config={"hessian_damping": 5.0})
+    w.create_game("a", "b", "B", 1, 0)
+    w.create_game("a", "b", "W", 2, 0)
+    p = w.player_by_name("a")
+    sigma2 = p.compute_sigma2()
+    diag_small, _ = Player.hessian(p.days, sigma2, 0.0)
+    diag_big, _ = Player.hessian(p.days, sigma2, 5.0)
+    assert diag_big[1] == pytest.approx(diag_small[1] - 5.0)
