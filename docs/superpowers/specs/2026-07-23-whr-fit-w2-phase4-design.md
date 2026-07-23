@@ -26,14 +26,19 @@ data-driven `w2` instead of the default 300.
 
 ## Design decisions (settled + proposed)
 
-- **Temporal hold-out** (settled with the user). Games are ordered by day;
-  train = games on days `< cutoff`, test = games on days `≥ cutoff`, where the
-  cutoff is chosen so that a `holdout_fraction` (default 0.2) of games fall in
-  test. A single hold-out (not k folds) — enough to tune one scalar and keeps
-  cost down. (Multiple expanding-window folds are a possible future extension.)
-- **Metric:** mean predictive log-loss on the test games,
-  `-(1/N)·Σ log P(actual outcome)`. Lower is better; `fit_w2` returns the `w2`
-  minimising it.
+- **Temporal expanding-window k-folds** (settled with the user — the rigorous
+  choice; `w2` governs temporal volatility, so training always precedes testing,
+  and averaging over several cutoffs lowers the variance of the estimate).
+  Games are ordered by day and split into `n_splits + 1` contiguous, roughly
+  equal-sized blocks `B0 … B_n`. Fold `i` (`1 … n_splits`) trains on
+  `B0 … B_{i-1}` and tests on `B_i` (sklearn `TimeSeriesSplit` style). Default
+  `n_splits = 5`; `n_splits = 1` reduces to a single first-half/second-half
+  temporal hold-out for users who want speed. Random k-fold is intentionally
+  NOT offered — it leaks temporal information.
+- **Metric:** predictive log-loss POOLED over all folds' test games,
+  `-(1/N)·Σ log P(actual outcome)` where the sum runs over every scored test
+  game across every fold. Lower is better; `fit_w2` returns the `w2` minimising
+  it. (Pooling weights by game count and gives one stable number per candidate.)
 - **Prediction of a test game:** train a fresh `WHR` (same config, candidate
   `w2`) on the train games, iterate to convergence, then for each test game
   compute `P(black wins)` from the two players' latest trained day rating
@@ -59,24 +64,26 @@ data-driven `w2` instead of the default 300.
 def fit_w2(
     self,
     candidates: list[float] | None = None,
-    holdout_fraction: float = 0.2,
+    n_splits: int = 5,
     iterations: int = 50,
 ) -> dict:
-    """Pick w2 by temporal out-of-sample predictive log-loss.
+    """Pick w2 by temporal expanding-window cross-validated predictive log-loss.
 
-    Trains a fresh model (this instance's config, but each candidate w2) on the
-    games before a temporal cutoff and scores predictive log-loss on the games
-    on/after it. Does NOT mutate this instance. Returns:
+    For each candidate w2 and each temporal fold, trains a fresh model (this
+    instance's config but the candidate w2) on the earlier games and scores
+    predictive log-loss on the fold's held-out later games; the loss is pooled
+    across folds. Does NOT mutate this instance. Returns:
       {"best_w2": float,
-       "log_loss": {w2: mean_log_loss, ...},
-       "n_train": int, "n_test_scored": int, "n_test_skipped": int}
-    Raises ValueError if the games do not span at least two distinct days (no
-    temporal split possible) or if there are too few games.
+       "log_loss": {w2: pooled_log_loss, ...},
+       "n_splits": int, "n_test_scored": int, "n_test_skipped": int}
+    Raises ValueError if the games span fewer than `n_splits + 1` distinct days
+    (no temporal split possible) or there are too few games.
     """
 ```
 
-Helper (internal): `_temporal_split(holdout_fraction) -> (train_games, test_games)`
-returning the raw game descriptions split by day.
+Helper (internal): `_temporal_folds(n_splits) -> list[tuple[train_games, test_games]]`
+— orders the raw game descriptions by day and yields the `n_splits`
+expanding-window (train, test) splits.
 
 ## Implementation notes
 
@@ -89,8 +96,10 @@ returning the raw game descriptions split by day.
   the game's handicap/komi keys against the trained advantage tables. Clamp the
   probability into `[eps, 1-eps]` before `log` to avoid `-inf` on a 0/1
   prediction.
-- Cost is `len(candidates) × iterations × O(train games)` — expensive on large
-  histories (until #10 vectorisation). Documented; tests use small data.
+- Cost is `len(candidates) × n_splits × iterations × O(train games)` —
+  expensive on large histories until #10 vectorisation lands (the user has
+  accepted this, since #10 is coming). Documented; tests use small data and a
+  small `n_splits`.
 
 ## Compatibility
 
@@ -106,9 +115,11 @@ returning the raw game descriptions split by day.
    planted regime, not that it hits an exact number.)
 2. **A too-small w2 and a too-large w2 both score worse** than a middle one on
    the returned `log_loss` map (unimodal-ish in w2 for drifting data).
-3. **Temporal split correctness.** `_temporal_split(0.2)` puts the latest ~20%
-   of games (by day) in test and the rest in train; no test game has a day
-   earlier than any train game's cutoff.
+3. **Temporal folds correctness.** `_temporal_folds(n_splits)` returns
+   `n_splits` (train, test) pairs where every test game's day is `>=` every
+   train game's day in that fold (no future leakage), the train set grows across
+   folds (expanding window), and the union of test blocks covers the later
+   games. `n_splits=1` gives one first-half/second-half split.
 4. **Cold-start games skipped.** A test game with a player absent from train is
    excluded from the score and counted in `n_test_skipped`.
 5. **Pure query.** `fit_w2` does not change `self.config["w2"]`, the players, or
@@ -129,10 +140,10 @@ Coverage stays at the locked 95% floor.
 - Auto-applying the chosen `w2` / re-fitting the instance (pure query).
 - Later roadmap points #9, #8, #10.
 
-## Open review points
+## Open review points (mostly settled)
 
-1. Single temporal hold-out (default `holdout_fraction=0.2`) vs multiple
-   expanding-window folds.
+1. ~~Single hold-out vs k-folds~~ → **temporal expanding-window k-folds**,
+   `n_splits` default 5 (settled with the user).
 2. Default candidate grid `[10, 30, 100, 300, 1000, 3000]`.
 3. Pure query (returns result, no mutation) vs an `apply=True` convenience.
 4. Cold-start test games skipped (vs scored at 0.5).
