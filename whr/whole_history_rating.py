@@ -179,6 +179,54 @@ class WHR:
             norm = max(norm, abs(grad))
         return norm
 
+    def _game_descriptions(
+        self,
+    ) -> list[tuple[str, str, str, int, float, dict[str, Any]]]:
+        """Replayable (black, white, winner, day, handicap, extras) tuples.
+
+        ``extras`` is copied so replaying into a fresh WHR cannot mutate this
+        instance's game state.
+        """
+        return [
+            (
+                g.black_player.name,
+                g.white_player.name,
+                g.winner,
+                g.day,
+                g.handicap,
+                dict(g.extras),
+            )
+            for g in self.games
+        ]
+
+    def _temporal_folds(self, n_splits: int) -> list[tuple[list[tuple], list[tuple]]]:
+        """Expanding-window temporal (train, test) folds, split on distinct days.
+
+        Distinct days are cut into ``n_splits + 1`` contiguous groups; fold ``i``
+        trains on the first ``i`` groups and tests on group ``i`` (1-indexed), so
+        every train day is strictly earlier than every test day.
+        """
+        if n_splits < 1:
+            raise ValueError(f"n_splits must be >= 1, got {n_splits}")
+        descs = self._game_descriptions()
+        days = sorted({d[3] for d in descs})
+        if len(days) < n_splits + 1:
+            raise ValueError(
+                f"need at least {n_splits + 1} distinct days for "
+                f"n_splits={n_splits}, got {len(days)}"
+            )
+        n_days = len(days)
+        cuts = [round(n_days * i / (n_splits + 1)) for i in range(n_splits + 2)]
+        day_index = {day: idx for idx, day in enumerate(days)}
+        folds = []
+        for i in range(1, n_splits + 1):
+            train_end = cuts[i]
+            test_end = cuts[i + 1]
+            train = [d for d in descs if day_index[d[3]] < train_end]
+            test = [d for d in descs if train_end <= day_index[d[3]] < test_end]
+            folds.append((train, test))
+        return folds
+
     def print_ordered_ratings(self, current: bool = False) -> None:
         """Displays all ratings for each player (for each of their playing days), ordered.
 
