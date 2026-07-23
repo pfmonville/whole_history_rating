@@ -83,6 +83,7 @@ class Player:
             if row > 0:
                 prior += -1 / sigma2[row - 1]
             diagonal[row] = days[row].log_likelihood_second_derivative() + prior - 0.001
+        diagonal[0] += days[0].anchor_hessian()
         for i in range(n - 1):
             sub_diagonal[i] = 1 / sigma2[i]
         return (diagonal, sub_diagonal)
@@ -108,9 +109,10 @@ class Player:
                 prior += -(r[idx] - r[idx + 1]) / sigma2[idx]
             if idx > 0:
                 prior += -(r[idx] - r[idx - 1]) / sigma2[idx - 1]
-            if self.debug:
-                print(f"g[{idx}] = {day.log_likelihood_derivative()} + {prior}")
-            g.append(day.log_likelihood_derivative() + prior)
+            term = day.log_likelihood_derivative() + prior
+            if idx == 0:
+                term += day.anchor_gradient()
+            g.append(term)
         return g
 
     def run_one_newton_iteration(self) -> None:

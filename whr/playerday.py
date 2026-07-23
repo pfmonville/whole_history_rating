@@ -70,9 +70,6 @@ class PlayerDay:
                 # opponents_adjusted_gamma already raises on a non-finite gamma.
                 other_gamma = g.opponents_adjusted_gamma(self.player)
                 self._won_game_terms.append([1.0, 0.0, 1.0, other_gamma])
-            if self.is_first_day:
-                # win against virtual player ranked with gamma = 1.0
-                self._won_game_terms.append([1.0, 0.0, 1.0, 1.0])
         return self._won_game_terms
 
     def lost_game_terms(self) -> list[list[float]]:
@@ -87,9 +84,6 @@ class PlayerDay:
                 # opponents_adjusted_gamma already raises on a non-finite gamma.
                 other_gamma = g.opponents_adjusted_gamma(self.player)
                 self._lost_game_terms.append([0.0, other_gamma, 1.0, other_gamma])
-            if self.is_first_day:
-                # win against virtual player ranked with gamma = 1.0
-                self._lost_game_terms.append([0.0, 1.0, 1.0, 1.0])
         return self._lost_game_terms
 
     def log_likelihood_second_derivative(self) -> float:
@@ -129,6 +123,24 @@ class PlayerDay:
             tally -= math.log(c * self.gamma() + d)
         return tally
 
+    def anchor_gradient(self) -> float:
+        """First-day Bradley-Terry prior gradient (Coulom's InitialPriorWins)."""
+        k = self.player.initial_prior_wins
+        gamma = self.gamma()
+        return k * (1.0 - 2.0 * gamma / (1.0 + gamma))
+
+    def anchor_hessian(self) -> float:
+        """Second derivative of the first-day prior."""
+        k = self.player.initial_prior_wins
+        gamma = self.gamma()
+        return -2.0 * k * gamma / ((1.0 + gamma) ** 2)
+
+    def anchor_log_likelihood(self) -> float:
+        """Log-likelihood contribution of the first-day prior."""
+        k = self.player.initial_prior_wins
+        gamma = self.gamma()
+        return k * (math.log(gamma) - 2.0 * math.log(1.0 + gamma))
+
     def add_game(self, game: G.Game) -> None:
         """Adds a game to this player's record, categorizing it as won or lost.
 
@@ -144,8 +156,7 @@ class PlayerDay:
 
     def update_by_1d_newtons_method(self) -> None:
         """Updates the player's rating using one-dimensional Newton's method."""
-        dlogp = self.log_likelihood_derivative()
-        d2logp = self.log_likelihood_second_derivative()
+        dlogp = self.log_likelihood_derivative() + self.anchor_gradient()
+        d2logp = self.log_likelihood_second_derivative() + self.anchor_hessian()
         dr = dlogp / d2logp
-        new_r = self.r - dr
-        self.r = new_r
+        self.r = self.r - dr
