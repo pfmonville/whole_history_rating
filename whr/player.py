@@ -106,6 +106,14 @@ class Player:
         elif len(self.days) > 1:
             self.update_by_ndim_newton()
 
+    def gradient_infinity_norm(self) -> float:
+        """Max absolute gradient component over this player's days."""
+        if not self.days:
+            return 0.0
+        r = [d.r for d in self.days]
+        sigma2 = self.compute_sigma2()
+        return max(abs(gi) for gi in self.gradient(r, self.days, sigma2))
+
     def compute_sigma2(self) -> list[float]:
         """Computes the variance values used as the prior for rating changes.
 

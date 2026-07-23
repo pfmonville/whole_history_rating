@@ -4,11 +4,10 @@ import ast
 import pickle
 import time
 import warnings
-from typing import Any, cast
+from typing import Any
 
 from whr.game import Game
 from whr.player import Player
-from whr.utils import test_stability
 
 
 class WHR:
@@ -200,35 +199,40 @@ class WHR:
         for player in self.players.values():
             player.update_uncertainty()
 
+    def max_gradient_norm(self) -> float:
+        """Largest gradient infinity-norm across all players (stationarity gauge)."""
+        norm = 0.0
+        for p in self.players.values():
+            if len(p.days) > 0:
+                norm = max(norm, p.gradient_infinity_norm())
+        return norm
+
     def auto_iterate(
         self,
         time_limit: int | None = None,
         precision: float = 1e-3,
         batch_size: int = 10,
     ) -> tuple[int, bool]:
-        """Automatically iterates until the algorithm converges or reaches the time limit.
+        """Iterate until the gradient infinity-norm drops below ``precision``.
 
         Args:
-            time_limit (int | None, optional): The maximum time, in seconds, after which no more iterations will be launched. If None, no timeout is set
-            precision (float, optional): The desired precision of stability.
-            batch_size (int, optional): The number of iterations to perform at each step, with precision and timeout checks after each batch.
+            time_limit: max seconds before giving up. None means no timeout.
+            precision: convergence tolerance on the max absolute gradient
+                component (natural-rating units).
+            batch_size: iterations per convergence/timeout check.
 
         Returns:
-            tuple[int, bool]: The number of iterations performed and a boolean indicating whether stability was reached.
+            (iterations performed, whether convergence was reached).
         """
         start = time.time()
-        a: list[list[float]] | None = None
         i = 0
         while True:
             self.iterate(batch_size)
             i += batch_size
-            # compact=True yields the list[list[float]] shape test_stability needs.
-            b = cast("list[list[float]]", self.get_ordered_ratings(compact=True))
-            if a is not None and test_stability(a, b, precision):
+            if self.max_gradient_norm() < precision:
                 return i, True
             if time_limit is not None and time.time() - start > time_limit:
                 return i, False
-            a = b
 
     def probability_future_match(
         self, name1: str, name2: str, handicap: float = 0

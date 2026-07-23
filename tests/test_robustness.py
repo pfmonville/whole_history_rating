@@ -119,3 +119,14 @@ def test_non_finite_step_raises(monkeypatch):
     )
     with pytest.raises(utils.UnstableRatingException):
         w.iterate(1)
+
+
+def test_auto_iterate_converges_on_gradient_norm():
+    w = whole_history_rating.WHR()
+    for d in range(1, 6):
+        w.create_game("a", "b", "B", d, 0)
+        w.create_game("a", "b", "W", d, 0)
+    iterations, converged = w.auto_iterate(precision=1e-2, time_limit=10)
+    assert converged is True
+    assert iterations > 0
+    assert w.max_gradient_norm() < 1e-2
