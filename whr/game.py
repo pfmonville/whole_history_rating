@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import sys
+import math
 from typing import Any
 
 from whr import player as P
@@ -16,12 +16,16 @@ class Game:
         time_step: int,
         handicap: float = 0,
         extras: dict[str, Any] | None = None,
+        handicap_gamma: dict[Any, float] | None = None,
+        komi_gamma: dict[Any, float] | None = None,
     ):
         self.day = time_step
         self.white_player = white
         self.black_player = black
         self.winner = winner.upper()
         self.handicap = handicap
+        self.handicap_gamma = handicap_gamma
+        self.komi_gamma = komi_gamma
         self.bpd: PD.PlayerDay | None = None
         self.wpd: PD.PlayerDay | None = None
         if extras is None:
@@ -34,33 +38,34 @@ class Game:
         return f"W:{self.white_player.name}(r={self.wpd.r if self.wpd is not None else '?'}) B:{self.black_player.name}(r={self.bpd.r if self.bpd is not None else '?'}) winner = {self.winner}, komi = {self.extras['komi']}, handicap = {self.handicap}"
 
     def opponents_adjusted_gamma(self, player: P.Player) -> float:
-        """
-        Calculates the adjusted gamma value of a player's opponent. This is based on the opponent's
-        Elo rating adjusted for the game's handicap.
+        """Opponent's gamma folding in the handicap/komi advantages.
 
-        Parameters:
-            player (P.Player): The player for whom to calculate the opponent's adjusted gamma.
-
-        Returns:
-            float: The adjusted gamma value of the opponent.
-
-        Raises:
-            AttributeError: If the player days are not set or the player is not part of the game.
+        With handicap boosting black (γ_h) and komi boosting white (γ_k):
+        the opponent of white is black with effective gamma γ_b·γ_h/γ_k, and
+        the opponent of black is white with effective gamma γ_w·γ_k/γ_h. When
+        the tables are absent (direct construction) advantages are 1.
         """
         if self.bpd is None or self.wpd is None:
             raise AttributeError("black player day and white player day must be set")
+        gh = (
+            1.0
+            if self.handicap_gamma is None
+            else self.handicap_gamma.get(self.handicap, 1.0)
+        )
+        gk = (
+            1.0
+            if self.komi_gamma is None
+            else self.komi_gamma.get(self.extras["komi"], 1.0)
+        )
         if player == self.white_player:
-            opponent_elo = self.bpd.elo + self.handicap
+            rval = self.bpd.gamma() * gh / gk
         elif player == self.black_player:
-            opponent_elo = self.wpd.elo - self.handicap
+            rval = self.wpd.gamma() * gk / gh
         else:
-            raise (
-                AttributeError(
-                    f"No opponent for {player.__str__()}, since they're not in this game: {self.__str__()}."
-                )
+            raise AttributeError(
+                f"No opponent for {player.__str__()}, since they're not in this game: {self.__str__()}."
             )
-        rval = 10 ** (opponent_elo / 400.0)
-        if rval == 0 or rval > sys.maxsize:
+        if not math.isfinite(rval) or rval <= 0:
             raise AttributeError("bad adjusted gamma")
         return rval
 

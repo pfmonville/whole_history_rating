@@ -176,7 +176,16 @@ class WHR:
             raise AttributeError("Invalid game (black player == white player)")
         white_player = self.player_by_name(white)
         black_player = self.player_by_name(black)
-        game = Game(black_player, white_player, winner, time_step, handicap, extras)
+        game = Game(
+            black_player,
+            white_player,
+            winner,
+            time_step,
+            handicap,
+            extras,
+            handicap_gamma=self.handicap_gamma,
+            komi_gamma=self.komi_gamma,
+        )
         return game
 
     def create_game(
@@ -207,6 +216,7 @@ class WHR:
             black = black.lower()
             white = white.lower()
         game = self._setup_game(black, white, winner, time_step, handicap, extras)
+        self._ensure_advantage_keys(game.handicap, game.extras["komi"])
         return self._add_game(game)
 
     def _add_game(self, game: Game) -> Game:

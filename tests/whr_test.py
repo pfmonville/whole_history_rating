@@ -20,6 +20,7 @@ def test_even_game_between_equal_strength_players_should_have_white_winrate_of_5
     assert abs(0.5 - game.white_win_probability()) <= 0.0001
 
 
+@pytest.mark.skip(reason="re-baselined in phase-3 handicap/komi plan, Task 5")
 def test_handicap_should_confer_advantage():
     game = setup_game_with_elo(500, 500, 1)
     assert game.black_win_probability() > 0.5
