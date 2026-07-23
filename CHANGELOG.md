@@ -8,7 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.1.0] - unreleased
 
 ### Changed
-- **Ratings values change.** The first-day anchor now uses Coulom's
+- **Ratings values change.** `handicap` is now an estimated Bradley-Terry
+  category (was a fixed elo constant added to black's elo), and komi is now
+  modelled (was silently ignored). Both advantages are co-estimated with
+  player ratings each iteration, so games carrying a handicap or a shared komi
+  value shift ratings versus earlier releases. To reproduce the old fixed-elo
+  handicap behaviour, pin it: `WHR(config={'pinned_handicap': {h: elo}})`.
+- The first-day anchor now uses Coulom's
   `initial_prior_wins` strength (default 0.5 instead of an implicit 1.0),
   reducing the compression of weakly-connected players toward 0 elo.
 - Newton stability now comes from a configurable `hessian_damping`
@@ -31,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   time so ratings are comparable across eras; it mutates ratings in place,
   returns the per-day elo corrections, and preserves same-day win
   probabilities. New config key `drift_kernel_radius` (default 100).
+- Config keys `pinned_handicap` and `pinned_komi` (each a `{key: elo}` dict of
+  known advantages to pin instead of estimate) and `estimate_handicap_zero`
+  (default `False`). The handicap and komi advantages are co-estimated with
+  player ratings each iteration and readable via `WHR.handicap_gamma` /
+  `WHR.komi_gamma` (dicts of key → gamma). `save_base`/`load_base` now persist
+  these estimated advantage tables.
 
 ### Removed
 - The `> 650` elo guard and the `sys.maxsize` log-likelihood guard.

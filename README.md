@@ -188,6 +188,18 @@ Adjust `drift_kernel_radius`, the half-width (in days) of the Gaussian kernel us
 whr = WHR({'drift_kernel_radius': 100})
 ```
 
+Pin a known handicap or komi advantage (in elo) instead of letting it be estimated from the data, via `pinned_handicap` / `pinned_komi` — each a `{key: elo}` dict. Both default to `{}` (nothing pinned, other than the `handicap` key `0` baseline described below).
+
+```python
+whr = WHR({'pinned_handicap': {2: 200}})
+```
+
+Set `estimate_handicap_zero` to let the `handicap` key `0` (no handicap) be estimated instead of pinned to a 0-elo baseline. The default is `False`. See "Handicap and komi" below for why this baseline exists.
+
+```python
+whr = WHR({'estimate_handicap_zero': True})
+```
+
 ### Removing Rating Drift
 
 Over long histories, the whole population's average strength can drift or inflate over time even though individual ratings are locally accurate, making players from different eras hard to compare. `remove_drift()` (a faithful port of Coulom's `RemoveDrift`) corrects for this by recentring the per-day mean player strength near 0 elo, using a Gaussian-smoothed estimate of the drift at each day (controlled by `drift_kernel_radius`).
@@ -204,3 +216,24 @@ corrections = whr.remove_drift()  # optional, after convergence; call last
 This step is opt-in: it does not run automatically and does not change what `iterate()`/`auto_iterate()` compute. It mutates the stored ratings in place, shifting every player-day's rating by that day's negated drift, and returns the applied corrections as `{day: correction_elo}`. Because the shift is uniform within a day, the relative rating (and thus win probability, e.g. `Game.white_win_probability()`) of two players active on the *same* day is unchanged; `probability_future_match` is only invariant when the two players' last recorded days happen to coincide, and generally is not, since it compares each player's own last day, which typically receive different corrections. Uncertainties (from `ratings_for_player`) are not recomputed by this step; this is only approximate, since the first-day anchor curvature is not exactly invariant under the shift, but the effect is output-only and has no downstream effect on iteration.
 
 `time_step` must be a compact day index counted from some origin (e.g. a day number), not an epoch timestamp: `remove_drift()`'s cost scales with the CALENDAR SPAN of day values (`max_day - min_day`), not with the number of games, so an epoch timestamp will silently hang or exhaust memory.
+
+### Handicap and komi
+
+Every game carries a `handicap` key (the `handicap` argument to `create_game`/`load_games`) and a `komi` key (`extras['komi']`, default `6.5`). Handicap boosts **black**; komi boosts **white**. Rather than a fixed elo constant, each distinct key is a Bradley-Terry *category*: its advantage, in elo, is a parameter co-estimated alongside the player ratings on every iteration (a faithful port of Coulom's `NewtonKomiHandicap`), and is readable at any time from `whr.handicap_gamma` / `whr.komi_gamma` — dicts mapping each key to its estimated gamma (convert to elo with `400 * log10(gamma)`).
+
+The `handicap` key `0` (no handicap) is a pinned no-advantage baseline (gamma `1.0`, i.e. `0` elo) by default and is never moved by estimation — this resolves an identifiability confound between the black/white baseline and the komi advantage. Set `estimate_handicap_zero=True` if you want it estimated instead.
+
+To pin a handicap or komi value you already know (rather than estimating it), use `pinned_handicap` / `pinned_komi`:
+
+```python
+whr = WHR({'pinned_handicap': {2: 200}})  # a 2-stone handicap is worth +200 elo to black
+whr.create_game("weaker", "stronger", "B", 1, 2)
+```
+
+Pinning a handicap key to its known elo value reproduces the fixed-elo handicap behaviour of earlier versions of this library (see below).
+
+The same mechanism generalises beyond Go: if every game shares a single komi key (e.g. all games use the default `6.5`, or you set a constant key of your own choosing), `komi_gamma` for that key becomes a single learned **white/side advantage** — the colour advantage in chess, or a home advantage in other sports. No Go-specific assumption is involved.
+
+**This changes the meaning of `handicap` versus earlier versions**, where it was a fixed elo bonus added directly to black's elo. It is now a category label whose advantage is learned (or pinned). If you relied on the old fixed-elo behaviour, pin every handicap value you use, e.g. `WHR({'pinned_handicap': {h: elo_value, ...}})` for each handicap `h` your data contains.
+
+**Caveat — don't estimate what your data can't support.** Estimating a handicap/komi advantage well requires enough games where player strengths and colours are reasonably balanced (as in the recovery tests: many games, colours swapped, roughly even overall). With a small or skewed sample, the estimated advantage — especially komi, since most games share the same default komi key — can silently absorb what is really just a player-strength difference (e.g. if white happens to be the stronger player more often in your data, `komi_gamma` will drift up to explain it instead of the player ratings doing so). If you don't have enough data to support estimating it, pin the value to disable estimation, e.g. `WHR({'pinned_komi': {6.5: 0}})`.
