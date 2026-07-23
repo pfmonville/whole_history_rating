@@ -47,6 +47,19 @@ def test_remove_drift_preserves_same_day_win_probability():
     assert after == pytest.approx(before, abs=1e-9)
 
 
+def test_compute_drift_zero_support_day_is_zero_not_error():
+    # Games at day 1 and day 100 with a small radius: the middle of the gap
+    # has no games within `drift_kernel_radius`, so filtered_count == 0 there.
+    # The guard must return 0.0 for that day rather than raising ZeroDivisionError.
+    w = WHR(config={"drift_kernel_radius": 5})
+    w.create_game("a", "b", "B", 1, 0)
+    w.create_game("a", "b", "B", 100, 0)
+    w.iterate(10)
+    drift = w._compute_drift()  # private, exercised directly to hit the guard
+    assert drift[50] == 0.0
+    assert all(math.isfinite(v) for v in drift.values())
+
+
 def test_remove_drift_cancels_linear_drift():
     # One fresh, independent matchup per day for 300 days; inject a linear
     # drift by setting every player-day's elo equal to its day number, so the
