@@ -20,9 +20,16 @@ def test_even_game_between_equal_strength_players_should_have_white_winrate_of_5
     assert abs(0.5 - game.white_win_probability()) <= 0.0001
 
 
-@pytest.mark.skip(reason="re-baselined in phase-3 handicap/komi plan, Task 5")
+# re-baselined for phase-3 (estimated handicap/komi): under the estimated
+# model an unpinned handicap category defaults to gamma=1 (no advantage) until
+# learned from enough asymmetric games, so a bare handicap no longer confers
+# advantage by construction. The migration path is to pin (or learn) it; this
+# demonstrates the advantage via a pinned handicap of +200 elo.
 def test_handicap_should_confer_advantage():
-    game = setup_game_with_elo(500, 500, 1)
+    whr = whole_history_rating.WHR(config={"pinned_handicap": {2: 200.0}})
+    game = whr.create_game("black", "white", "W", 1, 2)
+    game.black_player.days[0].elo = 500.0
+    game.white_player.days[0].elo = 500.0
     assert game.black_win_probability() > 0.5
 
 
@@ -56,8 +63,10 @@ def test_winrates_should_be_inversely_proportional_with_handicap():
     )
 
 
-# re-baselined for phase-1 (anchor 0.5, damping 1.0)
-@pytest.mark.skip(reason="re-baselined in phase-3 handicap/komi plan, Task 5")
+# re-baselined for phase-3 (estimated handicap/komi): all three games share
+# the default komi key (6.5), so the shared white win (2 of 3) is now largely
+# attributed to the estimated komi_gamma[6.5] advantage (~+109 elo) rather than
+# entirely to shusai's rating, shrinking the residual rating gap accordingly.
 def test_output():
     whr = whole_history_rating.WHR()
     whr.create_game("shusaku", "shusai", "B", 1, 0)
@@ -65,19 +74,21 @@ def test_output():
     whr.create_game("shusaku", "shusai", "W", 3, 0)
     whr.iterate(50)
     assert [
-        (1, -50, 0.26),
-        (2, -51, 0.26),
-        (3, -52, 0.26),
+        (1, -5, 0.26),
+        (2, -6, 0.26),
+        (3, -7, 0.26),
     ] == whr.ratings_for_player("shusaku")
     assert [
-        (1, 50, 0.26),
-        (2, 51, 0.26),
-        (3, 52, 0.26),
+        (1, 4, 0.26),
+        (2, 5, 0.26),
+        (3, 6, 0.26),
     ] == whr.ratings_for_player("shusai")
 
 
-# re-baselined for phase-1 (anchor 0.5, damping 1.0)
-@pytest.mark.skip(reason="re-baselined in phase-3 handicap/komi plan, Task 5")
+# re-baselined for phase-3 (estimated handicap/komi): all games share the
+# default komi key (6.5), so the shared white win rate (4 of 5) is now largely
+# attributed to the estimated komi_gamma[6.5] advantage (~+211 elo) rather than
+# entirely to shusai's rating, shrinking the residual rating gap accordingly.
 def test_output2():
     whr = whole_history_rating.WHR()
     whr.create_game("shusaku", "shusai", "B", 1, 0)
@@ -87,23 +98,30 @@ def test_output2():
     whr.create_game("shusaku", "shusai", "W", 4, 0)
     whr.iterate(50)
     assert [
-        (1, -102, 0.2),
-        (2, -104, 0.2),
-        (3, -105, 0.2),
-        (4, -106, 0.2),
+        (1, -13, 0.21),
+        (2, -14, 0.2),
+        (3, -15, 0.2),
+        (4, -16, 0.21),
     ] == whr.ratings_for_player("shusaku")
     assert [
-        (1, 104, 0.2),
-        (2, 106, 0.2),
-        (3, 107, 0.2),
-        (4, 108, 0.2),
+        (1, 12, 0.21),
+        (2, 13, 0.2),
+        (3, 14, 0.2),
+        (4, 15, 0.21),
     ] == whr.ratings_for_player("shusai")
 
 
 # re-baselined for phase-1 (anchor 0.5, damping 1.0): the huge handicap no
 # longer destabilizes the Newton update, so this now checks convergence to
 # finite ratings instead of raising UnstableRatingException.
-@pytest.mark.skip(reason="re-baselined in phase-3 handicap/komi plan, Task 5")
+#
+# re-verified for phase-3 (estimated handicap/komi): handicap 600 is now an
+# estimated category (gamma starts at 1.0, i.e. no advantage) rather than a
+# hardcoded +600 elo boost. Here the black/white wins at handicap 600 are
+# perfectly balanced (10/20), which is exactly what gamma=1 already predicts
+# for two equally-rated players, so the Newton step leaves the category's
+# gamma at 1.0 (no advantage learned) instead of driving it toward +600 elo.
+# The test only asserts finiteness, which still holds.
 def test_large_handicap_converges_to_finite_ratings():
     whr = whole_history_rating.WHR()
     for _ in range(10):
@@ -120,7 +138,6 @@ def test_large_handicap_converges_to_finite_ratings():
 # re-baselined for phase-1 (anchor 0.5, damping 1.0): only day 0 (the
 # first-day anchor) changes value; days 1 and 2 have no anchor term and are
 # unaffected.
-@pytest.mark.skip(reason="re-baselined in phase-3 handicap/komi plan, Task 5")
 def test_log_likelihood():
     whr = whole_history_rating.WHR()
     whr.create_game("shusaku", "shusai", "B", 1, 0)
@@ -154,7 +171,6 @@ def test_creating_games():
     assert list(whr.players.keys()) == ["shusai", "shusaku"]
 
 
-@pytest.mark.skip(reason="re-baselined in phase-3 handicap/komi plan, Task 5")
 def test_loading_several_games_at_once(capsys, tmp_path):
     whr = whole_history_rating.WHR()
     # test loading several games at once
@@ -168,47 +184,51 @@ def test_loading_several_games_at_once(capsys, tmp_path):
     assert len(whr.games) == 4
     # test auto iterating to get convergence
     whr.iterate(20)
-    # re-baselined: single-day player "nobody" is now damped in its 1-D Newton
-    # step (consistent with covariance()), which shifts every coupled value
-    # (anchor 0.5, damping 1.0).
+    # re-baselined for phase-3 (estimated handicap/komi): all four games share
+    # the default komi key (6.5) at a near-even 2/4 white-win split, so
+    # komi_gamma[6.5] co-adapts alongside the player ratings (settling modestly
+    # below 1, i.e. a small black-favouring residual) instead of staying
+    # pinned at 1; this reshuffles the values below (still ordered
+    # nobody < shusaku < shusai and all finite/positive-uncertainty) relative
+    # to the phase-1 baseline (anchor 0.5, damping 1.0).
     # test getting ratings for player shusaku (day, elo, uncertainty)
     assert whr.ratings_for_player("shusaku") == [
-        (1, 32, 0.25),
-        (2, 32, 0.24),
-        (3, 31, 0.25),
+        (1, 16, 0.25),
+        (2, 15, 0.24),
+        (3, 15, 0.25),
     ]
     # test getting ratings for player shusai, only current elo and uncertainty
-    assert whr.ratings_for_player("shusai", current=True) == (110, 0.26)
+    assert whr.ratings_for_player("shusai", current=True) == (125, 0.26)
     # test getting probability of future match between shusai and nobody2 (an
     # unknown player, treated as an even gamma=1 reference); it is a pure query
     # that neither prints nor persists nobody2.
     assert whr.probability_future_match("shusai", "nobody2", 0) == (
-        0.6533788507262572,
-        0.3466211492737428,
+        0.6719847779500109,
+        0.32801522204998923,
     )
     assert capsys.readouterr().out == ""
     assert "nobody2" not in whr.players
     # test getting log likelihood of base
-    assert whr.log_likelihood() == pytest.approx(-1.081000492536898)
+    assert whr.log_likelihood() == pytest.approx(-1.061578579328394)
     # test printing ordered ratings
     whr.print_ordered_ratings()
-    display = "nobody => [-176.60238580629516]\nshusaku => [32.46885411614499, 31.508925707068432, 31.230159171616652]\nshusai => [108.14428636123016, 109.46483984112977, 110.12400590321403]\n"
+    display = "nobody => [-167.88581941373636]\nshusaku => [15.847593903408283, 14.852900414900345, 14.545508206558283]\nshusai => [122.57458064806248, 123.91642306478018, 124.58617483320234]\n"
     captured = capsys.readouterr()
     assert display == captured.out
     # test printing ordered ratings, only current elo
     whr.print_ordered_ratings(current=True)
-    display = "nobody => -176.60238580629516\nshusaku => 31.230159171616652\nshusai => 110.12400590321403\n"
+    display = "nobody => -167.88581941373636\nshusaku => 14.545508206558283\nshusai => 124.58617483320234\n"
     captured = capsys.readouterr()
     assert display == captured.out
     # test getting ordered ratings, compact form
     assert whr.get_ordered_ratings(compact=True) == [
-        [-176.60238580629516],
-        [32.46885411614499, 31.508925707068432, 31.230159171616652],
-        [108.14428636123016, 109.46483984112977, 110.12400590321403],
+        [-167.88581941373636],
+        [15.847593903408283, 14.852900414900345, 14.545508206558283],
+        [122.57458064806248, 123.91642306478018, 124.58617483320234],
     ]
     # test getting ordered ratings, only current elo with compact form
     assert whr.get_ordered_ratings(compact=True, current=True) == pytest.approx(
-        [-176.60238580629516, 31.230159171616652, 110.12400590321403]
+        [-167.88581941373636, 14.545508206558283, 124.58617483320234]
     )
     # test saving base
     path = str(tmp_path / "state.pkl")
@@ -332,7 +352,6 @@ def test_load_base_legacy_format_backfills_new_attributes(tmp_path):
 # re-baselined for phase-1 (anchor 0.5, damping 1.0): precision is now a
 # gradient-norm tolerance, so the old fixed iteration-count assertions are
 # replaced with property assertions that hold regardless of the exact values.
-@pytest.mark.skip(reason="re-baselined in phase-3 handicap/komi plan, Task 5")
 def test_auto_iterate():
     def run(precision):
         w = whole_history_rating.WHR()
