@@ -291,6 +291,36 @@ def test_load_base_reads_legacy_format(tmp_path):
     assert [str(g) for g in loaded.games] == [str(g) for g in whr.games]
 
 
+def test_load_base_legacy_format_backfills_new_attributes(tmp_path):
+    # Legacy (pre-2.0) pickles carry Player objects and a config that predate
+    # the initial_prior_wins/hessian_damping attributes added in phase-1.
+    # load_base must backfill them from config defaults so a legacy-loaded
+    # base can still be re-iterated instead of raising AttributeError/KeyError.
+    whr = whole_history_rating.WHR()
+    whr.load_games(["a b B 1", "a b W 2", "a c B 3"])
+    whr.iterate(10)
+
+    # Simulate the pre-2.0 shape: strip the new attributes/keys that did not
+    # exist back then.
+    for player in whr.players.values():
+        del player.initial_prior_wins
+        del player.hessian_damping
+    legacy_config = dict(whr.config)
+    del legacy_config["initial_prior_wins"]
+    del legacy_config["hessian_damping"]
+
+    path = str(tmp_path / "legacy_predates_new_attrs.pkl")
+    with open(path, "wb") as f:
+        pickle.dump([whr.players, whr.games, legacy_config], f)
+
+    loaded = whole_history_rating.WHR.load_base(path)
+    loaded.iterate(5)  # must not raise AttributeError/KeyError
+
+    for _, elos in loaded.get_ordered_ratings():
+        for elo in elos:
+            assert math.isfinite(elo)
+
+
 # re-baselined for phase-1 (anchor 0.5, damping 1.0): precision is now a
 # gradient-norm tolerance, so the old fixed iteration-count assertions are
 # replaced with property assertions that hold regardless of the exact values.

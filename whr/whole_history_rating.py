@@ -368,11 +368,21 @@ class WHR:
             pickle.dumps(config)
         except Exception:
             config = {
-                k: v for k, v in self.config.items() if k in ["w2", "debug", "uncased"]
+                k: v
+                for k, v in self.config.items()
+                if k
+                in [
+                    "w2",
+                    "debug",
+                    "uncased",
+                    "initial_prior_wins",
+                    "hessian_damping",
+                ]
             }
             warnings.warn(
-                "Some elements in config cannot be pickled; only 'w2', 'debug' "
-                "and 'uncased' will be saved.",
+                "Some elements in config cannot be pickled; only 'w2', 'debug', "
+                "'uncased', 'initial_prior_wins' and 'hessian_damping' will be "
+                "saved.",
                 stacklevel=2,
             )
         with open(path, "wb") as f:
@@ -393,8 +403,15 @@ class WHR:
         if not isinstance(data, dict):
             # Legacy format: a pickled object graph as [players, games, config].
             players, games, config = data
-            result = WHR()
-            result.config, result.games, result.players = config, games, players
+            # Reconstruct through the constructor so config defaults (including
+            # keys added in later versions) are applied and the dict is copied.
+            result = WHR(config)
+            result.games, result.players = games, players
+            # Players pickled by older versions predate these attributes;
+            # backfill them so the loaded base can still be iterated.
+            for player in result.players.values():
+                player.initial_prior_wins = result.config["initial_prior_wins"]
+                player.hessian_damping = result.config["hessian_damping"]
             return result
         result = WHR(data["config"])
         for black, white, winner, time_step, handicap, extras in data["games"]:

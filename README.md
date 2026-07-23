@@ -176,7 +176,7 @@ Adjust `initial_prior_wins`, the strength of the first-day Bradley-Terry anchor 
 whr = WHR({'initial_prior_wins': 0.5})
 ```
 
-Adjust `hessian_damping`, the damping subtracted from the Newton Hessian diagonal (Coulom's `HessianEpsilon`) for numerical stability. The default is `1.0` and does not bias the converged ratings.
+Adjust `hessian_damping`, the damping subtracted from the Newton Hessian diagonal (Coulom's `HessianEpsilon`) for numerical stability. The default is `1.0`; it does not bias the converged ratings, but it does change the reported uncertainties, since it flows through the covariance computation.
 
 ```python
 whr = WHR({'hessian_damping': 1.0})

@@ -51,6 +51,36 @@ def test_lower_prior_reduces_compression():
     assert spread(0.5) > spread(1.0)
 
 
+def test_gradient_anchor_applies_only_to_day_zero():
+    # Locks the `idx == 0` guard in Player.gradient: the first-day anchor
+    # term must only be added to g[0], never to later days.
+    def make_player(initial_prior_wins):
+        w = whole_history_rating.WHR(config={"initial_prior_wins": initial_prior_wins})
+        w.create_game("a", "b", "B", 1, 0)
+        w.create_game("a", "b", "W", 2, 0)
+        player = w.player_by_name("a")
+        # Move ratings away from the gamma == 1 fixed point, where the anchor
+        # gradient is zero regardless of its strength (1 - 2*1/(1+1) == 0),
+        # so that differing initial_prior_wins actually produce differing
+        # anchor terms.
+        player.days[0].set_gamma(2.0)
+        player.days[1].set_gamma(3.0)
+        return player
+
+    p_low = make_player(0.5)
+    p_high = make_player(5.0)
+
+    r_low = [d.r for d in p_low.days]
+    r_high = [d.r for d in p_high.days]
+    assert r_low == r_high  # identical setup; only the anchor strength differs
+
+    g_low = p_low.gradient(r_low, p_low.days, p_low.compute_sigma2())
+    g_high = p_high.gradient(r_high, p_high.days, p_high.compute_sigma2())
+
+    assert g_low[0] != pytest.approx(g_high[0])
+    assert g_low[1] == pytest.approx(g_high[1])
+
+
 def test_hessian_damping_configurable_and_stable():
     for damping in (0.1, 1.0, 10.0):
         w = whole_history_rating.WHR(config={"hessian_damping": damping})

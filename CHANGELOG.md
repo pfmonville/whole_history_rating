@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (natural-rating units) rather than the change in ratings between batches.
 - `WHR.log_likelihood()` is now a correct log-posterior (game likelihood +
   first-day prior + Gaussian Wiener prior).
+- Reported per-day uncertainties (from `ratings_for_player`) also change,
+  since the larger default `hessian_damping` flows through `covariance()`.
 
 ### Added
 - Config keys `initial_prior_wins` (default 0.5) and `hessian_damping`
