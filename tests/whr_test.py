@@ -465,10 +465,13 @@ def test_save_base_with_unpicklable_config_warns_and_falls_back(tmp_path):
             "initial_prior_wins": 0.25,
             "hessian_damping": 2.0,
             "drift_kernel_radius": 42,
+            "pinned_handicap": {2: 300.0},
+            "pinned_komi": {6.5: 10.0},
+            "estimate_handicap_zero": True,
             "bad": lambda x: x,
         }
     )
-    whr.create_game("a", "b", "B", 1, 0)
+    whr.create_game("a", "b", "B", 1, 2)
     whr.iterate(3)
     path = str(tmp_path / "state.pkl")
     with pytest.warns(UserWarning):
@@ -483,6 +486,12 @@ def test_save_base_with_unpicklable_config_warns_and_falls_back(tmp_path):
     # drift_kernel_radius (added in phase 2) must also survive the fallback
     # allowlist rather than being silently reset to its default (100).
     assert loaded.config["drift_kernel_radius"] == 42
+    # pinned_handicap, pinned_komi and estimate_handicap_zero (added in
+    # phase 3) must also survive the fallback allowlist rather than being
+    # silently reset to their defaults.
+    assert loaded.config["pinned_handicap"] == {2: 300.0}
+    assert loaded.config["pinned_komi"] == {6.5: 10.0}
+    assert loaded.config["estimate_handicap_zero"] is True
 
 
 def test_auto_iterate_returns_not_stable_on_timeout():

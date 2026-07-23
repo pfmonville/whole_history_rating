@@ -106,9 +106,17 @@ class Player:
             self.update_by_ndim_newton()
 
     def gradient_infinity_norm(self) -> float:
-        """Max absolute gradient component over this player's days."""
+        """Max absolute gradient component over this player's days.
+
+        Clears each day's game-term cache first so the gradient reflects the
+        current opponent gammas (including handicap/komi advantages updated
+        later in the same iteration), rather than a value cached from before
+        that update.
+        """
         if not self.days:
             return 0.0
+        for day in self.days:
+            day.clear_game_terms_cache()
         r = [d.r for d in self.days]
         sigma2 = self.compute_sigma2()
         return max(abs(gi) for gi in self.gradient(r, self.days, sigma2))

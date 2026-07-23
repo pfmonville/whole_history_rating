@@ -54,9 +54,26 @@ class WHR:
         if komi not in self.komi_gamma:
             self.komi_gamma[komi] = 1.0
 
-    def _newton_handicap_komi(self) -> None:
-        """One Newton step on each non-pinned handicap/komi advantage gamma
-        (Coulom's NewtonKomiHandicap)."""
+    def _accumulate_handicap_komi(
+        self,
+    ) -> tuple[
+        dict[Any, float],
+        dict[Any, float],
+        dict[Any, float],
+        dict[Any, float],
+        dict[Any, int],
+        dict[Any, int],
+        dict[Any, int],
+        dict[Any, int],
+    ]:
+        """Accumulates the per-key Newton gradient/Hessian terms (and raw
+        game/win counts) for the handicap and komi advantage gammas, from the
+        current player gammas and advantage tables (Coulom's
+        NewtonKomiHandicap accumulation step).
+
+        Returns:
+            (h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins)
+        """
         h_grad: dict[Any, float] = {}
         h_hess: dict[Any, float] = {}
         k_grad: dict[Any, float] = {}
@@ -89,6 +106,14 @@ class WHR:
                 h_wins[h] = h_wins.get(h, 0) + 1
             else:
                 k_wins[k] = k_wins.get(k, 0) + 1
+        return h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins
+
+    def _newton_handicap_komi(self) -> None:
+        """One Newton step on each non-pinned handicap/komi advantage gamma
+        (Coulom's NewtonKomiHandicap)."""
+        h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins = (
+            self._accumulate_handicap_komi()
+        )
         damping = self.config["hessian_damping"]
         for h in list(self.handicap_gamma):
             if h in self._pinned_handicap_keys:
@@ -110,6 +135,40 @@ class WHR:
                 grad = wins - gamma * k_grad.get(k, 0.0)
                 hess = -gamma * k_hess.get(k, 0.0) - damping
                 self.komi_gamma[k] = gamma * math.exp(-grad / hess)
+
+    def _handicap_komi_gradient_norm(self) -> float:
+        """Max absolute Newton gradient ``|wins - gamma * grad|`` over the
+        non-pinned handicap/komi keys that would actually be updated by
+        ``_newton_handicap_komi`` (those with games and ``0 < wins < games``).
+
+        This gradient is w.r.t. ``log(gamma_key)`` — the same units as the
+        player gradients (w.r.t. ``r = log(gamma_player)``) — so it is
+        directly comparable to them in a single infinity-norm. Returns 0.0
+        if there is no such key.
+        """
+        h_grad, _h_hess, k_grad, _k_hess, h_games, h_wins, k_games, k_wins = (
+            self._accumulate_handicap_komi()
+        )
+        norm = 0.0
+        for h in list(self.handicap_gamma):
+            if h in self._pinned_handicap_keys:
+                continue
+            games = h_games.get(h, 0)
+            wins = h_wins.get(h, 0)
+            if games > 0 and 0 < wins < games:
+                gamma = self.handicap_gamma[h]
+                grad = wins - gamma * h_grad.get(h, 0.0)
+                norm = max(norm, abs(grad))
+        for k in list(self.komi_gamma):
+            if k in self._pinned_komi_keys:
+                continue
+            games = k_games.get(k, 0)
+            wins = k_wins.get(k, 0)
+            if games > 0 and 0 < wins < games:
+                gamma = self.komi_gamma[k]
+                grad = wins - gamma * k_grad.get(k, 0.0)
+                norm = max(norm, abs(grad))
+        return norm
 
     def print_ordered_ratings(self, current: bool = False) -> None:
         """Displays all ratings for each player (for each of their playing days), ordered.
@@ -261,7 +320,11 @@ class WHR:
             white (str): The name of the white player.
             winner (str): "B" if black won, "W" if white won.
             time_step (int): The day of the match from the origin.
-            handicap (float): The handicap (in elo points).
+            handicap (float): The handicap category key (e.g. a stone count).
+                Its advantage is estimated from the data (or pinned to a
+                known elo value via the ``pinned_handicap`` config), not a
+                fixed elo amount itself — see "Handicap and komi" in the
+                README.
             extras (dict[str, Any] | None, optional): Extra parameters.
 
         Returns:
@@ -298,11 +361,16 @@ class WHR:
             player.update_uncertainty()
 
     def max_gradient_norm(self) -> float:
-        """Largest gradient infinity-norm across all players (stationarity gauge)."""
+        """Largest gradient infinity-norm across all players and non-pinned
+        handicap/komi advantage keys (stationarity gauge). The handicap/komi
+        Newton gradient is w.r.t. ``log(gamma_key)``, the same units as the
+        player gradients w.r.t. ``r = log(gamma_player)``, so both are
+        directly comparable in this single infinity-norm."""
         norm = 0.0
         for p in self.players.values():
             if len(p.days) > 0:
                 norm = max(norm, p.gradient_infinity_norm())
+        norm = max(norm, self._handicap_komi_gradient_norm())
         return norm
 
     def auto_iterate(
@@ -433,10 +501,19 @@ class WHR:
     ) -> tuple[float, float]:
         """Calculates the winning probability for a hypothetical match between two players.
 
+        Note: unlike ``create_game``, ``handicap`` here is a raw elo
+        adjustment added directly to name2's elo before computing the
+        Bradley-Terry probability — NOT the handicap *category key* used by
+        ``create_game``/``load_games``. This method does not look up or apply
+        the learned ``handicap_gamma``/``komi_gamma`` advantages at all; it is
+        a simple what-if adjustment independent of the estimated advantages
+        learned from the game history.
+
         Args:
             name1 (str): The name of the first player.
             name2 (str): The name of the second player.
-            handicap (float, optional): The handicap (in elo points).
+            handicap (float, optional): A raw elo adjustment favouring name1
+                (added to name2's elo), not a handicap category key.
 
         Returns:
             tuple[float, float]: The winning probabilities for name1 and name2 respectively. Unknown players are treated as an even (gamma = 1) reference without being added to the base.
@@ -572,12 +649,16 @@ class WHR:
                     "initial_prior_wins",
                     "hessian_damping",
                     "drift_kernel_radius",
+                    "pinned_handicap",
+                    "pinned_komi",
+                    "estimate_handicap_zero",
                 ]
             }
             warnings.warn(
                 "Some elements in config cannot be pickled; only 'w2', "
-                "'uncased', 'initial_prior_wins', 'hessian_damping' and "
-                "'drift_kernel_radius' will be saved.",
+                "'uncased', 'initial_prior_wins', 'hessian_damping', "
+                "'drift_kernel_radius', 'pinned_handicap', 'pinned_komi' and "
+                "'estimate_handicap_zero' will be saved.",
                 stacklevel=2,
             )
         with open(path, "wb") as f:

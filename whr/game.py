@@ -57,6 +57,11 @@ class Game:
             if self.komi_gamma is None
             else self.komi_gamma.get(self.extras["komi"], 1.0)
         )
+        # Validate the divisors before dividing: an underflowed/non-positive
+        # gamma (e.g. from an extreme pinned elo value) must raise the
+        # intended AttributeError below rather than a raw ZeroDivisionError.
+        if not math.isfinite(gh) or gh <= 0 or not math.isfinite(gk) or gk <= 0:
+            raise AttributeError("bad adjusted gamma")
         if player == self.white_player:
             rval = self.bpd.gamma() * gh / gk
         elif player == self.black_player:

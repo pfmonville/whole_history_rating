@@ -210,6 +210,52 @@ def test_legacy_load_preserves_learned_advantage(tmp_path):
     assert loaded.handicap_gamma[2] == pytest.approx(pre_gamma, abs=1e-9)
 
 
+def test_underflowed_pinned_gamma_raises_attribute_error_not_zero_division():
+    # -130000 elo underflows gamma = 10 ** (-130000/400) to 0.0 in float64.
+    # opponents_adjusted_gamma divides by the komi gamma, so an unvalidated
+    # zero divisor must not surface as a raw ZeroDivisionError; the guard is
+    # supposed to catch it and raise the intended AttributeError instead.
+    w = WHR(config={"pinned_komi": {6.5: -130000.0}})
+    w.create_game("a", "b", "B", 1, 0)
+    game = w.games[0]
+    with pytest.raises(AttributeError, match="bad adjusted gamma"):
+        game.white_win_probability()
+
+
+def test_auto_iterate_waits_for_komi_advantage_to_stabilize():
+    # Perfectly colour-swap-symmetric setup: player ratings sit exactly at
+    # their fixed point (r=0) from the very first iteration, so the player
+    # gradient alone is already ~0, while the (pinned-handicap-free) komi
+    # advantage gamma still needs several more Newton steps to settle.
+    # Before the fix, max_gradient_norm() only looked at player gradients, so
+    # auto_iterate declared convergence after a single iteration even though
+    # komi_gamma[6.5] kept moving substantially afterwards.
+    def build() -> WHR:
+        w = WHR(config={"pinned_handicap": {0: 0.0}})
+        for _ in range(64):
+            w.create_game("a", "b", "W", 1, 0)
+        for _ in range(36):
+            w.create_game("a", "b", "B", 1, 0)
+        for _ in range(64):
+            w.create_game("b", "a", "W", 1, 0)
+        for _ in range(36):
+            w.create_game("b", "a", "B", 1, 0)
+        return w
+
+    w = build()
+    iterations, converged = w.auto_iterate(precision=1e-3, batch_size=1, time_limit=5)
+    assert converged is True
+    assert w.max_gradient_norm() < 1e-3
+
+    before_elo = _elo(w.komi_gamma[6.5])
+    w.iterate(5)
+    after_elo = _elo(w.komi_gamma[6.5])
+    assert abs(after_elo - before_elo) < 0.01, (
+        f"komi advantage still moved {after_elo - before_elo:.4f} elo after "
+        f"auto_iterate declared convergence at iteration {iterations}"
+    )
+
+
 def test_legacy_load_without_advantage_attrs_still_predicts(tmp_path):
     # Simulate a genuinely pre-phase-3 legacy pickle: games/players predate
     # the handicap_gamma/komi_gamma and initial_prior_wins/hessian_damping
