@@ -227,6 +227,72 @@ class WHR:
             folds.append((train, test))
         return folds
 
+    def _predict_black_win_probability(
+        self, black_name: str, white_name: str, handicap: float, komi: Any
+    ) -> float | None:
+        """P(black wins) from the current ratings, or None if either player is
+        unknown / unrated (cold start)."""
+        black = self._existing_player(black_name)
+        white = self._existing_player(white_name)
+        if black is None or white is None or not black.days or not white.days:
+            return None
+        gb = black.days[-1].gamma() * self.handicap_gamma.get(handicap, 1.0)
+        gw = white.days[-1].gamma() * self.komi_gamma.get(komi, 1.0)
+        return gb / (gb + gw)
+
+    def fit_w2(
+        self,
+        candidates: list[float] | None = None,
+        n_splits: int = 5,
+        iterations: int = 50,
+    ) -> dict[str, Any]:
+        """Pick w2 by temporal expanding-window CV predictive log-loss.
+
+        Trains a fresh model (this instance's config, each candidate w2) on each
+        fold's earlier games and scores pooled predictive log-loss on the fold's
+        held-out later games. Does NOT mutate this instance. See the design spec
+        for details. Raises ValueError if a temporal split is impossible.
+        """
+        if candidates is None:
+            candidates = [10.0, 30.0, 100.0, 300.0, 1000.0, 3000.0]
+        folds = self._temporal_folds(n_splits)
+        eps = 1e-15
+        log_loss: dict[float, float] = {}
+        n_scored = 0
+        n_skipped = 0
+        for w2 in candidates:
+            sub_config = {**self.config, "w2": w2}
+            total = 0.0
+            scored = 0
+            skipped = 0
+            for train, test in folds:
+                model = WHR(sub_config)
+                for black, white, winner, day, handicap, extras in train:
+                    model.create_game(black, white, winner, day, handicap, extras)
+                model.iterate(iterations)
+                for black, white, winner, _day, handicap, extras in test:
+                    komi = extras.get("komi", 6.5)
+                    p_black = model._predict_black_win_probability(
+                        black, white, handicap, komi
+                    )
+                    if p_black is None:
+                        skipped += 1
+                        continue
+                    p_actual = p_black if winner == "B" else 1.0 - p_black
+                    p_actual = min(max(p_actual, eps), 1.0 - eps)
+                    total += -math.log(p_actual)
+                    scored += 1
+            log_loss[w2] = total / scored if scored else float("inf")
+            n_scored, n_skipped = scored, skipped
+        best_w2 = min(candidates, key=lambda w: log_loss[w])
+        return {
+            "best_w2": best_w2,
+            "log_loss": log_loss,
+            "n_splits": n_splits,
+            "n_test_scored": n_scored,
+            "n_test_skipped": n_skipped,
+        }
+
     def print_ordered_ratings(self, current: bool = False) -> None:
         """Displays all ratings for each player (for each of their playing days), ordered.
 

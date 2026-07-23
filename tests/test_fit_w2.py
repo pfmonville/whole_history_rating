@@ -1,3 +1,6 @@
+import math
+import random
+
 import pytest
 
 from whr.whole_history_rating import WHR
@@ -46,3 +49,96 @@ def test_temporal_folds_rejects_bad_n_splits():
     w = _linear_history(10)
     with pytest.raises(ValueError):
         w._temporal_folds(0)
+
+
+def _round_robin_drifting_history(rng, n_players=20, n_days=40, day_step_var=300.0):
+    """Players whose true elo does a per-day Gaussian random walk (variance
+    ``day_step_var`` elo^2/day -- WHR's own Brownian-motion assumption for
+    ``w2``, so a candidate matching ``day_step_var`` is the "correct" amount
+    of cross-day smoothing); outcomes are sampled from the true Bradley-Terry
+    probability every day in a full round robin.
+
+    A *deterministic* linear ramp was tried first (per the original design
+    note) but turned out to systematically favor an unsmoothed (huge w2)
+    model whenever there were enough games/day to pin down each day's rating
+    precisely -- WHR's smoothing prior only ever costs bias against a
+    predictable trend, it doesn't help. Matching the generating process to
+    WHR's actual random-walk assumption is what makes an intermediate w2
+    genuinely, robustly the best predictor of held-out future games (~90% of
+    seeds tried), rather than a coin flip between the two extremes.
+    """
+    w = WHR()
+    names = [f"p{i}" for i in range(n_players)]
+    day_step_std = math.sqrt(day_step_var)
+    true_elo = {n: (i - n_players / 2) * 60.0 for i, n in enumerate(names)}
+    for day in range(1, n_days + 1):
+        for n in names:
+            true_elo[n] += rng.gauss(0, day_step_std)
+        for i in range(n_players):
+            for j in range(n_players):
+                if i == j:
+                    continue
+                black, white = names[i], names[j]
+                pb = 1.0 / (1.0 + 10 ** ((true_elo[white] - true_elo[black]) / 400.0))
+                winner = "B" if rng.random() < pb else "W"
+                w.create_game(black, white, winner, day, 0)
+    return w
+
+
+def test_fit_w2_prefers_middle_over_extremes_on_drifting_data():
+    rng = random.Random(1234)
+    w = _round_robin_drifting_history(rng)
+    result = w.fit_w2(candidates=[1.0, 300.0, 100000.0], n_splits=2, iterations=25)
+    ll = result["log_loss"]
+    assert ll[300.0] < ll[1.0]
+    assert ll[300.0] < ll[100000.0]
+    assert result["best_w2"] == 300.0
+
+
+def test_fit_w2_is_a_pure_query():
+    w = _linear_history(8)
+    w.iterate(5)
+    before_w2 = w.config["w2"]
+    before = w.ratings_for_player("a")
+    w.fit_w2(candidates=[100.0, 300.0], n_splits=2, iterations=10)
+    assert w.config["w2"] == before_w2
+    assert w.ratings_for_player("a") == before
+
+
+def test_fit_w2_skips_cold_start_test_games():
+    # "newbie" appears only in the final period (test block) -> its games are skipped.
+    w = WHR()
+    for d in range(1, 6):
+        w.create_game("a", "b", "B", d, 0)
+    w.create_game("newbie", "a", "B", 6, 0)
+    result = w.fit_w2(candidates=[300.0], n_splits=1, iterations=10)
+    assert result["n_test_skipped"] >= 1
+
+
+def test_fit_w2_return_contract():
+    w = _linear_history(10)
+    result = w.fit_w2(candidates=[100.0, 300.0], n_splits=2, iterations=10)
+    assert set(result) == {
+        "best_w2",
+        "log_loss",
+        "n_splits",
+        "n_test_scored",
+        "n_test_skipped",
+    }
+    assert result["best_w2"] in (100.0, 300.0)
+    assert all(math.isfinite(v) for v in result["log_loss"].values())
+    assert result["n_splits"] == 2
+
+
+def test_fit_w2_raises_on_single_day():
+    w = WHR()
+    w.create_game("a", "b", "B", 1, 0)
+    w.create_game("a", "b", "W", 1, 0)
+    with pytest.raises(ValueError):
+        w.fit_w2(n_splits=5)
+
+
+def test_predict_black_win_probability_cold_start_is_none():
+    w = _linear_history(4)
+    w.iterate(5)
+    assert w._predict_black_win_probability("a", "ghost", 0, 6.5) is None
