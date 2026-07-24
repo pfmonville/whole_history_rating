@@ -39,3 +39,30 @@ def test_effective_gammas_fold_advantages():
 def test_pinned_draw_config_default_none():
     assert WHR().config["pinned_draw"] is None
     assert WHR(config={"pinned_draw": 1.5}).config["pinned_draw"] == 1.5
+
+
+def test_draws_do_not_inflate_komi_gamma():
+    """Regression test for a cross-function bug: `_accumulate_handicap_komi`
+    used to fall through to its `else` branch for draws (winner != "B"),
+    mis-crediting them as WHITE/komi wins with a Bradley-Terry denominator
+    that doesn't apply to a draw.
+
+    This base is built to be exactly colour-swap symmetric: for every
+    decisive game where black wins, there is a mirror game (colours and
+    players swapped) where white wins, so the two players stay equal
+    strength and the Newton gradient on komi_gamma[6.5] is exactly zero at
+    gamma=1 -- there is no real white/komi advantage in this data. A single
+    draw game is then added. Before the fix, that draw is silently counted
+    as an extra komi/white win, pushing komi_gamma[6.5] well above 1.0
+    (observed ~1.5 here, ~2.43 in a similar denser base). After the fix,
+    draws are skipped by the handicap/komi accumulator and komi_gamma[6.5]
+    stays at its symmetric-equilibrium value of ~1.0.
+    """
+    w = WHR()
+    w.create_game("a", "b", "B", 1, 0)
+    w.create_game("b", "a", "B", 1, 0)
+    w.create_game("a", "b", "W", 1, 0)
+    w.create_game("b", "a", "W", 1, 0)
+    w.create_game("a", "b", "D", 1, 0)
+    w.iterate(50)
+    assert abs(w.komi_gamma[6.5] - 1.0) < 0.1

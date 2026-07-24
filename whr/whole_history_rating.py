@@ -95,6 +95,15 @@ class WHR:
         for g in self.games:
             if g.bpd is None or g.wpd is None:
                 continue
+            # A draw credits neither a handicap (black) win nor a komi
+            # (white) win, and the plain Bradley-Terry gradient/Hessian
+            # denominator accumulated below does not apply to it. Skipping
+            # draws here means handicap/komi advantages are estimated from
+            # DECISIVE games only when draws are present -- a deliberate
+            # simplification; full Davidson-aware handicap/komi estimation
+            # is out of scope for this phase.
+            if g.winner == "D":
+                continue
             h = g.handicap
             k = g.extras["komi"]
             gh = self.handicap_gamma[h]
