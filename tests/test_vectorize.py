@@ -18,6 +18,7 @@ import math
 
 import pytest
 
+from whr import playerday as PD
 from whr.whole_history_rating import WHR
 
 
@@ -265,3 +266,151 @@ def test_accumulate_handicap_komi_and_nu_gradient_empty_and_degenerate_cases():
     gradient, hessian = no_draws._nu_gradient_hessian()
     assert gradient == pytest.approx(gradient_ref, rel=1e-9, abs=1e-9)
     assert hessian == pytest.approx(hessian_ref, rel=1e-9, abs=1e-9)
+
+
+def _reference_bt_terms(day: PD.PlayerDay) -> tuple[float, float, float]:
+    """Pre-vectorization Python-loop reference for
+    ``PlayerDay.log_likelihood_derivative``/``_second_derivative``/
+    ``log_likelihood`` (Task 3), kept here as an independent ground truth
+    the vectorized implementation must reproduce."""
+    gamma = day.gamma()
+    tally_deriv = 0.0
+    tally_second = 0.0
+    ll = 0.0
+    for g in day.won_games:
+        d = g.opponents_adjusted_gamma(day.player)
+        tally_deriv += 1.0 / (gamma + d)
+        tally_second += d / (gamma + d) ** 2.0
+        ll += math.log(gamma) - math.log(gamma + d)
+    for g in day.lost_games:
+        d = g.opponents_adjusted_gamma(day.player)
+        tally_deriv += 1.0 / (gamma + d)
+        tally_second += d / (gamma + d) ** 2.0
+        ll += math.log(d) - math.log(gamma + d)
+    derivative = len(day.won_games) - gamma * tally_deriv
+    second = -gamma * tally_second
+    return derivative, second, ll
+
+
+def _reference_davidson_derivatives(
+    day: PD.PlayerDay, nu: float
+) -> tuple[float, float]:
+    """Pre-vectorization Python-loop reference for
+    ``PlayerDay.davidson_derivatives`` (Task 3)."""
+    gradient = 0.0
+    hessian = 0.0
+    for game, weight in day._weighted_games():
+        s, o = game.effective_gammas(day.player)
+        t = nu * math.sqrt(s * o)
+        z = s + o + t
+        n = s + t / 2.0
+        n_prime = s + t / 4.0
+        ratio = n / z
+        gradient += weight - ratio
+        hessian += ratio * ratio - n_prime / z
+    return gradient, hessian
+
+
+def _reference_davidson_log_likelihood(day: PD.PlayerDay, nu: float) -> float:
+    """Pre-vectorization Python-loop reference for
+    ``PlayerDay.davidson_log_likelihood`` (Task 3)."""
+    ll = 0.0
+    for game, weight in day._weighted_games():
+        s, o = game.effective_gammas(day.player)
+        t = nu * math.sqrt(s * o)
+        z = s + o + t
+        if weight == 1.0:
+            num = s
+        elif weight == 0.0:
+            num = o
+        else:
+            num = t
+        ll += math.log(num) - math.log(z)
+    return ll
+
+
+def test_unit_equivalence_bt_terms():
+    """Task 3: the vectorized ``log_likelihood_derivative``/
+    ``_second_derivative``/``log_likelihood`` must match an independent
+    reference Python-loop implementation of the same (pre-vectorization)
+    algorithm, on a single day mixing several won AND lost games against
+    distinct opponents (so the opponents' adjusted gammas actually vary)."""
+    w = WHR()
+    w.create_game("a", "b1", "B", 1, 0)  # a (black) won
+    w.create_game("a", "b2", "W", 1, 0)  # a (black) lost to white b2
+    w.create_game("b3", "a", "W", 1, 0)  # a (white) won
+    w.create_game("b4", "a", "B", 1, 0)  # a (white) lost to black b4
+
+    a_day = w.player_by_name("a").days[0]
+    a_day.set_gamma(2.0)
+    w.player_by_name("b1").days[0].set_gamma(1.0)
+    w.player_by_name("b2").days[0].set_gamma(1.5)
+    w.player_by_name("b3").days[0].set_gamma(0.7)
+    w.player_by_name("b4").days[0].set_gamma(3.0)
+
+    assert len(a_day.won_games) == 2
+    assert len(a_day.lost_games) == 2
+
+    ref_deriv, ref_second, ref_ll = _reference_bt_terms(a_day)
+    assert a_day.log_likelihood_derivative() == pytest.approx(ref_deriv, rel=1e-9)
+    assert a_day.log_likelihood_second_derivative() == pytest.approx(
+        ref_second, rel=1e-9
+    )
+    assert a_day.log_likelihood() == pytest.approx(ref_ll, rel=1e-9)
+
+
+def test_unit_equivalence_davidson_terms():
+    """Task 3: the vectorized ``davidson_derivatives``/
+    ``davidson_log_likelihood`` must match an independent reference
+    Python-loop implementation of the same (pre-vectorization) algorithm,
+    on a single day mixing won, lost, AND drawn games against distinct
+    opponents."""
+    w = WHR()
+    w.create_game("a", "b1", "B", 1, 0)  # a (black) won
+    w.create_game("a", "b2", "W", 1, 0)  # a (black) lost to white b2
+    w.create_game("b3", "a", "D", 1, 0)  # a draws with b3
+    w.create_game("a", "b4", "D", 1, 0)  # a draws with b4
+    w.create_game("b5", "a", "W", 1, 0)  # a (white) won
+
+    a_day = w.player_by_name("a").days[0]
+    a_day.set_gamma(2.0)
+    w.player_by_name("b1").days[0].set_gamma(1.0)
+    w.player_by_name("b2").days[0].set_gamma(1.5)
+    w.player_by_name("b3").days[0].set_gamma(0.6)
+    w.player_by_name("b4").days[0].set_gamma(2.5)
+    w.player_by_name("b5").days[0].set_gamma(0.9)
+
+    assert len(a_day.won_games) == 2
+    assert len(a_day.lost_games) == 1
+    assert len(a_day.drawn_games) == 2
+
+    # nu=0.0 is included for davidson_derivatives (no log() involved: the
+    # draw-mass term t=nu*sqrt(s*o) is just 0, z=s+o stays positive). It is
+    # excluded from the log_likelihood comparison below: with actual drawn
+    # games present, nu=0 assigns them zero probability (t=0 => log(num=t)
+    # is log(0)), which is undefined for BOTH the reference and vectorized
+    # implementations -- not a vectorization artifact.
+    for nu in (0.0, 0.3, 1.3):
+        ref_grad, ref_hess = _reference_davidson_derivatives(a_day, nu)
+        grad, hess = a_day.davidson_derivatives(nu)
+        assert grad == pytest.approx(ref_grad, rel=1e-9)
+        assert hess == pytest.approx(ref_hess, rel=1e-9)
+
+    for nu in (0.3, 1.3):
+        ref_ll = _reference_davidson_log_likelihood(a_day, nu)
+        assert a_day.davidson_log_likelihood(nu) == pytest.approx(ref_ll, rel=1e-9)
+
+
+def test_bt_and_davidson_terms_empty_day():
+    """Task 3 gotcha: a day with no games must return 0.0 (not raise) for
+    all five vectorized methods."""
+    w = WHR()
+    player = w.player_by_name("solo")
+    day = PD.PlayerDay(player, 1)
+    day.set_gamma(2.0)
+
+    assert day.log_likelihood_derivative() == 0.0
+    assert day.log_likelihood_second_derivative() == 0.0
+    assert day.log_likelihood() == 0.0
+    assert day.davidson_derivatives(1.5) == (0.0, 0.0)
+    assert day.davidson_log_likelihood(1.5) == 0.0

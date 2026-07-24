@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
+
 from whr import game as G
 from whr import player as P
 
@@ -89,39 +91,60 @@ class PlayerDay:
     def log_likelihood_second_derivative(self) -> float:
         """Calculates the second derivative of the log likelihood of the player's rating.
 
+        Vectorized over the day's decisive games: with ``d`` the array of
+        opponents' adjusted gammas (won and lost games, both with ``c=1``
+        in the pre-vectorization ``[a,b,c,d]`` terms), this is
+        ``-gamma*sum(d/(gamma+d)**2)``.
+
         Returns:
             float: The second derivative of the log likelihood.
         """
-        result = 0.0
-        for _, _, c, d in self.won_game_terms() + self.lost_game_terms():
-            result += (c * d) / ((c * self.gamma() + d) ** 2.0)
-        return -1 * self.gamma() * result
+        d_vals = [term[3] for term in self.won_game_terms() + self.lost_game_terms()]
+        if not d_vals:
+            return 0.0
+        gamma = self.gamma()
+        d = np.array(d_vals, dtype=np.float64)
+        return float(-gamma * np.sum(d / (gamma + d) ** 2.0))
 
     def log_likelihood_derivative(self) -> float:
         """Calculates the derivative of the log likelihood of the player's rating.
 
+        Vectorized over the day's decisive games: with ``d`` the array of
+        opponents' adjusted gammas (won and lost games) and ``n_wins`` the
+        count of won games, this is ``n_wins - gamma*sum(1/(gamma+d))``.
+
         Returns:
             float: The derivative of the log likelihood.
         """
-        tally = 0.0
-        for _, _, c, d in self.won_game_terms() + self.lost_game_terms():
-            tally += c / (c * self.gamma() + d)
-        return len(self.won_game_terms()) - self.gamma() * tally
+        n_wins = len(self.won_games)
+        d_vals = [term[3] for term in self.won_game_terms() + self.lost_game_terms()]
+        if not d_vals:
+            return float(n_wins)
+        gamma = self.gamma()
+        d = np.array(d_vals, dtype=np.float64)
+        return float(n_wins - gamma * np.sum(1.0 / (gamma + d)))
 
     def log_likelihood(self) -> float:
         """Calculates the log likelihood of the player's rating based on games played.
 
+        Vectorized over the day's decisive games: with ``d_won``/``d_lost``
+        the arrays of the won/lost games' opponents' adjusted gammas, this
+        is ``sum(log(gamma)-log(gamma+d_won)) + sum(log(d_lost)-log(gamma+d_lost))``.
+
         Returns:
             float: The log likelihood.
         """
-        tally = 0.0
-        for a, _b, c, d in self.won_game_terms():
-            tally += math.log(a * self.gamma())
-            tally -= math.log(c * self.gamma() + d)
-        for _a, b, c, d in self.lost_game_terms():
-            tally += math.log(b)
-            tally -= math.log(c * self.gamma() + d)
-        return tally
+        gamma = self.gamma()
+        total = 0.0
+        d_won_vals = [term[3] for term in self.won_game_terms()]
+        if d_won_vals:
+            d_won = np.array(d_won_vals, dtype=np.float64)
+            total += float(np.sum(np.log(gamma) - np.log(gamma + d_won)))
+        d_lost_vals = [term[3] for term in self.lost_game_terms()]
+        if d_lost_vals:
+            d_lost = np.array(d_lost_vals, dtype=np.float64)
+            total += float(np.sum(np.log(d_lost) - np.log(gamma + d_lost)))
+        return total
 
     def anchor_gradient(self) -> float:
         """First-day Bradley-Terry prior gradient (Coulom's InitialPriorWins)."""
@@ -165,6 +188,31 @@ class PlayerDay:
         for g in self.drawn_games:
             yield g, 0.5
 
+    def _davidson_game_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Gathers (S, O, w) arrays over the day's games for the Davidson
+        model: S/O are the (player's, opponent's) effective gammas per
+        ``Game.effective_gammas``, and w is the outcome weight (1.0 won,
+        0.0 lost, 0.5 drawn) per ``_weighted_games``. Empty arrays when the
+        day has no games.
+
+        This gathering loop stays plain Python (the day's games aren't
+        already batched); only the arithmetic in ``davidson_derivatives``/
+        ``davidson_log_likelihood`` is vectorized with numpy.
+        """
+        s_vals: list[float] = []
+        o_vals: list[float] = []
+        w_vals: list[float] = []
+        for game, weight in self._weighted_games():
+            s, o = game.effective_gammas(self.player)
+            s_vals.append(s)
+            o_vals.append(o)
+            w_vals.append(weight)
+        return (
+            np.array(s_vals, dtype=np.float64),
+            np.array(o_vals, dtype=np.float64),
+            np.array(w_vals, dtype=np.float64),
+        )
+
     def davidson_log_likelihood(self, nu: float) -> float:
         """This day's game log-likelihood under the Davidson win/draw/loss
         model, mirroring ``_weighted_games``/``davidson_derivatives``.
@@ -175,36 +223,29 @@ class PlayerDay:
         ``T`` (drawn). Reduces exactly to ``log_likelihood()`` at ``nu=0``
         (see ``test_davidson_log_likelihood_matches_bt_at_nu_zero``).
         """
-        total = 0.0
-        for game, weight in self._weighted_games():
-            s, o = game.effective_gammas(self.player)
-            t = nu * math.sqrt(s * o)
-            z = s + o + t
-            if weight == 1.0:
-                num = s
-            elif weight == 0.0:
-                num = o
-            else:
-                num = t
-            total += math.log(num) - math.log(z)
-        return total
+        s, o, w = self._davidson_game_arrays()
+        if s.size == 0:
+            return 0.0
+        t = nu * np.sqrt(s * o)
+        z = s + o + t
+        num = np.where(w == 1.0, s, np.where(w == 0.0, o, t))
+        return float(np.sum(np.log(num) - np.log(z)))
 
     def davidson_derivatives(self, nu: float) -> tuple[float, float]:
         """(gradient, Hessian) of this day's game log-likelihood under Davidson.
 
         Reduces to the plain Bradley-Terry win/loss derivatives at nu=0.
         """
-        gradient = 0.0
-        hessian = 0.0
-        for game, weight in self._weighted_games():
-            s, o = game.effective_gammas(self.player)
-            t = nu * math.sqrt(s * o)
-            z = s + o + t
-            n = s + t / 2.0
-            n_prime = s + t / 4.0
-            ratio = n / z
-            gradient += weight - ratio
-            hessian += ratio * ratio - n_prime / z
+        s, o, w = self._davidson_game_arrays()
+        if s.size == 0:
+            return 0.0, 0.0
+        t = nu * np.sqrt(s * o)
+        z = s + o + t
+        n = s + t / 2.0
+        n2 = s + t / 4.0
+        ratio = n / z
+        gradient = float(np.sum(w - ratio))
+        hessian = float(np.sum(ratio**2 - n2 / z))
         return gradient, hessian
 
     def update_by_1d_newtons_method(self) -> None:
