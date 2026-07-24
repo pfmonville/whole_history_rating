@@ -26,11 +26,14 @@ ship it as **3.1.0** (the maintainer's call, accepting the semver caveat below).
 
 ```python
 def create_game(self, black, white, winner, time_step,
-                handicap, extras=None, komi=None) -> Game
+                handicap, komi=None, extras=None) -> Game
 ```
 
-`komi` is added **after** `extras` to preserve positional back-compat for any
-caller using the current `create_game(b, w, winner, t, handicap, extras)` shape.
+`komi` is placed **before** `extras` (natural order — maintainer's choice). This
+accepts a small positional break: an existing `create_game(b, w, winner, t,
+handicap, extras)` call passing `extras` positionally would now bind that dict to
+`komi`. `extras` was always documented as keyword, and `load_base` is updated to
+pass `extras=` by keyword.
 
 | `komi=` (or `extras["komi"]`) | Behaviour |
 |---|---|
