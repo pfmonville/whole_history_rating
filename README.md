@@ -113,10 +113,18 @@ whr.create_game("shusaku", "shusai", "W", 3, 0)
 - `komi` is **opt-in** (as of 3.1.0): the default `None` models no komi at all. Pass a value to model a white-side (komi) advantage for that game, whose category is learned like the handicap:
 
 ```python
-whr.create_game("shusaku", "shusai", "B", 1, 0, komi=7.5)
+# Standalone illustration — NOT part of the three-game example above.
+other = WHR()
+other.create_game("alice", "bob", "B", 1, 0, komi=7.5)
 ```
 
 (An `extras={"komi": …}` dict is still accepted for backward compatibility. Before 3.1.0 a komi of `6.5` was assumed for every game and estimated; pass `komi=6.5` to reproduce that.)
+
+> **About the numbers in this README.** Every output shown below is the real,
+> current output of the snippet above it. The `shusaku`/`shusai` figures all come
+> from exactly the three games just created, followed by `whr.iterate(50)` — so
+> you can paste those four lines and reproduce them. Ratings changed in 3.0.0 and
+> again in 3.1.0, so numbers copied from older docs will not match.
 
 
 ### Refining Ratings Towards Stability
@@ -154,20 +162,37 @@ This automated process allows the algorithm to efficiently converge to stable ra
 Retrieve and view player ratings, which include the day number, elo rating, and uncertainty:
 
 ```python
-# Example output for whr.ratings_for_player("shusaku")
+# Continuing the three-game example (B, W, W) after whr.iterate(50):
 print(whr.ratings_for_player("shusaku"))
 # Output (one (day, elo, uncertainty) tuple per playing day):
-#   [(1, -43, 0.84),
-#    (2, -45, 0.84),
-#    (3, -45, 0.84)]
+#   [(1, -50, 0.26),
+#    (2, -51, 0.26),
+#    (3, -52, 0.26)]
 
-# Example output for whr.ratings_for_player("shusai")
 print(whr.ratings_for_player("shusai"))
 # Output:
-#   [(1, 43, 0.84),
-#    (2, 45, 0.84),
-#    (3, 45, 0.84)]
+#   [(1, 50, 0.26),
+#    (2, 51, 0.26),
+#    (3, 52, 0.26)]
 ```
+
+Shusaku lost two of the three games, so he settles ~100 elo below Shusai. The
+elo values are **rounded to integers** and the uncertainty to two decimals.
+
+> **Why are the ratings centred on 0, and can I make them look like "real" elo?**
+> WHR estimates *relative* strength: every player's first day is softly anchored
+> toward 0 elo, so an average player sits near 0 and weaker ones go negative.
+> Only rating **differences** are meaningful — they are the only thing the win
+> probability uses. Adding a constant to every rating therefore changes no
+> prediction at all, which is exactly how goratings-style scales are produced:
+>
+> ```python
+> OFFSET = 1500
+> shifted = [(day, elo + OFFSET, unc) for day, elo, unc in whr.ratings_for_player("shusaku")]
+> ```
+>
+> If the spread itself is too narrow, lower `initial_prior_wins` (see "Optional
+> Configuration") so weakly-connected players are pulled less toward the centre.
 
 Querying an unknown player raises a `ValueError`.
 
@@ -177,7 +202,9 @@ the player if the name is unknown (unlike `ratings_for_player`, which raises):
 
 ```python
 player = whr.player_by_name("shusaku")
-[(d.day, d.elo) for d in player.days]  # d.elo is a property; -> [(1, -43.0), (2, -45.0), (3, -45.0)]
+[(d.day, round(d.elo, 1)) for d in player.days]
+# d.elo is a property holding the unrounded value:
+#   [(1, -49.8), (2, -51.1), (3, -51.7)]
 ```
 
 You can also view or retrieve all ratings in order:
@@ -189,16 +216,21 @@ ratings = whr.get_ordered_ratings(current=False, compact=False)  # Set `compact=
 
 ### Inspecting the Fit
 
-`log_likelihood()` returns the model's total log-posterior (game likelihood + the first-day prior + the Gaussian Wiener prior over time, and the Davidson draw term when draws are present). It increases as `iterate()` converges, so it is a handy convergence/diagnostic signal:
+`log_likelihood()` returns the model's total log-posterior (game likelihood + the first-day prior + the Gaussian Wiener prior over time, and the Davidson draw term when draws are present). It **increases** as `iterate()` converges, so it is a handy convergence/diagnostic signal:
 
 ```python
-whr.log_likelihood()  # e.g. -12.47 -- higher (closer to 0) as the fit improves
+whr.log_likelihood()  # -> 0.3301006161791349  (three-game example, after iterate(50))
 ```
+
+Only the *direction* is meaningful: higher is a better fit. Note the value is a
+log **density**, not a log probability, so it is not bounded above by 0 and can
+legitimately be positive (as here) — compare it across iterations of the same
+base, never across different bases.
 
 `max_gradient_norm()` returns the largest gradient infinity-norm across all player-days (plus the estimated handicap/komi and draw-tendency parameters) — the exact quantity `auto_iterate(precision=...)` tests. It is the most direct convergence gauge; near 0 means converged:
 
 ```python
-whr.max_gradient_norm()  # e.g. 4.1e-4 -- below your target precision => converged
+whr.max_gradient_norm()  # -> 9.54e-05  (well under the default 1e-3 precision)
 ```
 
 For the win probability of a *specific recorded game* (rather than a hypothetical match-up), use the `Game` object returned by `create_game`:
@@ -221,10 +253,14 @@ Predict the outcome of future matches, including between non-existent players:
 # not print anything, and unknown players are treated as an even (gamma = 1)
 # reference without being added to the base.
 probability = whr.probability_future_match("shusaku", "shusai", 0)
-print(f"Win probability: shusaku: {probability[0]*100}%; shusai: {probability[1]*100}%")
-# Output:
-#   Win probability: shusaku: 37.24%; shusai: 62.76%
+print(f"Win probability: shusaku: {probability[0]*100:.2f}%; shusai: {probability[1]*100:.2f}%")
+# Output (three-game example, after iterate(50)):
+#   Win probability: shusaku: 35.50%; shusai: 64.50%
 ```
+
+That 35.50% is exactly the Bradley-Terry probability implied by the 103.74 elo
+gap between the two players' latest ratings (-51.69 and +52.05):
+`1 / (1 + 10**(103.74/400))`.
 
 
 ### Uncertainty
@@ -271,16 +307,29 @@ days, cov = whr.rating_covariance("casey")
 # days == [1, 5, 9, 13]; cov is a 4x4 elo^2 matrix, cov[i][j] = Cov(elo on days[i], days[j])
 
 whr.rating_change("casey", day_from=1, day_to=13)
-# {'change': -6.70, 'std_error': 57.48,
-#  'confidence_interval_95': (-119.35, 105.95)}
+# {'change': -6.67, 'std_error': 57.48,
+#  'confidence_interval_95': (-119.32, 105.99)}
 ```
 
-`rating_change`'s standard error comes from `Var(to) + Var(from) -
-2*Cov(from, to)`, not from naively summing the two days' marginal variances
-(here, `57.48` vs a naive `115.83`) — consecutive days are positively
-correlated through the Wiener prior, so a real change is more certain than
-that naive sum suggests. Use this — not `rating_difference` — to ask "did
-this player change significantly between day X and day Y?"
+`rating_change`'s standard error is the standard deviation of the *difference*,
+`sqrt(Var(to) + Var(from) - 2*Cov(from, to))` — it subtracts the covariance
+instead of ignoring it. With the numbers from `cov` above:
+
+```python
+i, j = days.index(1), days.index(13)
+cov[i][i], cov[j][j], cov[i][j]   # -> 6628.33, 6789.29, 5057.12   (elo²)
+
+# what rating_change reports (covariance-aware):
+(6628.33 + 6789.29 - 2 * 5057.12) ** 0.5   # -> 57.48  elo
+# what you would get by assuming the two days are independent:
+(6628.33 + 6789.29) ** 0.5                 # -> 115.83 elo
+```
+
+Consecutive days are strongly positively correlated through the Wiener prior
+(here `Cov` is ~75% of the individual variances), so ignoring that correlation
+would overstate the uncertainty on a change by about **2×**. Use this — not
+`rating_difference` — to ask "did this player change significantly between day X
+and day Y?"
 
 **Uncertainty-aware predictions.** `probability_future_match()` takes an
 opt-in `account_for_uncertainty` flag:
@@ -328,10 +377,15 @@ prediction instead of the plain win/loss split from
 `probability_future_match`:
 
 ```python
+# Continuing the three-game example, now with the two draws above added:
 whr.auto_iterate()
+whr.draw_tendency                 # -> ~1.39  (nu, estimated from the two draws)
 p_win, p_draw, p_loss = whr.win_draw_loss_probabilities("shusaku", "shusai")
-# e.g. (0.42, 0.24, 0.34) -- sums to 1.0
+# (0.21, 0.40, 0.39) -- rounded to 2 dp; the three always sum to 1.0
 ```
+
+With two of the five games drawn, the fitted `nu` makes a draw the single most
+likely outcome for this closely-matched pair.
 
 To pin `nu` to a known value instead of estimating it (e.g. to reproduce a
 fixed draw rate, or to disable draw modelling), use the `pinned_draw`
@@ -362,12 +416,16 @@ This feature facilitates the batch loading of multiple games simultaneously by a
 Without specifying a separator, the default space (' ') is used to split the game details:
 
 ```python
-whr.load_games([
+batch = WHR()  # a fresh base, so this does not add to the running example
+batch.load_games([
     "shusaku shusai B 1 0",  # Game 1: Shusaku vs. Shusai, Black wins, Day 1, no handicap.
     "shusaku shusai W 2 0",  # Game 2: Shusaku vs. Shusai, White wins, Day 2, no handicap.
     "shusaku shusai W 3 0"   # Game 3: Shusaku vs. Shusai, White wins, Day 3, no handicap.
 ])
 ```
+
+These three lines are exactly equivalent to the three `create_game` calls at the
+top, so `batch` fits to the same ratings shown above.
 
 #### Custom Separator for Complex Names
 
@@ -495,14 +553,32 @@ It works by temporal cross-validation: your games are cut into `n_splits` expand
 `fit_w2()` is a **pure query**: it builds its own throwaway models internally and never touches `self.config` or any rating already computed on this instance. Apply the result yourself:
 
 ```python
-result = whr.fit_w2(candidates=[10.0, 30.0, 100.0, 300.0, 1000.0, 3000.0], n_splits=5, iterations=50)
-# result == {'best_w2': 100.0, 'log_loss': {10.0: 0.71, 30.0: 0.66, 100.0: 0.64, ...},
-#            'n_splits': 5, 'n_test_scored': 812, 'n_test_skipped': 3}
+# A history where one player genuinely improves partway through, so a
+# faster-moving (larger w2) model should win:
+whr = WHR()
+whr.load_games(
+    [f"riser anchor {'B' if day > 15 else 'W'} {day}" for day in range(1, 41)]
+    + [f"other anchor {'B' if day % 3 else 'W'} {day}" for day in range(1, 41)]
+)
 
+result = whr.fit_w2(candidates=[10.0, 30.0, 100.0, 300.0, 1000.0, 3000.0], n_splits=5, iterations=50)
+# result == {
+#     'best_w2': 3000.0,
+#     'log_loss': {10.0: 0.8488, 30.0: 0.8404, 100.0: 0.8164,
+#                  300.0: 0.7733, 1000.0: 0.712, 3000.0: 0.6687},
+#     'n_splits': 5, 'n_test_scored': 66, 'n_test_skipped': 0,
+# }
+
+# fit_w2 does not mutate anything; apply the choice yourself:
 whr = WHR({'w2': result['best_w2']})
 whr.load_games([...])
 whr.auto_iterate()
 ```
+
+Here the log-loss falls monotonically across the grid, so `best_w2` lands on the
+largest candidate — a signal that the true optimum may lie beyond it and the grid
+is worth extending. On a stable history the curve has an interior minimum
+instead.
 
 - `candidates`: the `w2` values to try (default `[10.0, 30.0, 100.0, 300.0, 1000.0, 3000.0]`).
 - `n_splits`: number of expanding-window folds (default `5`); raises `ValueError` if there aren't enough distinct days to form them.
