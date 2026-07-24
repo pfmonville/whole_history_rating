@@ -23,6 +23,17 @@ _MAX_DRIFT_DAY_SPAN = 1_000_000
 # elo = 400/ln(10) * r.
 _ELO_PER_NAT = 400.0 / math.log(10)
 
+# Trust-region cap on a single handicap/komi/draw-tendency Newton step, in
+# natural-log (log-gamma / log-nu) units. The scalar advantage updates take a
+# step of the form ``value *= exp(-grad / hess)``; a degenerate or
+# ill-conditioned key can make ``-grad/hess`` enormous and overflow ``math.exp``
+# (``OverflowError: math range error``). This cap is far larger than any step a
+# well-conditioned fit ever takes (those are < 1), so it never binds in normal
+# use, but exp(10) stays finite, so a pathological key can no longer crash the
+# iteration. The per-key 1-D sub-problem is concave in log-space, so the clamped
+# step still converges rather than growing unboundedly across iterations.
+_MAX_ADVANTAGE_LOG_STEP = 10.0
+
 
 class WHR:
     def __init__(self, config: dict[str, Any] | None = None):
@@ -58,10 +69,13 @@ class WHR:
 
     def _ensure_advantage_keys(self, handicap: Any, komi: Any) -> None:
         """Ensure the advantage tables have an entry (default gamma 1.0) for a
-        game's handicap and komi keys, without overwriting existing/pinned ones."""
+        game's handicap and komi keys, without overwriting existing/pinned ones.
+
+        A ``komi`` of ``None`` means the game has no komi (opt-in, 3.1.0): no
+        komi key is registered, so it is never estimated."""
         if handicap not in self.handicap_gamma:
             self.handicap_gamma[handicap] = 1.0
-        if komi not in self.komi_gamma:
+        if komi is not None and komi not in self.komi_gamma:
             self.komi_gamma[komi] = 1.0
 
     def _accumulate_handicap_komi(
@@ -107,7 +121,10 @@ class WHR:
             if g.winner == "D":
                 continue
             handicaps.append(g.handicap)
-            komis.append(g.extras["komi"])
+            # komi is opt-in: a game with no komi contributes gamma 1.0 to the
+            # math (below) but its ``None`` komi key is never scattered into the
+            # per-key results, so it is never estimated.
+            komis.append(g.extras.get("komi"))
             gb_vals.append(g.bpd.gamma())
             gw_vals.append(g.wpd.gamma())
             black_win.append(g.winner == "B")
@@ -140,7 +157,7 @@ class WHR:
         gb = np.array(gb_vals, dtype=np.float64)
         gw = np.array(gw_vals, dtype=np.float64)
         gh = np.array([self.handicap_gamma[h] for h in handicaps], dtype=np.float64)
-        gk = np.array([self.komi_gamma[k] for k in komis], dtype=np.float64)
+        gk = np.array([self.komi_gamma.get(k, 1.0) for k in komis], dtype=np.float64)
         black_win_arr = np.array(black_win, dtype=np.float64)
 
         c_komi = gw
@@ -181,6 +198,8 @@ class WHR:
             if wins:
                 h_wins[key] = wins
         for key, idx in k_index_of.items():
+            if key is None:
+                continue  # the no-komi sentinel: never estimated
             k_grad[key] = float(k_grad_arr[idx])
             k_hess[key] = float(k_hess_arr[idx])
             k_games[key] = int(k_games_arr[idx])
@@ -218,6 +237,19 @@ class WHR:
                 grad = n_wins - gamma * grad_terms.get(key, 0.0)
                 yield key, gamma, grad
 
+    @staticmethod
+    def _clamped_log_step(grad: float, hess: float) -> float:
+        """A scalar Newton step ``-grad / hess`` in log space, clamped to the
+        ``_MAX_ADVANTAGE_LOG_STEP`` trust region so it can never overflow a
+        subsequent ``math.exp``. Returns 0.0 (no update) for a non-finite step
+        (e.g. a zero Hessian)."""
+        if hess == 0.0:
+            return 0.0
+        step = -grad / hess
+        if not math.isfinite(step):
+            return 0.0
+        return max(-_MAX_ADVANTAGE_LOG_STEP, min(_MAX_ADVANTAGE_LOG_STEP, step))
+
     def _newton_handicap_komi(self) -> None:
         """One Newton step on each non-pinned handicap/komi advantage gamma
         (Coulom's NewtonKomiHandicap)."""
@@ -229,12 +261,14 @@ class WHR:
             self.handicap_gamma, self._pinned_handicap_keys, h_grad, h_games, h_wins
         ):
             hess = -gamma * h_hess.get(key, 0.0) - damping
-            self.handicap_gamma[key] = gamma * math.exp(-grad / hess)
+            self.handicap_gamma[key] = gamma * math.exp(
+                self._clamped_log_step(grad, hess)
+            )
         for key, gamma, grad in self._eligible_advantage_updates(
             self.komi_gamma, self._pinned_komi_keys, k_grad, k_games, k_wins
         ):
             hess = -gamma * k_hess.get(key, 0.0) - damping
-            self.komi_gamma[key] = gamma * math.exp(-grad / hess)
+            self.komi_gamma[key] = gamma * math.exp(self._clamped_log_step(grad, hess))
 
     def _handicap_komi_gradient_norm(self) -> float:
         """Max absolute Newton gradient ``|wins - gamma * grad|`` over the
@@ -374,7 +408,9 @@ class WHR:
             for train, test in folds:
                 model = WHR(sub_config)
                 for black, white, winner, day, handicap, extras in train:
-                    model.create_game(black, white, winner, day, handicap, extras)
+                    model.create_game(
+                        black, white, winner, day, handicap, extras=extras
+                    )
                 model.iterate(iterations)
                 for black, white, winner, _day, handicap, extras in test:
                     if winner == "D":
@@ -383,7 +419,7 @@ class WHR:
                         # n_test_skipped above), do not score it as a white
                         # win.
                         continue
-                    komi = extras.get("komi", 6.5)
+                    komi = extras.get("komi")  # None -> no komi (opt-in)
                     p_black = model._predict_black_win_probability(
                         black, white, handicap, komi
                     )
@@ -676,6 +712,7 @@ class WHR:
         winner: str,
         time_step: int,
         handicap: float,
+        komi: Any = None,
         extras: dict[str, Any] | None = None,
     ) -> Game:
         """Creates a new game to be added to the base.
@@ -683,25 +720,35 @@ class WHR:
         Args:
             black (str): The name of the black player.
             white (str): The name of the white player.
-            winner (str): "B" if black won, "W" if white won.
+            winner (str): "B" if black won, "W" if white won, "D" for a draw.
             time_step (int): The day of the match from the origin.
             handicap (float): The handicap category key (e.g. a stone count).
                 Its advantage is estimated from the data (or pinned to a
                 known elo value via the ``pinned_handicap`` config), not a
                 fixed elo amount itself — see "Handicap and komi" in the
                 README.
-            extras (dict[str, Any] | None, optional): Extra parameters.
+            komi (Any, optional): The komi category key (a white-side
+                advantage). **Opt-in**: ``None`` (the default) models no komi at
+                all — nothing is estimated. Pass a value (e.g. ``6.5``) to have
+                that komi category's advantage estimated (or pinned via
+                ``pinned_komi``). Prior to 3.1.0 a komi of ``6.5`` was assumed
+                and estimated for every game; pass ``komi=6.5`` to reproduce
+                that.
+            extras (dict[str, Any] | None, optional): Extra per-game metadata.
+                A ``"komi"`` entry here is still honoured (equivalent to the
+                ``komi`` argument) for backward compatibility.
 
         Returns:
             Game: The newly added game.
         """
-        if extras is None:
-            extras = {}
+        extras = dict(extras) if extras else {}
+        if komi is not None:
+            extras["komi"] = komi
         if self.config["uncased"]:
             black = black.lower()
             white = white.lower()
         game = self._setup_game(black, white, winner, time_step, handicap, extras)
-        self._ensure_advantage_keys(game.handicap, game.extras["komi"])
+        self._ensure_advantage_keys(game.handicap, game.extras.get("komi"))
         return self._add_game(game)
 
     def _add_game(self, game: Game) -> Game:
@@ -1161,7 +1208,7 @@ class WHR:
             return
         gradient, hessian = self._nu_gradient_hessian()
         hessian -= self.config["hessian_damping"]
-        v = math.log(self.nu) - gradient / hessian
+        v = math.log(self.nu) + self._clamped_log_step(gradient, hessian)
         self.nu = math.exp(v)
 
     def _run_one_iteration(self) -> None:
@@ -1224,7 +1271,9 @@ class WHR:
             if self.config["uncased"]:
                 black, white = black.lower(), white.lower()
 
-            self.create_game(black, white, winner, int(time_step), handicap, extras)
+            self.create_game(
+                black, white, winner, int(time_step), handicap, extras=extras
+            )
 
     def save_base(self, path: str) -> None:
         """Saves the current state of the base to a specified path.
@@ -1336,11 +1385,13 @@ class WHR:
             for game in result.games:
                 game.handicap_gamma = result.handicap_gamma
                 game.komi_gamma = result.komi_gamma
-                result._ensure_advantage_keys(game.handicap, game.extras["komi"])
+                result._ensure_advantage_keys(game.handicap, game.extras.get("komi"))
             return result
         result = WHR(data["config"])
         for black, white, winner, time_step, handicap, extras in data["games"]:
-            result.create_game(black, white, winner, time_step, handicap, extras)
+            # extras carries komi (when set); pass it by keyword since `komi`
+            # now precedes `extras` in create_game's signature.
+            result.create_game(black, white, winner, time_step, handicap, extras=extras)
         result.handicap_gamma.update(data.get("handicap_gamma", {}))
         result.komi_gamma.update(data.get("komi_gamma", {}))
         for name, days in data["ratings"].items():

@@ -63,11 +63,11 @@ def test_draws_do_not_inflate_komi_gamma():
     stays at its symmetric-equilibrium value of ~1.0.
     """
     w = WHR()
-    w.create_game("a", "b", "B", 1, 0)
-    w.create_game("b", "a", "B", 1, 0)
-    w.create_game("a", "b", "W", 1, 0)
-    w.create_game("b", "a", "W", 1, 0)
-    w.create_game("a", "b", "D", 1, 0)
+    w.create_game("a", "b", "B", 1, 0, komi=6.5)
+    w.create_game("b", "a", "B", 1, 0, komi=6.5)
+    w.create_game("a", "b", "W", 1, 0, komi=6.5)
+    w.create_game("b", "a", "W", 1, 0, komi=6.5)
+    w.create_game("a", "b", "D", 1, 0, komi=6.5)
     w.iterate(50)
     assert abs(w.komi_gamma[6.5] - 1.0) < 0.1
 

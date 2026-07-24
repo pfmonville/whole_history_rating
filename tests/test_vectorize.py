@@ -32,8 +32,8 @@ def _scenario_draw_free():
 def _scenario_handicap_komi():
     w = WHR(config={"pinned_handicap": {2: 200.0}})
     for d in range(1, 8):
-        w.create_game("x", "y", "B", d, 2)
-        w.create_game("y", "x", "W", d, 2)
+        w.create_game("x", "y", "B", d, 2, komi=6.5)
+        w.create_game("y", "x", "W", d, 2, komi=6.5)
     w.iterate(50)
     return w
 
@@ -50,11 +50,14 @@ def _scenario_draws():
 def test_equivalence_draw_free_ratings():
     w = _scenario_draw_free()
     got = dict(w.get_ordered_ratings(current=True))
-    # Frozen pre-vectorization ground truth (Phase-7 task 1).
+    # Frozen ground truth, re-baselined for 3.1.0 (komi opt-in): this scenario
+    # passes no komi, so the phantom default-komi advantage no longer distorts
+    # the fit. The ordering is now correct (a beats b and c; c beats b), unlike
+    # the 3.0.x values where the estimated default komi had pushed b highest.
     expected = {
-        "a": -88.82430411827175,
-        "c": 1.8381608951720134,
-        "b": 95.38534493183062,
+        "a": 93.61531293132805,
+        "c": -0.7477887252496807,
+        "b": -94.71984959180259,
     }
     assert got.keys() == expected.keys()
     for name, elo in expected.items():
@@ -169,11 +172,11 @@ def test_unit_equivalence_accumulate_handicap_komi_and_nu_gradient():
     rel=1e-9, on a base mixing handicap, komi, AND draws."""
     w = WHR(config={"pinned_handicap": {2: 200.0}})
     for d in range(1, 6):
-        w.create_game("x", "y", "B", d, 2, {"komi": 6.5})
-        w.create_game("y", "x", "W", d, 2, {"komi": 6.5})
-        w.create_game("x", "y", "D", d, 2, {"komi": 6.5})
-        w.create_game("x", "y", "B", d, 0, {"komi": 0.5})
-        w.create_game("y", "x", "W", d, 0, {"komi": 0.5})
+        w.create_game("x", "y", "B", d, 2, komi=6.5)
+        w.create_game("y", "x", "W", d, 2, komi=6.5)
+        w.create_game("x", "y", "D", d, 2, komi=6.5)
+        w.create_game("x", "y", "B", d, 0, komi=0.5)
+        w.create_game("y", "x", "W", d, 0, komi=0.5)
     w.iterate(10)
 
     (

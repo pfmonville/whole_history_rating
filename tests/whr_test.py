@@ -137,25 +137,25 @@ def test_output():
     _assert_ratings_approx(
         whr.ratings_for_player("shusaku"),
         [
-            (1, -5, 0.26),
-            (2, -6, 0.26),
-            (3, -7, 0.26),
+            (1, -50, 0.26),
+            (2, -51, 0.26),
+            (3, -52, 0.26),
         ],
     )
     _assert_ratings_approx(
         whr.ratings_for_player("shusai"),
         [
-            (1, 4, 0.26),
-            (2, 5, 0.26),
-            (3, 6, 0.26),
+            (1, 50, 0.26),
+            (2, 51, 0.26),
+            (3, 52, 0.26),
         ],
     )
 
 
-# re-baselined for phase-3 (estimated handicap/komi): all games share the
-# default komi key (6.5), so the shared white win rate (4 of 5) is now largely
-# attributed to the estimated komi_gamma[6.5] advantage (~+211 elo) rather than
-# entirely to shusai's rating, shrinking the residual rating gap accordingly.
+# re-baselined for 3.1.0 (komi opt-in): no komi is passed, so no komi advantage
+# is modelled and the 4-of-5 white win rate is attributed entirely to shusai's
+# rating (a wide, symmetric gap) rather than partly absorbed by an estimated
+# default-komi advantage as in 3.0.x.
 def test_output2():
     whr = whole_history_rating.WHR()
     whr.create_game("shusaku", "shusai", "B", 1, 0)
@@ -167,19 +167,19 @@ def test_output2():
     _assert_ratings_approx(
         whr.ratings_for_player("shusaku"),
         [
-            (1, -13, 0.21),
-            (2, -14, 0.2),
-            (3, -15, 0.2),
-            (4, -16, 0.21),
+            (1, -102, 0.2),
+            (2, -104, 0.2),
+            (3, -105, 0.2),
+            (4, -106, 0.2),
         ],
     )
     _assert_ratings_approx(
         whr.ratings_for_player("shusai"),
         [
-            (1, 12, 0.21),
-            (2, 13, 0.2),
-            (3, 14, 0.2),
-            (4, 15, 0.21),
+            (1, 104, 0.2),
+            (2, 106, 0.2),
+            (3, 107, 0.2),
+            (4, 108, 0.2),
         ],
     )
 
@@ -257,45 +257,42 @@ def test_loading_several_games_at_once(capsys, tmp_path):
     assert len(whr.games) == 4
     # test auto iterating to get convergence
     whr.iterate(20)
-    # re-baselined for phase-3 (estimated handicap/komi): all four games share
-    # the default komi key (6.5) at a near-even 2/4 white-win split, so
-    # komi_gamma[6.5] co-adapts alongside the player ratings (settling modestly
-    # below 1, i.e. a small black-favouring residual) instead of staying
-    # pinned at 1; this reshuffles the values below (still ordered
-    # nobody < shusaku < shusai and all finite/positive-uncertainty) relative
-    # to the phase-1 baseline (anchor 0.5, damping 1.0).
+    # re-baselined for 3.1.0 (komi opt-in): no komi is passed, so no komi
+    # advantage is modelled (in 3.0.x the shared default komi key co-adapted and
+    # skewed these values). Ordering is nobody < shusaku < shusai, all finite
+    # with positive uncertainty.
     # test getting ratings for player shusaku (day, elo, uncertainty)
     _assert_ratings_approx(
         whr.ratings_for_player("shusaku"),
         [
-            (1, 16, 0.25),
-            (2, 15, 0.24),
-            (3, 15, 0.25),
+            (1, 32, 0.25),
+            (2, 32, 0.24),
+            (3, 31, 0.25),
         ],
     )
     # test getting ratings for player shusai, only current elo and uncertainty
     assert whr.ratings_for_player("shusai", current=True) == pytest.approx(
-        (125, 0.26), rel=1e-9, abs=1e-9
+        (110, 0.26), rel=1e-9, abs=1e-9
     )
     # test getting probability of future match between shusai and nobody2 (an
     # unknown player, treated as an even gamma=1 reference); it is a pure query
     # that neither prints nor persists nobody2.
     assert whr.probability_future_match("shusai", "nobody2", 0) == pytest.approx(
-        (0.6719847779500109, 0.32801522204998923), rel=1e-9, abs=1e-9
+        (0.6533788507262572, 0.3466211492737428), rel=1e-9, abs=1e-9
     )
     assert capsys.readouterr().out == ""
     assert "nobody2" not in whr.players
     # test getting log likelihood of base
-    assert whr.log_likelihood() == pytest.approx(-1.061578579328394, rel=1e-9, abs=1e-9)
+    assert whr.log_likelihood() == pytest.approx(-1.081000492536898, rel=1e-9, abs=1e-9)
     # test printing ordered ratings
     whr.print_ordered_ratings()
     captured = capsys.readouterr()
     _assert_nested_approx(
         _parse_ordered_ratings_display(captured.out),
         [
-            ("nobody", [-167.88581941373636]),
-            ("shusaku", [15.847593903408283, 14.852900414900345, 14.545508206558283]),
-            ("shusai", [122.57458064806248, 123.91642306478018, 124.58617483320234]),
+            ("nobody", [-176.60238580629516]),
+            ("shusaku", [32.468854116144996, 31.508925707068446, 31.230159171616666]),
+            ("shusai", [108.14428636123016, 109.46483984112977, 110.12400590321403]),
         ],
     )
     # test printing ordered ratings, only current elo
@@ -304,23 +301,23 @@ def test_loading_several_games_at_once(capsys, tmp_path):
     _assert_nested_approx(
         _parse_ordered_ratings_display_current(captured.out),
         [
-            ("nobody", -167.88581941373636),
-            ("shusaku", 14.545508206558283),
-            ("shusai", 124.58617483320234),
+            ("nobody", -176.60238580629516),
+            ("shusaku", 31.230159171616666),
+            ("shusai", 110.12400590321403),
         ],
     )
     # test getting ordered ratings, compact form
     _assert_nested_approx(
         whr.get_ordered_ratings(compact=True),
         [
-            [-167.88581941373636],
-            [15.847593903408283, 14.852900414900345, 14.545508206558283],
-            [122.57458064806248, 123.91642306478018, 124.58617483320234],
+            [-176.60238580629516],
+            [32.468854116144996, 31.508925707068446, 31.230159171616666],
+            [108.14428636123016, 109.46483984112977, 110.12400590321403],
         ],
     )
     # test getting ordered ratings, only current elo with compact form
     assert whr.get_ordered_ratings(compact=True, current=True) == pytest.approx(
-        [-167.88581941373636, 14.545508206558283, 124.58617483320234],
+        [-176.60238580629516, 31.230159171616666, 110.12400590321403],
         rel=1e-9,
         abs=1e-9,
     )

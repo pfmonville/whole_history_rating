@@ -28,14 +28,13 @@ class Game:
         self.komi_gamma = komi_gamma
         self.bpd: PD.PlayerDay | None = None
         self.wpd: PD.PlayerDay | None = None
-        if extras is None:
-            self.extras = {"komi": 6.5}
-        else:
-            self.extras = extras
-            self.extras.setdefault("komi", 6.5)
+        # komi is opt-in (3.1.0): no default is injected. A game with no
+        # ``"komi"`` entry has no komi advantage (its komi gamma is 1.0 and
+        # nothing is estimated for it). See WHR.create_game.
+        self.extras = extras if extras is not None else {}
 
     def __str__(self) -> str:
-        return f"W:{self.white_player.name}(r={self.wpd.r if self.wpd is not None else '?'}) B:{self.black_player.name}(r={self.bpd.r if self.bpd is not None else '?'}) winner = {self.winner}, komi = {self.extras['komi']}, handicap = {self.handicap}"
+        return f"W:{self.white_player.name}(r={self.wpd.r if self.wpd is not None else '?'}) B:{self.black_player.name}(r={self.bpd.r if self.bpd is not None else '?'}) winner = {self.winner}, komi = {self.extras.get('komi')}, handicap = {self.handicap}"
 
     def opponents_adjusted_gamma(self, player: P.Player) -> float:
         """Opponent's gamma folding in the handicap/komi advantages.
@@ -55,7 +54,7 @@ class Game:
         gk = (
             1.0
             if self.komi_gamma is None
-            else self.komi_gamma.get(self.extras["komi"], 1.0)
+            else self.komi_gamma.get(self.extras.get("komi"), 1.0)
         )
         # Resolve the opponent first: a player who isn't in this game must raise
         # the specific "No opponent" error rather than being pre-empted by the
@@ -96,7 +95,7 @@ class Game:
         gk = (
             1.0
             if self.komi_gamma is None
-            else self.komi_gamma.get(self.extras["komi"], 1.0)
+            else self.komi_gamma.get(self.extras.get("komi"), 1.0)
         )
         black_eff = self.bpd.gamma() * gh
         white_eff = self.wpd.gamma() * gk
