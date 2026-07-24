@@ -1,4 +1,5 @@
 import math
+import random
 
 import pytest
 
@@ -203,3 +204,54 @@ def test_single_day_update_by_1d_newton_routes_to_davidson():
 
     assert day.r == pytest.approx(expected_davidson_r)
     assert day.r != pytest.approx(counterfactual_bt_r)
+
+
+def _davidson_balanced_history(rng, nu_true, n_pairs=40, n_games=60):
+    """Equal players, colour-swapped, single day; outcomes sampled from Davidson
+    with a known nu_true (equal gammas => S=O=1 => P(draw)=nu/(2+nu))."""
+    w = WHR()
+    p_draw = nu_true / (2.0 + nu_true)
+    p_win = 1.0 / (2.0 + nu_true)
+    for k in range(n_pairs):
+        a, b = f"a{k}", f"b{k}"
+        for _ in range(n_games):
+            r = rng.random()
+            outcome = "D" if r < p_draw else ("B" if r < p_draw + p_win else "W")
+            w.create_game(a, b, outcome, 1, 0)
+            w.create_game(
+                b,
+                a,
+                outcome if outcome == "D" else ("W" if outcome == "B" else "B"),
+                1,
+                0,
+            )
+    return w
+
+
+def test_recovers_known_draw_tendency():
+    rng = random.Random(7)
+    nu_true = 1.5
+    w = _davidson_balanced_history(rng, nu_true)
+    w.iterate(80)
+    assert w.draw_tendency == pytest.approx(nu_true, abs=0.3)
+
+
+def test_pinned_draw_is_not_moved():
+    w = WHR(config={"pinned_draw": 0.8})
+    for d in range(1, 11):
+        w.create_game("a", "b", "D", d, 0)
+        w.create_game("a", "b", "B", d, 0)
+    w.iterate(30)
+    assert w.draw_tendency == pytest.approx(0.8)
+
+
+def test_no_draw_iteration_still_matches_baseline():
+    # A draw-free scenario iterates with the win/loss path untouched.
+    w = WHR()
+    for d in range(1, 6):
+        w.create_game("a", "b", "B", d, 0)
+        w.create_game("a", "b", "W", d, 0)
+    w.iterate(30)
+    assert w.nu == 0.0
+    elo, _ = w.ratings_for_player("a", current=True)
+    assert math.isfinite(elo)

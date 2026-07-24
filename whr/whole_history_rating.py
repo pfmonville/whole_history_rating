@@ -939,11 +939,33 @@ class WHR:
         p1 = integral / total_weight
         return p1, 1.0 - p1
 
+    def _newton_draw(self) -> None:
+        """One Newton step on the global draw tendency nu (Davidson), in log-nu
+        space. Skipped when there are no draws or nu is pinned."""
+        if not self._has_draws or self.config["pinned_draw"] is not None:
+            return
+        gradient = 0.0
+        hessian = 0.0
+        for game in self.games:
+            if game.bpd is None or game.wpd is None:
+                continue
+            s, o = game.effective_gammas(game.black_player)
+            t = self.nu * math.sqrt(s * o)
+            z = s + o + t
+            ratio = t / z
+            gradient += (1.0 if game.winner == "D" else 0.0) - ratio
+            hessian += -ratio * (1.0 - ratio)
+        hessian -= self.config["hessian_damping"]
+        v = math.log(self.nu) - gradient / hessian
+        self.nu = math.exp(v)
+
     def _run_one_iteration(self) -> None:
         """Runs one iteration of the WHR algorithm."""
         for player in self.players.values():
+            player.draw_tendency = self.nu
             player.run_one_newton_iteration()
         self._newton_handicap_komi()
+        self._newton_draw()
 
     def load_games(self, games: list[str], separator: str = " ") -> None:
         """Loads all games at once.
