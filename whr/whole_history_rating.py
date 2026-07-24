@@ -84,6 +84,34 @@ class WHR:
         Returns:
             (h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins)
         """
+        # A draw credits neither a handicap (black) win nor a komi (white)
+        # win, and the plain Bradley-Terry gradient/Hessian denominator
+        # accumulated below does not apply to it. Skipping draws here means
+        # handicap/komi advantages are estimated from DECISIVE games only
+        # when draws are present -- a deliberate simplification; full
+        # Davidson-aware handicap/komi estimation is out of scope for this
+        # phase.
+        #
+        # This first pass (gathering each decisive game's raw handicap/komi
+        # keys and gammas into plain lists) stays a Python loop because
+        # self.games is a list of Game objects, not already-batched arrays;
+        # only the per-key ACCUMULATION below is vectorized with numpy.
+        handicaps: list[Any] = []
+        komis: list[Any] = []
+        gb_vals: list[float] = []
+        gw_vals: list[float] = []
+        black_win: list[bool] = []
+        for g in self.games:
+            if g.bpd is None or g.wpd is None:
+                continue
+            if g.winner == "D":
+                continue
+            handicaps.append(g.handicap)
+            komis.append(g.extras["komi"])
+            gb_vals.append(g.bpd.gamma())
+            gw_vals.append(g.wpd.gamma())
+            black_win.append(g.winner == "B")
+
         h_grad: dict[Any, float] = {}
         h_hess: dict[Any, float] = {}
         k_grad: dict[Any, float] = {}
@@ -92,39 +120,63 @@ class WHR:
         h_wins: dict[Any, int] = {}
         k_games: dict[Any, int] = {}
         k_wins: dict[Any, int] = {}
-        for g in self.games:
-            if g.bpd is None or g.wpd is None:
-                continue
-            # A draw credits neither a handicap (black) win nor a komi
-            # (white) win, and the plain Bradley-Terry gradient/Hessian
-            # denominator accumulated below does not apply to it. Skipping
-            # draws here means handicap/komi advantages are estimated from
-            # DECISIVE games only when draws are present -- a deliberate
-            # simplification; full Davidson-aware handicap/komi estimation
-            # is out of scope for this phase.
-            if g.winner == "D":
-                continue
-            h = g.handicap
-            k = g.extras["komi"]
-            gh = self.handicap_gamma[h]
-            gk = self.komi_gamma[k]
-            gb = g.bpd.gamma()
-            gw = g.wpd.gamma()
-            c_komi = gw
-            d_komi = gb * gh
-            c_handicap = gb
-            d_handicap = gw * gk
-            div = 1.0 / (d_komi + d_handicap)
-            h_grad[h] = h_grad.get(h, 0.0) + c_handicap * div
-            h_hess[h] = h_hess.get(h, 0.0) + c_handicap * d_handicap * div * div
-            k_grad[k] = k_grad.get(k, 0.0) + c_komi * div
-            k_hess[k] = k_hess.get(k, 0.0) + c_komi * d_komi * div * div
-            h_games[h] = h_games.get(h, 0) + 1
-            k_games[k] = k_games.get(k, 0) + 1
-            if g.winner == "B":
-                h_wins[h] = h_wins.get(h, 0) + 1
-            else:
-                k_wins[k] = k_wins.get(k, 0) + 1
+        if not handicaps:
+            return h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins
+
+        # Map each game's handicap/komi key to a contiguous integer index
+        # (in first-seen order, matching the insertion order the old
+        # dict-accumulation loop produced) so np.bincount can accumulate
+        # per key.
+        h_index_of: dict[Any, int] = {}
+        k_index_of: dict[Any, int] = {}
+        hi = np.empty(len(handicaps), dtype=np.int64)
+        ki = np.empty(len(komis), dtype=np.int64)
+        for i, (h, k) in enumerate(zip(handicaps, komis, strict=True)):
+            hi[i] = h_index_of.setdefault(h, len(h_index_of))
+            ki[i] = k_index_of.setdefault(k, len(k_index_of))
+        nh = len(h_index_of)
+        nk = len(k_index_of)
+
+        gb = np.array(gb_vals, dtype=np.float64)
+        gw = np.array(gw_vals, dtype=np.float64)
+        gh = np.array([self.handicap_gamma[h] for h in handicaps], dtype=np.float64)
+        gk = np.array([self.komi_gamma[k] for k in komis], dtype=np.float64)
+        black_win_arr = np.array(black_win, dtype=np.float64)
+
+        c_komi = gw
+        d_komi = gb * gh
+        c_handicap = gb
+        d_handicap = gw * gk
+        div = 1.0 / (d_komi + d_handicap)
+        h_grad_g = c_handicap * div
+        h_hess_g = c_handicap * d_handicap * div**2
+        k_grad_g = c_komi * div
+        k_hess_g = c_komi * d_komi * div**2
+
+        h_grad_arr = np.bincount(hi, weights=h_grad_g, minlength=nh)
+        h_hess_arr = np.bincount(hi, weights=h_hess_g, minlength=nh)
+        h_games_arr = np.bincount(hi, minlength=nh)
+        h_wins_arr = np.bincount(hi, weights=black_win_arr, minlength=nh)
+
+        k_grad_arr = np.bincount(ki, weights=k_grad_g, minlength=nk)
+        k_hess_arr = np.bincount(ki, weights=k_hess_g, minlength=nk)
+        k_games_arr = np.bincount(ki, minlength=nk)
+        k_wins_arr = np.bincount(ki, weights=1.0 - black_win_arr, minlength=nk)
+
+        for key, idx in h_index_of.items():
+            h_grad[key] = float(h_grad_arr[idx])
+            h_hess[key] = float(h_hess_arr[idx])
+            h_games[key] = int(h_games_arr[idx])
+            wins = int(round(h_wins_arr[idx]))
+            if wins:
+                h_wins[key] = wins
+        for key, idx in k_index_of.items():
+            k_grad[key] = float(k_grad_arr[idx])
+            k_hess[key] = float(k_hess_arr[idx])
+            k_games[key] = int(k_games_arr[idx])
+            wins = int(round(k_wins_arr[idx]))
+            if wins:
+                k_wins[key] = wins
         return h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins
 
     def _eligible_advantage_updates(
@@ -1057,17 +1109,32 @@ class WHR:
         ``max_gradient_norm`` (the convergence gauge), so they can never
         disagree on it (the same disagreement risk ``_eligible_advantage_updates``
         guards against for handicap/komi)."""
-        gradient = 0.0
-        hessian = 0.0
+        # Gathering each game's raw effective gammas into plain lists stays
+        # a Python loop (self.games is a list of Game objects, not
+        # already-batched arrays); only the summation below is vectorized.
+        s_vals: list[float] = []
+        o_vals: list[float] = []
+        is_draw_vals: list[float] = []
         for game in self.games:
             if game.bpd is None or game.wpd is None:
                 continue
             s, o = game.effective_gammas(game.black_player)
-            t = self.nu * math.sqrt(s * o)
-            z = s + o + t
-            ratio = t / z
-            gradient += (1.0 if game.winner == "D" else 0.0) - ratio
-            hessian += -ratio * (1.0 - ratio)
+            s_vals.append(s)
+            o_vals.append(o)
+            is_draw_vals.append(1.0 if game.winner == "D" else 0.0)
+
+        if not s_vals:
+            return 0.0, 0.0
+
+        s_arr = np.array(s_vals, dtype=np.float64)
+        o_arr = np.array(o_vals, dtype=np.float64)
+        is_draw_arr = np.array(is_draw_vals, dtype=np.float64)
+
+        t_arr = self.nu * np.sqrt(s_arr * o_arr)
+        z_arr = s_arr + o_arr + t_arr
+        ratio = t_arr / z_arr
+        gradient = float(np.sum(is_draw_arr) - np.sum(ratio))
+        hessian = float(-np.sum(ratio * (1.0 - ratio)))
         return gradient, hessian
 
     def _newton_draw(self) -> None:
