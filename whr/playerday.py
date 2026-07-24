@@ -222,6 +222,11 @@ class PlayerDay:
         O + T``, and ``num`` is ``S`` (player won), ``O`` (player lost), or
         ``T`` (drawn). Reduces exactly to ``log_likelihood()`` at ``nu=0``
         (see ``test_davidson_log_likelihood_matches_bt_at_nu_zero``).
+
+        Raises:
+            ValueError: if ``num`` is non-positive, which happens exactly
+                when the day has a drawn game and ``nu <= 0`` (a draw has
+                zero probability when the draw tendency is 0).
         """
         s, o, w = self._davidson_game_arrays()
         if s.size == 0:
@@ -229,6 +234,11 @@ class PlayerDay:
         t = nu * np.sqrt(s * o)
         z = s + o + t
         num = np.where(w == 1.0, s, np.where(w == 0.0, o, t))
+        if np.any(num <= 0.0):
+            raise ValueError(
+                "davidson_log_likelihood is undefined for a draw at nu=0 "
+                "(a draw has zero probability when the draw tendency is 0)"
+            )
         return float(np.sum(np.log(num) - np.log(z)))
 
     def davidson_derivatives(self, nu: float) -> tuple[float, float]:

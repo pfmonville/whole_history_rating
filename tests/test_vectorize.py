@@ -387,9 +387,11 @@ def test_unit_equivalence_davidson_terms():
     # nu=0.0 is included for davidson_derivatives (no log() involved: the
     # draw-mass term t=nu*sqrt(s*o) is just 0, z=s+o stays positive). It is
     # excluded from the log_likelihood comparison below: with actual drawn
-    # games present, nu=0 assigns them zero probability (t=0 => log(num=t)
-    # is log(0)), which is undefined for BOTH the reference and vectorized
-    # implementations -- not a vectorization artifact.
+    # games present, nu=0 assigns them zero probability (t=0 => num=t=0),
+    # which davidson_log_likelihood must reject with a ValueError (the
+    # pre-vectorization reference raised via math.log(0), so this is a
+    # deliberate deterministic error, not something either implementation
+    # can meaningfully agree on a numeric answer for).
     for nu in (0.0, 0.3, 1.3):
         ref_grad, ref_hess = _reference_davidson_derivatives(a_day, nu)
         grad, hess = a_day.davidson_derivatives(nu)
@@ -399,6 +401,9 @@ def test_unit_equivalence_davidson_terms():
     for nu in (0.3, 1.3):
         ref_ll = _reference_davidson_log_likelihood(a_day, nu)
         assert a_day.davidson_log_likelihood(nu) == pytest.approx(ref_ll, rel=1e-9)
+
+    with pytest.raises(ValueError):
+        a_day.davidson_log_likelihood(0.0)
 
 
 def test_bt_and_davidson_terms_empty_day():
