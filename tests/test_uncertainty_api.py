@@ -44,6 +44,19 @@ def test_rating_difference_unknown_player_raises():
         w.rating_difference("a", "b", day_a=999)
 
 
+def test_rating_difference_same_player_raises():
+    w = _rated(["a b B 1", "a b W 2"])
+    with pytest.raises(ValueError):
+        w.rating_difference("a", "a")
+
+
+def test_rating_difference_same_player_raises_uncased():
+    w = _rated(["a b B 1", "a b W 2"], iters=1)
+    w.config["uncased"] = True
+    with pytest.raises(ValueError):
+        w.rating_difference("A", "a")
+
+
 def test_rating_covariance_diagonal_matches_uncertainty():
     w = _rated(["a b B 1", "a b W 5", "a b B 9", "a b W 13"])
     days, cov = w.rating_covariance("a")
@@ -87,6 +100,23 @@ def test_prediction_uncertainty_default_unchanged():
     point = w.probability_future_match("a", "b")
     also = w.probability_future_match("a", "b", account_for_uncertainty=False)
     assert also == point
+
+
+def test_prediction_uncertainty_negative_steps_raises():
+    w = _rated(["a b B 1", "a b B 2"], iters=50)
+    with pytest.raises(ValueError):
+        w.probability_future_match(
+            "a", "b", account_for_uncertainty=True, uncertainty_steps=-1
+        )
+
+
+def test_prediction_uncertainty_sigma_zero_fallback():
+    # Two unknown/unrated players: both variances are 0 (no iterate() ever
+    # ran for them), exercising the sigma == 0 short-circuit fallback.
+    w = WHR()
+    result = w.probability_future_match("x", "y", account_for_uncertainty=True)
+    assert result == (0.5, 0.5)
+    assert sum(result) == pytest.approx(1.0)
 
 
 def test_prediction_uncertainty_hedges_toward_half():

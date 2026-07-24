@@ -431,8 +431,16 @@ class WHR:
         WHR computes no cross-player covariance, so this ignores the correlated
         errors of players who have faced each other. Returns
         {"difference", "std_error", "confidence_interval_95"} in elo. Raises
-        ValueError for an unknown/unrated player or day.
+        ValueError for an unknown/unrated player or day, or if name_a and
+        name_b refer to the same player (use rating_change() instead, since
+        the independence approximation above is invalid for one player
+        compared against themselves across days).
         """
+        cmp_a, cmp_b = name_a, name_b
+        if self.config["uncased"]:
+            cmp_a, cmp_b = cmp_a.lower(), cmp_b.lower()
+        if cmp_a == cmp_b:
+            raise ValueError("use rating_change() to compare one player across days")
         pa = self._existing_player(name_a)
         pb = self._existing_player(name_b)
         if pa is None or not pa.days:
@@ -458,6 +466,14 @@ class WHR:
         days[j]) — the exact inverse of the player's negative tridiagonal
         Hessian scaled to elo^2. The diagonal equals the per-day marginal
         variance. Raises ValueError for an unknown/unrated player.
+
+        Evaluated at the player's CURRENT rating state: call iterate() or
+        auto_iterate() first for meaningful values. Unlike rating_difference(),
+        this does not raise if uncertainties were never computed (i.e. before
+        any iterate() call) — it will simply invert whatever Hessian the
+        current (possibly un-iterated) state produces. Inverts a dense n x n
+        matrix, where n is the player's number of distinct rated days, so the
+        cost grows with that count.
         """
         player = self._existing_player(name)
         if player is None or not player.days:
@@ -485,6 +501,12 @@ class WHR:
         the Wiener prior, so a change is more certain than summing marginals).
         Returns {"change", "std_error", "confidence_interval_95"} in elo. Raises
         ValueError for an unknown player or an unknown day.
+
+        Evaluated at the player's CURRENT rating state: call iterate() or
+        auto_iterate() first for meaningful values. Unlike rating_difference(),
+        this does not raise if uncertainties were never computed. It delegates
+        to rating_covariance(), which inverts a dense n x n matrix (n = the
+        player's number of distinct rated days), so cost grows with that count.
         """
         player = self._existing_player(name)
         if player is None or not player.days:
@@ -804,7 +826,8 @@ class WHR:
                 each side of the integration grid used for the Gaussian
                 quadrature when ``account_for_uncertainty`` is ``True``; the
                 grid spans +/-0.5 * uncertainty_steps standard deviations
-                (nodes at x_i = 0.5*i). Ignored otherwise. Defaults to 4.
+                (nodes at x_i = 0.5*i). Ignored otherwise. Defaults to 4. Must
+                be >= 1 when ``account_for_uncertainty`` is ``True``.
 
         Returns:
             tuple[float, float]: The winning probabilities for name1 and name2 respectively. Unknown players are treated as an even (gamma = 1) reference without being added to the base.
@@ -813,6 +836,8 @@ class WHR:
             AttributeError: Raised if name1 and name2 are equal, or if a
                 supplied category key resolves to a non-finite/non-positive
                 advantage gamma.
+            ValueError: Raised if ``account_for_uncertainty`` is ``True`` and
+                ``uncertainty_steps`` is less than 1.
         """
         # Avoid self-played games (no info)
         if self.config["uncased"]:
@@ -866,6 +891,9 @@ class WHR:
 
         if not account_for_uncertainty:
             return player1_proba, player2_proba
+
+        if uncertainty_steps < 1:
+            raise ValueError("uncertainty_steps must be >= 1")
 
         var1 = player1.days[-1].uncertainty if (player1 and player1.days) else 0.0
         var2 = player2.days[-1].uncertainty if (player2 and player2.days) else 0.0
