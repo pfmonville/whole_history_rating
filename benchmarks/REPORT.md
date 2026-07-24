@@ -1,7 +1,9 @@
 # WHR on real competition data — benchmark report
 
-This report puts `whole-history-rating` (WHR) 3.0.0 head-to-head with the real
-datasets and metrics used by two well-known dynamic rating systems:
+This report puts `whole-history-rating` (WHR) head-to-head with the real
+datasets and metrics used by two well-known dynamic rating systems. (Numbers were
+first produced on 3.0.0 and re-verified bit-identical on 3.1.0, which made komi
+opt-in — see §4.)
 
 - **KickScore** (Maystre et al., *Pairwise Comparisons with Flexible
   Time-Dynamics*, KDD 2019) — NBA and football.
@@ -78,7 +80,7 @@ analogue of 538's per-game-updated Elo).
 eras — Celtics dominance in the late 50s/60s, the Bulls' 1996 peak, the Spurs'
 Duncan-era plateau, and the Warriors' 2015-17 spike:
 
-![NBA team strength over history](results/nba_history.png)
+![NBA team strength over history](results/nba_history_light.png)
 
 ---
 
@@ -113,7 +115,7 @@ never leaked into the prediction.
 Hewitt and Roddick on top in the early 2000s, Federer's mid-decade peak, Nadal's
 2005 breakout, and Djokovic climbing past the field to the top by 2011–2015:
 
-![WHR skill over time, ATP 2000-2015](results/tennis_history.png)
+![WHR skill over time, ATP 2000-2015](results/tennis_history_light.png)
 
 ---
 
@@ -165,17 +167,19 @@ implementation defect — the model performs as the literature predicts.
    tuned per dataset** — `WHR.fit_w2()` exists for exactly this. A first run with
    a too-small `w2` produced predictions no better than the base rate.
 
-2. **Robustness gap (worth a fix): the default komi key can overflow the Newton
-   step.** Every `create_game` carries WHR's default komi key `6.5`, which is
-   *estimated* unless pinned — unlike the handicap-`0` key, which is auto-pinned.
-   On these sports (no komi) that free global parameter is degenerate, and the
-   unclamped `math.exp(-grad / hess)` in `_newton_handicap_komi` raised
-   `OverflowError: math range error`. We work around it by pinning komi off
-   (`pinned_komi={6.5: 0.0}`). Two library-side improvements would remove the
-   foot-gun: auto-pin the default komi key when komi is never varied (symmetry
-   with handicap-0), and/or clamp the handicap/komi Newton step (trust region)
-   so a degenerate key can never overflow. *(Flagged for a follow-up; not fixed
-   in this branch, which only adds benchmarks.)*
+2. **Two library issues these benchmarks surfaced — both now fixed upstream.**
+   Originally every `create_game` carried WHR's default Go komi key `6.5`, which
+   was *estimated* unless pinned (unlike the handicap-`0` key, which is
+   auto-pinned). On these sports (no komi) that free global parameter is
+   degenerate: it absorbed real skill signal, and the unclamped
+   `math.exp(-grad / hess)` in `_newton_handicap_komi` raised
+   `OverflowError: math range error`. These benchmarks originally worked around
+   it with `pinned_komi={6.5: 0.0}`. Both root causes are now fixed in the
+   library — the Newton step is trust-region clamped (**3.0.1**) and komi is
+   **opt-in** with no silent default (**3.1.0**) — so the workaround is gone and
+   the benchmarks simply pass no komi. Re-running them across that change
+   produced **bit-identical** results, as expected: a komi pinned to 0 elo and
+   no komi at all are mathematically the same thing.
 
 ---
 

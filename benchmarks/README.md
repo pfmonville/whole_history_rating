@@ -19,8 +19,20 @@ uv run --with pandas python benchmarks/football.py
 ```
 
 Each script downloads its data into `benchmarks/data/` (git-ignored) on first
-run, fits WHR, writes a `*_results.json` and (NBA/tennis) a `*_history.png` into
-`benchmarks/results/`, and prints a summary. See `REPORT.md` for the write-up.
+run, fits WHR, writes a `*_results.json` (and, for NBA/tennis, a `*_curves.json`
+of per-day rating curves) into `benchmarks/results/`, and prints a summary.
+
+Figures are rendered separately, so the expensive fits are not repeated when a
+chart's design changes:
+
+```bash
+uv run --with matplotlib python benchmarks/make_figures.py
+```
+
+That writes each README figure twice — `*_light.png` and `*_dark.png`, stepped
+from the same palette — which the README serves via
+`<picture media="(prefers-color-scheme: dark)">`. See `REPORT.md` for the
+write-up.
 
 ## Data sources (all fetched at runtime)
 
@@ -54,5 +66,6 @@ run, fits WHR, writes a `*_results.json` and (NBA/tennis) a `*_history.png` into
 These are *comparable* re-runs, **not** bit-exact reproductions of the reference
 papers. Train/test splits, data vintages and time discretisation differ from the
 originals, so the published numbers are reference points rather than a controlled
-head-to-head. Komi (a Go concept) is pinned off; home advantage is modelled with
-WHR's handicap keys. Details and numbers are in `REPORT.md`.
+head-to-head. Komi (a Go concept) is simply not passed — it is opt-in as of WHR
+3.1.0; home advantage is modelled with WHR's handicap keys. Details and numbers
+are in `REPORT.md`.

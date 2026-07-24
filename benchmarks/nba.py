@@ -224,8 +224,8 @@ def main():
     with open(os.path.join(RESULTS, "nba_results.json"), "w") as f:
         json.dump(results, f, indent=2)
 
-    _plot_history(matches, best_w2)
-    print("wrote results/nba_results.json and results/nba_history.png", flush=True)
+    _dump_history_curves(matches, best_w2)
+    print("wrote results/nba_results.json and results/nba_curves.json", flush=True)
 
 
 def _home_elo(whr) -> float:
@@ -236,37 +236,29 @@ def _home_elo(whr) -> float:
     return math.log(g) * 400.0 / math.log(10)
 
 
-def _plot_history(matches, w2):
-    try:
-        import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-    except Exception as e:  # pragma: no cover
-        print(f"(skipping plot: {e})", flush=True)
-        return
+def _dump_history_curves(matches, w2):
+    """Fit the FULL history once and dump each franchise's rating curve as
+    ``(year, display_elo)`` pairs. Rendering lives in make_figures.py, so the
+    expensive fit is not repeated every time a figure's design changes."""
     whr = C.build_and_fit(
         strip_handicap(matches), w2, time_limit=120, precision=5e-3, verbose=True
     )
     franchises = ["BOS", "LAL", "CHI", "GSW", "SAS"]
-    fig, ax = plt.subplots(figsize=(11, 5))
+    d0 = matches[0].when
+    curves = {}
     for fr in franchises:
         try:
             r = whr.ratings_for_player(fr)
         except ValueError:
             continue
-        # convert bin index back to approximate year for the x-axis
-        d0 = matches[0].when
-        xs = [d0.year + (day * BIN_DAYS) / 365.25 for (day, _, _) in r]
-        ys = [elo + 1500 for (_, elo, _) in r]  # goratings-style display shift
-        ax.plot(xs, ys, label=fr, lw=1.2)
-    ax.set_title("WHR team strength over NBA history (display elo = WHR + 1500)")
-    ax.set_xlabel("year")
-    ax.set_ylabel("rating")
-    ax.legend()
-    ax.grid(alpha=0.3)
-    fig.tight_layout()
-    fig.savefig(os.path.join(RESULTS, "nba_history.png"), dpi=110)
+        curves[fr] = [
+            # bin index -> approximate calendar year; +1500 is a goratings-style
+            # display shift (only rating *differences* are meaningful in WHR).
+            [d0.year + (day * BIN_DAYS) / 365.25, elo + 1500]
+            for (day, elo, _) in r
+        ]
+    with open(os.path.join(RESULTS, "nba_curves.json"), "w") as f:
+        json.dump({"display_shift": 1500, "curves": curves}, f)
 
 
 if __name__ == "__main__":

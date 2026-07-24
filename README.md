@@ -13,6 +13,76 @@ To install the library, use the following command:
 pip install whole-history-rating
 ```
 
+## How well does it actually work?
+
+WHR is benchmarked on the real datasets used by two well-known dynamic rating
+systems — [KickScore](https://github.com/lucasmaystre/kickscore) (NBA, football)
+and [TrueSkill Through Time](https://github.com/glandfried/TrueSkillThroughTime)
+(ATP tennis) — and scored with the metric each of them reports. Everything below
+is reproducible from [`benchmarks/`](benchmarks/); the full write-up, method and
+caveats are in [`benchmarks/REPORT.md`](benchmarks/REPORT.md).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="benchmarks/results/bench_comparison_dark.png">
+  <img alt="Predictive log-loss of WHR versus reference rating systems on NBA, ATP tennis and European football. WHR is within 0.02 nats of FiveThirtyEight's tuned NBA models, reaches 67% accuracy on held-out ATP matches, and its Davidson draw model beats a draw-blind ablation on football." src="benchmarks/results/bench_comparison_light.png">
+</picture>
+
+Every figure is fitted **only on games played before the test season**, and the
+`w2` hyper-parameter is chosen on a separate validation season — so nothing below
+has seen the data it is scored on.
+
+| Benchmark | Test set | WHR | Reference on the same games |
+|---|---|---|---|
+| **NBA** (FiveThirtyEight, 69,377 games since 1947) | 2018-19, n=1312 | **0.634** log-loss · 64.3% | 538 Elo 0.619 · 65.3% — 538 RAPTOR 0.615 · 65.6% |
+| **ATP tennis** (Sackmann, 48,335 matches, 1,948 players) | 2014, n=2816 | **0.616** log-loss · 67.0% | coin flip 0.693 · 50.0% |
+| **Football** (big-5 leagues, 18,085 matches, 25% draws) | 2022-23, n=1826 | **1.009** 3-way log-loss · 51.5% | draw-blind WHR 1.013 · 51.7% — H/D/A base rate 1.063 · 45.7% |
+
+Three things worth pulling out:
+
+- **It is competitive with purpose-built systems.** On the NBA it lands within
+  ~0.02 nats of FiveThirtyEight's Elo and RAPTOR — models tuned specifically for
+  basketball with margin-of-victory, rest and roster features — using nothing but
+  match results and a single global home-advantage parameter. (WHR is evaluated
+  *online*, i.e. re-fitted as results arrive, so the comparison is apples to
+  apples: 538's numbers are updated game by game too.)
+- **The advantages are learned, not assumed.** Given only wins and losses, WHR
+  estimated the NBA home-court edge at **+98 elo** (the accepted value is ≈+100)
+  and the football home edge at **+80 elo**. Removing home advantage makes the NBA
+  model *worse than the base rate* — which is exactly how much of basketball's
+  predictability it accounts for.
+- **Draws are modelled, not bolted on.** On football, WHR fitted a global draw
+  tendency of ν≈0.79 and beats an otherwise-identical model that just assumes a
+  constant draw rate. The gain is in *calibration* rather than top-1 accuracy — a
+  draw is rarely the single most likely outcome — which is precisely what the
+  Davidson model is supposed to buy.
+
+### The ratings are historically recognisable
+
+Fitted on the full 1947-2020 NBA history, WHR reproduces the eras a basketball
+fan would name: the Celtics' long dominance, the Bulls peaking in 1996, the
+Warriors' spike in 2015, the Spurs' Duncan-era plateau.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="benchmarks/results/nba_history_dark.png">
+  <img alt="WHR rating curves for five NBA franchises from 1947 to 2020, one panel each, showing the Celtics' sustained peak through the 1960s-80s, the Bulls peaking in 1996, the Warriors spiking in 2015 and the Spurs plateauing through the 2000s." src="benchmarks/results/nba_history_light.png">
+</picture>
+
+And on ATP tennis, the Federer → Nadal → Djokovic succession falls out of the
+match results alone:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="benchmarks/results/tennis_history_dark.png">
+  <img alt="WHR skill curves on ATP singles 2000-2015. Federer, Nadal and Djokovic are highlighted in colour against three grey context players. Federer rises to a mid-decade peak, Nadal climbs from 2005, and Djokovic overtakes the field from 2011 to reach the highest rating by 2015." src="benchmarks/results/tennis_history_light.png">
+</picture>
+
+> **Honest framing.** These are *comparable re-runs*, not bit-exact
+> reproductions of the reference papers: train/test splits, data vintages and
+> time discretisation differ, so the published numbers are reference points
+> rather than a controlled head-to-head. The football figures compare WHR against
+> its own ablation and a base rate, not against KickScore directly. Details,
+> limitations and the exact protocol are in
+> [`benchmarks/REPORT.md`](benchmarks/REPORT.md).
+
 ## Usage
 
 ### Basic Setup

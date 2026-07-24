@@ -154,21 +154,15 @@ def main():
     with open(os.path.join(RESULTS, "tennis_results.json"), "w") as f:
         json.dump(results, f, indent=2)
 
-    _plot(recs, best_w2)
+    _dump_history_curves(recs, best_w2)
     print(
-        "wrote results/tennis_results.json and results/tennis_history.png", flush=True
+        "wrote results/tennis_results.json and results/tennis_curves.json", flush=True
     )
 
 
-def _plot(recs, w2):
-    try:
-        import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-    except Exception as e:  # pragma: no cover
-        print(f"(skipping plot: {e})", flush=True)
-        return
+def _dump_history_curves(recs, w2):
+    """Fit the FULL history once and dump each player's rating curve as
+    ``(year, display_elo)`` pairs. Rendering lives in make_figures.py."""
     whr = C.build_and_fit(
         train_matches(recs), w2, time_limit=240, precision=5e-3, verbose=True
     )
@@ -181,22 +175,17 @@ def _plot(recs, w2):
         "Andy Roddick",
     ]
     origin = recs[0]["when"]
-    fig, ax = plt.subplots(figsize=(11, 5))
+    curves = {}
     for name in stars:
         try:
             r = whr.ratings_for_player(name)
         except ValueError:
             continue
-        xs = [origin.year + (day) / 365.25 for (day, _, _) in r]
-        ys = [elo + 1500 for (_, elo, _) in r]
-        ax.plot(xs, ys, label=name, lw=1.3)
-    ax.set_title("WHR skill over time, ATP 2000-2015 (display elo = WHR + 1500)")
-    ax.set_xlabel("year")
-    ax.set_ylabel("rating")
-    ax.legend(fontsize=8)
-    ax.grid(alpha=0.3)
-    fig.tight_layout()
-    fig.savefig(os.path.join(RESULTS, "tennis_history.png"), dpi=110)
+        # +1500 is a goratings-style display shift (only rating *differences*
+        # are meaningful in WHR).
+        curves[name] = [[origin.year + day / 365.25, elo + 1500] for (day, elo, _) in r]
+    with open(os.path.join(RESULTS, "tennis_curves.json"), "w") as f:
+        json.dump({"display_shift": 1500, "curves": curves}, f)
 
 
 if __name__ == "__main__":

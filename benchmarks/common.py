@@ -90,12 +90,12 @@ def build_and_fit(
     convergence (or ``time_limit`` seconds). Returns the fitted instance."""
     from whr import WHR
 
-    # Komi is a Go concept; none of these sports use it. But every game carries
-    # WHR's default komi key (6.5), which is *estimated* by default (unlike the
-    # handicap-0 key, which is auto-pinned). Left free it introduces a spurious
-    # global side-advantage that is degenerate here and can overflow the Newton
-    # step. We pin it to neutral (0 elo) so only real handicaps are estimated.
-    config: dict = {"w2": w2, "pinned_komi": {6.5: 0.0}}
+    # Komi is a Go concept; none of these sports use it, so no `komi=` is passed
+    # to create_game below and no komi advantage is modelled. (Before WHR 3.1.0
+    # made komi opt-in, every game silently carried an *estimated* komi key of
+    # 6.5, and these benchmarks had to neutralise it with
+    # `pinned_komi={6.5: 0.0}` — no longer necessary.)
+    config: dict = {"w2": w2}
     if pinned_draw is not None:
         config["pinned_draw"] = pinned_draw
     whr = WHR(config)
