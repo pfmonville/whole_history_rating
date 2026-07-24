@@ -67,6 +67,7 @@ whr.auto_iterate(time_limit=10, precision=1e-3, batch_size=10)
 
 This automated process allows the algorithm to efficiently converge to stable ratings, adjusting the number of iterations dynamically based on the complexity of the data and the specified precision and time constraints.
 
+**Performance.** The per-game hot loops (handicap/komi/draw-tendency accumulation and each player-day's Bradley-Terry/Davidson terms) are numpy-vectorized, so `iterate`/`auto_iterate` scale well to large histories — the algorithm and results are unchanged, only the summation is batched.
 
 ### Viewing Ratings
 
@@ -393,4 +394,4 @@ whr.auto_iterate()
 - `n_splits`: number of expanding-window folds (default `5`); raises `ValueError` if there aren't enough distinct days to form them.
 - `iterations`: how many `iterate()` steps each fold's fresh model runs before scoring (default `50`).
 
-**Cost caveat.** `fit_w2()` trains `len(candidates) × n_splits` separate models for `iterations` iterations each — a full model fit, not an incremental update. On large histories this gets expensive fast; until the ratings loop is vectorised, consider a smaller `candidates` list, fewer `n_splits`, or a subsample of your history when exploring interactively.
+**Cost caveat.** `fit_w2()` trains `len(candidates) × n_splits` separate models for `iterations` iterations each — a full model fit, not an incremental update. Even though the underlying per-game loops are vectorized (see "Performance" above), this still multiplies up on large histories; consider a smaller `candidates` list, fewer `n_splits`, or a subsample of your history when exploring interactively.

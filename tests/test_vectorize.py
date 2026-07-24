@@ -419,3 +419,36 @@ def test_bt_and_davidson_terms_empty_day():
     assert day.log_likelihood() == 0.0
     assert day.davidson_derivatives(1.5) == (0.0, 0.0)
     assert day.davidson_log_likelihood(1.5) == 0.0
+
+
+def test_benchmark_smoke_large_history():
+    """Task 4: a scale smoke test for the vectorized per-game hot loops
+    (Tasks 2-3: global handicap/komi/nu accumulation and per-player
+    per-day BT/Davidson terms). Builds a moderately large, densely
+    connected history (~3000 games across many players and days) and runs
+    it through ``auto_iterate`` end to end.
+
+    Deliberately NO wall-clock assertion (machine-dependent) — this only
+    guards that the vectorized path runs correctly at scale (no numpy
+    shape/dtype/broadcasting error) and still converges to finite ratings,
+    not that it is fast."""
+    n_players = 50
+    n_days = 60
+
+    w = WHR()
+    for day in range(1, n_days + 1):
+        for i in range(n_players):
+            black = f"player{i}"
+            white = f"player{(i + 1) % n_players}"
+            winner = "B" if (day + i) % 2 == 0 else "W"
+            w.create_game(black, white, winner, day, 0)
+    assert len(w.games) == n_players * n_days  # 3000 games
+
+    n_iterations, _converged = w.auto_iterate(time_limit=30)
+    assert n_iterations > 0
+
+    ratings = w.ratings_for_player("player0")
+    assert len(ratings) == n_days
+    for _rated_day, elo, uncertainty in ratings:
+        assert math.isfinite(elo)
+        assert math.isfinite(uncertainty)

@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   first-day prior + Gaussian Wiener prior).
 - Reported per-day uncertainties (from `ratings_for_player`) also change,
   since the larger default `hessian_damping` flows through `covariance()`.
+- The per-game hot loops (global handicap/komi/draw-tendency accumulation,
+  and the per-player per-day Bradley-Terry/Davidson term computations) are
+  now numpy-vectorized for large histories. Results are unchanged up to
+  floating-point reordering; no new dependency.
 
 ### Added
 - Config keys `initial_prior_wins` (default 0.5) and `hessian_damping`
