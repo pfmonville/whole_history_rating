@@ -164,3 +164,25 @@ def test_predict_black_win_probability_cold_start_is_none():
     w = _linear_history(4)
     w.iterate(5)
     assert w._predict_black_win_probability("a", "ghost", 0, 6.5) is None
+
+
+def test_fit_w2_skips_draw_test_games():
+    """RED before the fix: a "D" test game fell through fit_w2's scoring
+    ``else`` branch and was mis-scored as a white win. A win/loss predictive
+    log-loss has no correct value for a draw, so it must be skipped (counted
+    in n_test_skipped) rather than scored.
+
+    Distinct days 1..6, n_splits=1 -> train = days 1-3 (a b B), test = days
+    4-6: two decisive "a b B" test games plus one "a b D" test game, none
+    cold-start (both players are trained). Before the fix all three would be
+    scored (n_test_scored=3, n_test_skipped=0); after the fix the draw is
+    skipped (n_test_scored=2, n_test_skipped=1).
+    """
+    w = WHR()
+    for d in range(1, 6):
+        w.create_game("a", "b", "B", d, 0)
+    w.create_game("a", "b", "D", 6, 0)
+    result = w.fit_w2(candidates=[300.0], n_splits=1, iterations=10)
+    assert result["n_test_scored"] == 2
+    assert result["n_test_skipped"] == 1
+    assert math.isfinite(result["log_loss"][300.0])

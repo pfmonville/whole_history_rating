@@ -292,8 +292,13 @@ class WHR:
         n_skipped = 0
         for train, test in folds:
             trained_names = {d[0] for d in train} | {d[1] for d in train}
-            for black, white, *_rest in test:
-                if black in trained_names and white in trained_names:
+            for black, white, winner, *_rest in test:
+                if winner == "D":
+                    # A win/loss predictive log-loss has no correct value for
+                    # a draw (see the scoring loop below) -- never counted as
+                    # scored, regardless of cold-start status.
+                    n_skipped += 1
+                elif black in trained_names and white in trained_names:
                     n_scored += 1
                 else:
                     n_skipped += 1
@@ -308,6 +313,12 @@ class WHR:
                     model.create_game(black, white, winner, day, handicap, extras)
                 model.iterate(iterations)
                 for black, white, winner, _day, handicap, extras in test:
+                    if winner == "D":
+                        # A win/loss predictive log-loss has no correct value
+                        # for a draw -- skip it (already counted in
+                        # n_test_skipped above), do not score it as a white
+                        # win.
+                        continue
                     komi = extras.get("komi", 6.5)
                     p_black = model._predict_black_win_probability(
                         black, white, handicap, komi
@@ -575,6 +586,11 @@ class WHR:
             extras = {}
         if black == white:
             raise AttributeError("Invalid game (black player == white player)")
+        if winner.upper() not in ("B", "W", "D"):
+            raise ValueError(
+                f"Invalid winner {winner!r}: must be 'B', 'W', or 'D' "
+                "(case-insensitive)"
+            )
         white_player = self.player_by_name(white)
         black_player = self.player_by_name(black)
         game = Game(
@@ -657,16 +673,23 @@ class WHR:
             player.update_uncertainty()
 
     def max_gradient_norm(self) -> float:
-        """Largest gradient infinity-norm across all players and non-pinned
-        handicap/komi advantage keys (stationarity gauge). The handicap/komi
-        Newton gradient is w.r.t. ``log(gamma_key)``, the same units as the
-        player gradients w.r.t. ``r = log(gamma_player)``, so both are
-        directly comparable in this single infinity-norm."""
+        """Largest gradient infinity-norm across all players, non-pinned
+        handicap/komi advantage keys, and the draw tendency nu (stationarity
+        gauge). The handicap/komi Newton gradient is w.r.t.
+        ``log(gamma_key)``, and the nu gradient is w.r.t. ``log(nu)``, both
+        the same units as the player gradients w.r.t. ``r = log(gamma_player)``,
+        so all are directly comparable in this single infinity-norm.
+
+        Without folding in the nu gradient, ``auto_iterate`` could declare
+        convergence while nu (Davidson's draw tendency) was still moving."""
         norm = 0.0
         for p in self.players.values():
             if len(p.days) > 0:
                 norm = max(norm, p.gradient_infinity_norm())
         norm = max(norm, self._handicap_komi_gradient_norm())
+        if self._has_draws and self.config["pinned_draw"] is None:
+            nu_gradient, _nu_hessian = self._nu_gradient_hessian()
+            norm = max(norm, abs(nu_gradient))
         return norm
 
     def auto_iterate(
@@ -1027,11 +1050,13 @@ class WHR:
         z = s1 + s2 + t
         return s1 / z, t / z, s2 / z
 
-    def _newton_draw(self) -> None:
-        """One Newton step on the global draw tendency nu (Davidson), in log-nu
-        space. Skipped when there are no draws or nu is pinned."""
-        if not self._has_draws or self.config["pinned_draw"] is not None:
-            return
+    def _nu_gradient_hessian(self) -> tuple[float, float]:
+        """(gradient, Hessian) of the global draw tendency nu (Davidson), in
+        log-nu space, summed over all games -- the per-game accumulation
+        shared by ``_newton_draw`` (the Newton step) and
+        ``max_gradient_norm`` (the convergence gauge), so they can never
+        disagree on it (the same disagreement risk ``_eligible_advantage_updates``
+        guards against for handicap/komi)."""
         gradient = 0.0
         hessian = 0.0
         for game in self.games:
@@ -1043,6 +1068,14 @@ class WHR:
             ratio = t / z
             gradient += (1.0 if game.winner == "D" else 0.0) - ratio
             hessian += -ratio * (1.0 - ratio)
+        return gradient, hessian
+
+    def _newton_draw(self) -> None:
+        """One Newton step on the global draw tendency nu (Davidson), in log-nu
+        space. Skipped when there are no draws or nu is pinned."""
+        if not self._has_draws or self.config["pinned_draw"] is not None:
+            return
+        gradient, hessian = self._nu_gradient_hessian()
         hessian -= self.config["hessian_damping"]
         v = math.log(self.nu) - gradient / hessian
         self.nu = math.exp(v)
@@ -1155,13 +1188,14 @@ class WHR:
                     "pinned_handicap",
                     "pinned_komi",
                     "estimate_handicap_zero",
+                    "pinned_draw",
                 ]
             }
             warnings.warn(
                 "Some elements in config cannot be pickled; only 'w2', "
                 "'uncased', 'initial_prior_wins', 'hessian_damping', "
-                "'drift_kernel_radius', 'pinned_handicap', 'pinned_komi' and "
-                "'estimate_handicap_zero' will be saved.",
+                "'drift_kernel_radius', 'pinned_handicap', 'pinned_komi', "
+                "'estimate_handicap_zero' and 'pinned_draw' will be saved.",
                 stacklevel=2,
             )
         with open(path, "wb") as f:
@@ -1172,6 +1206,7 @@ class WHR:
                     "ratings": ratings,
                     "handicap_gamma": dict(self.handicap_gamma),
                     "komi_gamma": dict(self.komi_gamma),
+                    "nu": self.nu,
                 },
                 f,
             )
@@ -1233,6 +1268,12 @@ class WHR:
                 player_day = day_by_time_step[time_step]
                 player_day.r = r
                 player_day.uncertainty = uncertainty
+        # Restore the fitted draw tendency after the replay above: replaying
+        # the games through create_game re-seeds nu (via _add_game) on the
+        # first "D" game, which would otherwise discard a fitted value. Guard
+        # with .get so a base saved before this fix (lacking the key) keeps
+        # whatever the replay seeded.
+        result.nu = data.get("nu", result.nu)
         return result
 
 

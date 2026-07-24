@@ -303,3 +303,144 @@ def test_no_draw_regression_locks_compatibility_invariant():
         for _day, elo, uncertainty in w.ratings_for_player(name):
             assert math.isfinite(elo)
             assert math.isfinite(uncertainty)
+
+
+# --- Fix 1: save_base/load_base must persist/restore the fitted nu ---------
+
+
+def test_save_load_round_trip_preserves_nu(tmp_path):
+    """RED before the fix: save_base does not dump ``self.nu``, so
+    load_base's game replay re-seeds nu=1.0 on the first "D" game (via
+    ``_add_game``'s seeding logic), silently discarding any fitted draw
+    tendency that moved away from that seed.
+    """
+    rng = random.Random(3)
+    w = _davidson_balanced_history(rng, 1.5, n_pairs=20, n_games=40)
+    w.iterate(60)
+    pre_nu = w.draw_tendency
+    assert pre_nu != pytest.approx(1.0)  # actually fitted away from the seed
+    pre_probs = w.win_draw_loss_probabilities("a0", "b0")
+
+    path = tmp_path / "draws_base.pkl"
+    w.save_base(str(path))
+    loaded = WHR.load_base(str(path))
+
+    assert loaded.draw_tendency == pytest.approx(pre_nu, abs=1e-9)
+    assert loaded.win_draw_loss_probabilities("a0", "b0") == pytest.approx(
+        pre_probs, abs=1e-9
+    )
+
+
+def test_save_base_unpicklable_config_fallback_preserves_pinned_draw(tmp_path):
+    """`pinned_draw` must survive the unpicklable-config fallback allowlist
+    (else a pinned nu is silently dropped on that path)."""
+    w = WHR(config={"pinned_draw": 0.8, "bad": lambda x: x})
+    w.create_game("a", "b", "D", 1, 0)
+    w.create_game("a", "b", "B", 1, 0)
+    path = tmp_path / "pinned_draw_base.pkl"
+    with pytest.warns(UserWarning):
+        w.save_base(str(path))
+    loaded = WHR.load_base(str(path))
+    assert loaded.config["pinned_draw"] == 0.8
+
+
+# --- Fix 2: log_likelihood must include the Davidson draw contribution -----
+
+
+def test_davidson_log_likelihood_matches_bt_at_nu_zero():
+    """At nu=0, davidson_log_likelihood must equal the plain BT
+    log_likelihood() for every game -- if this doesn't match, the formula is
+    wrong (per the design spec's own nu=0 sanity check)."""
+    w = WHR()
+    w.create_game("a", "b", "B", 1, 0)  # a (black) won
+    a_day = w.player_by_name("a").days[0]
+    a_day.set_gamma(2.0)
+    w.player_by_name("b").days[0].set_gamma(1.0)
+    assert a_day.davidson_log_likelihood(0.0) == pytest.approx(a_day.log_likelihood())
+
+
+def test_davidson_log_likelihood_matches_bt_at_nu_zero_for_a_loss():
+    w = WHR()
+    w.create_game("a", "b", "W", 1, 0)  # a (black) lost
+    a_day = w.player_by_name("a").days[0]
+    a_day.set_gamma(1.0)
+    w.player_by_name("b").days[0].set_gamma(2.0)
+    assert a_day.davidson_log_likelihood(0.0) == pytest.approx(a_day.log_likelihood())
+
+
+def test_whr_log_likelihood_includes_draw_contribution():
+    """RED before the fix: Player.log_likelihood summed only
+    won_game_terms()+lost_game_terms(), which are both empty on an all-draw
+    day, so the day's real game contribution was silently dropped (treated
+    as 0) instead of using the Davidson formula.
+    """
+    w = WHR()
+    w.create_game("a", "b", "D", 1, 0)
+    w.iterate(20)
+    score = w.log_likelihood()
+    assert math.isfinite(score)
+
+    # Recompute what the score would be under the pre-fix behaviour: the
+    # game part always comes from day.log_likelihood() (BT win/loss terms
+    # only), regardless of draw_tendency.
+    old_style = 0.0
+    for p in w.players.values():
+        for day in p.days:
+            old_style += day.log_likelihood()
+        if p.days:
+            old_style += p.days[0].anchor_log_likelihood()
+        sigma2 = p.compute_sigma2()
+        for i, s2 in enumerate(sigma2):
+            rd = p.days[i + 1].r - p.days[i].r
+            old_style += -(rd**2) / (2 * s2) - 0.5 * math.log(2 * math.pi * s2)
+    assert score != pytest.approx(old_style)
+
+
+# --- Fix 4: max_gradient_norm must fold in the nu gradient ------------------
+
+
+def test_max_gradient_norm_includes_nu_gradient():
+    """RED before the fix: max_gradient_norm ignored the nu gradient
+    entirely, so auto_iterate could report convergence while nu's own
+    Newton gradient was still far from zero.
+    """
+    w = WHR()
+    for d in range(1, 4):
+        w.create_game("a", "b", "D", d, 0)
+        w.create_game("a", "b", "B", d, 0)
+    w.iterate(1)  # one player Newton step: nu itself has barely moved yet
+    nu_gradient, _nu_hessian = w._nu_gradient_hessian()
+    assert abs(nu_gradient) > 1e-3  # nu hasn't converged yet
+    assert w.max_gradient_norm() >= abs(nu_gradient) - 1e-12
+
+
+def test_auto_iterate_converges_with_nu_gradient_included():
+    rng = random.Random(11)
+    w = _davidson_balanced_history(rng, 1.2, n_pairs=10, n_games=30)
+    iterations, converged = w.auto_iterate(precision=1e-3, time_limit=30)
+    assert converged
+    assert w.max_gradient_norm() < 1e-3
+    assert iterations >= 1
+
+
+# --- Fix 5: reject an invalid winner ----------------------------------------
+
+
+def test_invalid_winner_raises_value_error_on_create_game():
+    w = WHR()
+    with pytest.raises(ValueError):
+        w.create_game("a", "b", "tie", 1, 0)
+
+
+def test_invalid_winner_raises_value_error_via_load_games():
+    w = WHR()
+    with pytest.raises(ValueError):
+        w.load_games(["a b tie 1"])
+
+
+def test_valid_winners_still_accepted_case_insensitively():
+    w = WHR()
+    w.create_game("a", "b", "b", 1, 0)
+    w.create_game("a", "b", "w", 2, 0)
+    w.create_game("a", "b", "d", 3, 0)
+    assert [g.winner for g in w.games] == ["B", "W", "D"]

@@ -165,6 +165,30 @@ class PlayerDay:
         for g in self.drawn_games:
             yield g, 0.5
 
+    def davidson_log_likelihood(self, nu: float) -> float:
+        """This day's game log-likelihood under the Davidson win/draw/loss
+        model, mirroring ``_weighted_games``/``davidson_derivatives``.
+
+        Sum over the day's games of ``log(num) - log(Z)``, where ``S, O =
+        game.effective_gammas(self.player)``, ``T = nu*sqrt(S*O)``, ``Z = S +
+        O + T``, and ``num`` is ``S`` (player won), ``O`` (player lost), or
+        ``T`` (drawn). Reduces exactly to ``log_likelihood()`` at ``nu=0``
+        (see ``test_davidson_log_likelihood_matches_bt_at_nu_zero``).
+        """
+        total = 0.0
+        for game, weight in self._weighted_games():
+            s, o = game.effective_gammas(self.player)
+            t = nu * math.sqrt(s * o)
+            z = s + o + t
+            if weight == 1.0:
+                num = s
+            elif weight == 0.0:
+                num = o
+            else:
+                num = t
+            total += math.log(num) - math.log(z)
+        return total
+
     def davidson_derivatives(self, nu: float) -> tuple[float, float]:
         """(gradient, Hessian) of this day's game log-likelihood under Davidson.
 

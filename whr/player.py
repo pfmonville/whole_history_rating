@@ -25,11 +25,20 @@ class Player:
         """Log-posterior contribution of this player.
 
         Sum of the per-day game log-likelihoods, the first-day anchor prior,
-        and the Gaussian Wiener prior log-density over consecutive days.
+        and the Gaussian Wiener prior log-density over consecutive days. When
+        ``draw_tendency > 0`` the game part uses the Davidson (win/draw/loss)
+        formula instead of the plain Bradley-Terry win/loss one, so a drawn
+        game's contribution isn't silently dropped (a drawn game never
+        appears in ``won_games``/``lost_games``, so the BT ``log_likelihood``
+        term would otherwise credit it as nothing at all).
         """
         result = 0.0
-        for day in self.days:
-            result += day.log_likelihood()
+        if self.draw_tendency > 0.0:
+            for day in self.days:
+                result += day.davidson_log_likelihood(self.draw_tendency)
+        else:
+            for day in self.days:
+                result += day.log_likelihood()
         if self.days:
             result += self.days[0].anchor_log_likelihood()
         sigma2 = self.compute_sigma2()
