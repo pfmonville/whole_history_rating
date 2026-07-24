@@ -190,6 +190,54 @@ number of Gaussian-quadrature steps used on each side of the integration grid,
 which spans `±0.5 * uncertainty_steps` standard deviations; raise it for a
 finer integral at some extra compute cost.
 
+### Draws
+
+Pass `"D"` as the `winner` to `create_game`/`load_games` to record a draw:
+
+```python
+whr.create_game("shusaku", "shusai", "D", 4, 0)
+whr.load_games(["shusaku shusai D 5"])
+```
+
+Draws are modelled with Davidson's extension of Bradley-Terry: alongside
+each player's rating, a single global draw tendency `nu` is estimated from
+the data (seeded to `1.0` the first time a draw appears) and exposed as
+`WHR.draw_tendency`. A larger `nu` means draws are more likely between
+evenly matched players; `nu == 0` (the default, and where it stays if the
+base never sees a draw) reduces every Davidson formula exactly to the
+existing Bradley-Terry ones, so **draw-free data behaves exactly as
+before** — nothing about this feature changes existing results.
+
+Once ratings have converged, `win_draw_loss_probabilities` gives the 3-way
+prediction instead of the plain win/loss split from
+`probability_future_match`:
+
+```python
+whr.auto_iterate()
+p_win, p_draw, p_loss = whr.win_draw_loss_probabilities("shusaku", "shusai")
+# e.g. (0.42, 0.24, 0.34) -- sums to 1.0
+```
+
+To pin `nu` to a known value instead of estimating it (e.g. to reproduce a
+fixed draw rate, or to disable draw modelling), use the `pinned_draw`
+config key:
+
+```python
+whr = WHR(config={"pinned_draw": 0.8})
+```
+
+Two caveats:
+
+- **When draws are present, the handicap/komi advantages (see "Handicap
+  and komi" below) are estimated from decisive games only** — draws are
+  skipped by that accumulator rather than mis-counted as a win for either
+  side.
+- **Pinning `pinned_draw` to `0.0` disables draw modelling even if draws
+  are present in the data** — every draw is then treated as a plain
+  Bradley-Terry half-win/half-loss instead of contributing to a learned
+  draw tendency. To actually model draws, pin a positive value or leave
+  `pinned_draw` unset (the default, `None`) so `nu` is estimated.
+
 ### Enhanced Batch Loading of Games
 
 This feature facilitates the batch loading of multiple games simultaneously by accepting a list of strings, where each string encapsulates the details of a single game. To accommodate names with both first and last names and ensure flexibility in data formatting, you can specify a custom separator (e.g., a comma) to delineate the game attributes.

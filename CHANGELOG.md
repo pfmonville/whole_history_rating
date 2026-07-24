@@ -62,6 +62,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   integration of the win probability over both players' rating uncertainty,
   hedging the prediction toward 0.5 when ratings are uncertain. Default
   `False` preserves the existing point-prediction behaviour exactly.
+- Draws, via the Davidson model: pass `"D"` as the `winner` to `create_game`/
+  `load_games`. A global draw tendency, `WHR.draw_tendency` (`nu`), is
+  estimated alongside player ratings whenever draws are present, or can be
+  pinned to a known value via the `pinned_draw` config key.
+  `WHR.win_draw_loss_probabilities(name1, name2, ...)` gives the 3-way
+  `(P(win), P(draw), P(loss))` prediction under the fitted model. Draw-free
+  data is completely unaffected: `nu` stays `0.0`, which makes the Davidson
+  formulas reduce exactly to the existing Bradley-Terry ones.
 
 ### Removed
 - The `> 650` elo guard and the `sys.maxsize` log-likelihood guard.

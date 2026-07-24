@@ -275,3 +275,31 @@ def test_win_draw_loss_no_draws_gives_zero_draw():
     p1, pd, p2 = w.win_draw_loss_probabilities("a", "b")
     assert pd == pytest.approx(0.0)
     assert p1 + p2 == pytest.approx(1.0)
+
+
+def test_no_draw_regression_locks_compatibility_invariant():
+    """Final compatibility check for the whole draws feature: a base that
+    never sees a "D" outcome must be completely untouched by phase 6.
+
+    ``_has_draws`` stays False, the global draw tendency ``nu`` (aka
+    ``draw_tendency``) never leaves its 0.0 initial value (so every Davidson
+    formula reduces to plain Bradley-Terry, per
+    ``test_davidson_reduces_to_bt_at_nu_zero`` above), and normal iteration
+    still converges to finite ratings for every player -- exactly the
+    pre-phase-6 behaviour.
+    """
+    w = WHR()
+    for d in range(1, 11):
+        w.create_game("alice", "bob", "B", d, 0)
+        w.create_game("alice", "carol", "W", d, 0)
+        w.create_game("bob", "carol", "B", d, 0)
+    w.auto_iterate()
+
+    assert w._has_draws is False
+    assert w.nu == 0.0
+    assert w.draw_tendency == 0.0
+
+    for name in ("alice", "bob", "carol"):
+        for _day, elo, uncertainty in w.ratings_for_player(name):
+            assert math.isfinite(elo)
+            assert math.isfinite(uncertainty)

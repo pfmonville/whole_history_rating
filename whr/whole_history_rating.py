@@ -916,7 +916,6 @@ class WHR:
             ValueError: Raised if ``account_for_uncertainty`` is ``True`` and
                 ``uncertainty_steps`` is less than 1.
         """
-        # Avoid self-played games (no info)
         player1, player2, bpd_gamma, bpd_elo, wpd_gamma, wpd_elo = (
             self._match_player_days(name1, name2)
         )
