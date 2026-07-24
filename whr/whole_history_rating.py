@@ -23,6 +23,17 @@ _MAX_DRIFT_DAY_SPAN = 1_000_000
 # elo = 400/ln(10) * r.
 _ELO_PER_NAT = 400.0 / math.log(10)
 
+# Trust-region cap on a single handicap/komi/draw-tendency Newton step, in
+# natural-log (log-gamma / log-nu) units. The scalar advantage updates take a
+# step of the form ``value *= exp(-grad / hess)``; a degenerate or
+# ill-conditioned key can make ``-grad/hess`` enormous and overflow ``math.exp``
+# (``OverflowError: math range error``). This cap is far larger than any step a
+# well-conditioned fit ever takes (those are < 1), so it never binds in normal
+# use, but exp(10) stays finite, so a pathological key can no longer crash the
+# iteration. The per-key 1-D sub-problem is concave in log-space, so the clamped
+# step still converges rather than growing unboundedly across iterations.
+_MAX_ADVANTAGE_LOG_STEP = 10.0
+
 
 class WHR:
     def __init__(self, config: dict[str, Any] | None = None):
@@ -218,6 +229,19 @@ class WHR:
                 grad = n_wins - gamma * grad_terms.get(key, 0.0)
                 yield key, gamma, grad
 
+    @staticmethod
+    def _clamped_log_step(grad: float, hess: float) -> float:
+        """A scalar Newton step ``-grad / hess`` in log space, clamped to the
+        ``_MAX_ADVANTAGE_LOG_STEP`` trust region so it can never overflow a
+        subsequent ``math.exp``. Returns 0.0 (no update) for a non-finite step
+        (e.g. a zero Hessian)."""
+        if hess == 0.0:
+            return 0.0
+        step = -grad / hess
+        if not math.isfinite(step):
+            return 0.0
+        return max(-_MAX_ADVANTAGE_LOG_STEP, min(_MAX_ADVANTAGE_LOG_STEP, step))
+
     def _newton_handicap_komi(self) -> None:
         """One Newton step on each non-pinned handicap/komi advantage gamma
         (Coulom's NewtonKomiHandicap)."""
@@ -229,12 +253,14 @@ class WHR:
             self.handicap_gamma, self._pinned_handicap_keys, h_grad, h_games, h_wins
         ):
             hess = -gamma * h_hess.get(key, 0.0) - damping
-            self.handicap_gamma[key] = gamma * math.exp(-grad / hess)
+            self.handicap_gamma[key] = gamma * math.exp(
+                self._clamped_log_step(grad, hess)
+            )
         for key, gamma, grad in self._eligible_advantage_updates(
             self.komi_gamma, self._pinned_komi_keys, k_grad, k_games, k_wins
         ):
             hess = -gamma * k_hess.get(key, 0.0) - damping
-            self.komi_gamma[key] = gamma * math.exp(-grad / hess)
+            self.komi_gamma[key] = gamma * math.exp(self._clamped_log_step(grad, hess))
 
     def _handicap_komi_gradient_norm(self) -> float:
         """Max absolute Newton gradient ``|wins - gamma * grad|`` over the
@@ -1161,7 +1187,7 @@ class WHR:
             return
         gradient, hessian = self._nu_gradient_hessian()
         hessian -= self.config["hessian_damping"]
-        v = math.log(self.nu) - gradient / hessian
+        v = math.log(self.nu) + self._clamped_log_step(gradient, hessian)
         self.nu = math.exp(v)
 
     def _run_one_iteration(self) -> None:

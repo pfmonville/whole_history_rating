@@ -151,6 +151,42 @@ def test_non_finite_step_raises(monkeypatch):
         w.iterate(1)
 
 
+def test_advantage_newton_step_does_not_overflow():
+    # Regression: a degenerate / ill-conditioned handicap or komi key can be
+    # driven to an extreme gamma by a Newton step; the *next* step,
+    # ``gamma * math.exp(-grad / hess)``, was unclamped and overflowed with
+    # ``OverflowError: math range error`` (seen on a large real dataset). The
+    # log-space step is now trust-region clamped, so the update stays finite.
+    w = whole_history_rating.WHR()
+    n = 2000
+    for i in range(n):
+        # ~40% of games won by the komi (white) side, so the komi key has
+        # hundreds of wins -> an unclamped correction step ~ that count.
+        winner = "B" if (i % 5) < 3 else "W"
+        w.create_game("black", "white", winner, i, 0, extras={"komi": 9.5})
+    w.iterate(3)
+    w.komi_gamma[9.5] = 1e-306  # simulate an overshoot from a prior Newton step
+    w._newton_handicap_komi()  # must NOT raise OverflowError
+    assert math.isfinite(w.komi_gamma[9.5])
+    assert w.komi_gamma[9.5] > 0.0
+
+
+def test_clamped_log_step_is_bounded_and_finite():
+    step = whole_history_rating.WHR._clamped_log_step
+    cap = whole_history_rating._MAX_ADVANTAGE_LOG_STEP
+    # A huge Newton step (-grad/hess) is clamped to the trust region (both
+    # signs)...
+    assert step(1e6, -1.0) == pytest.approx(cap)
+    assert step(-1e6, -1.0) == pytest.approx(-cap)
+    # ...so exponentiating it can never overflow.
+    assert math.isfinite(math.exp(step(1e6, -1.0)))
+    # A small, well-conditioned step is returned unchanged.
+    assert step(-0.5, -2.0) == pytest.approx(-0.25)
+    # Non-finite / degenerate inputs mean "no update".
+    assert step(1.0, 0.0) == 0.0
+    assert step(float("nan"), -1.0) == 0.0
+
+
 def test_auto_iterate_converges_on_gradient_norm():
     w = whole_history_rating.WHR()
     for d in range(1, 6):
