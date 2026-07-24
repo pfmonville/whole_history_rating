@@ -5,7 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.0] - unreleased
+## [3.0.0] - 2026-07-24
+
+Major release. Contains a breaking behaviour change — `handicap` is now an
+estimated Bradley-Terry category rather than a fixed elo constant (see the
+first "Changed" entry for the one-line migration) — plus broad rating-value
+changes as the model gained anti-drift, estimated handicap/komi, draws, an
+uncertainty API, data-driven `w2` selection, and numpy vectorization.
 
 ### Changed
 - **Ratings values change.** `handicap` is now an estimated Bradley-Terry

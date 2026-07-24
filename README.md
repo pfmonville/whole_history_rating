@@ -30,12 +30,20 @@ whr = WHR()
 
 ### Creating Games
 
-Add games to the system using `create_game()` method. It takes the names of the black and white players, the winner ('B' for black, 'W' for white), the day number, and an optional handicap (generally less than 500 elo).
+Add games to the system using `create_game()` method. It takes the names of the black and white players, the winner (`"B"` black, `"W"` white, or `"D"` draw), the day number, a `handicap` key, and optional `extras`.
 
 ```python
 whr.create_game("shusaku", "shusai", "B", 1, 0)
 whr.create_game("shusaku", "shusai", "W", 2, 0)
 whr.create_game("shusaku", "shusai", "W", 3, 0)
+```
+
+- `handicap` is a **category key**, not a fixed elo bonus — its advantage is learned from the data (or pinned). See "Handicap and komi" below; use `0` for an even game. (This changed in 3.0.0 — in 2.x it was a raw elo constant.)
+- `"D"` records a draw — see "Draws".
+- `extras` is an optional dict; its `komi` entry (default `6.5`) is the white-side category key. Pass a per-game komi like this:
+
+```python
+whr.create_game("shusaku", "shusai", "B", 1, 0, extras={"komi": 7.5})
 ```
 
 
@@ -91,12 +99,46 @@ print(whr.ratings_for_player("shusai"))
 
 Querying an unknown player raises a `ValueError`.
 
+To get the underlying `Player` object itself (for direct access to its `days`,
+each day's `elo` / `gamma()`, etc.), use `player_by_name()`. Note it *creates*
+the player if the name is unknown (unlike `ratings_for_player`, which raises):
+
+```python
+player = whr.player_by_name("shusaku")
+[(d.day, d.elo) for d in player.days]  # d.elo is a property; -> [(1, -43.0), (2, -45.0), (3, -45.0)]
+```
+
 You can also view or retrieve all ratings in order:
 
 ```python
 whr.print_ordered_ratings(current=False)  # Set `current=True` for the latest rankings only.
 ratings = whr.get_ordered_ratings(current=False, compact=False)  # Set `compact=True` for a condensed list.
 ```
+
+### Inspecting the Fit
+
+`log_likelihood()` returns the model's total log-posterior (game likelihood + the first-day prior + the Gaussian Wiener prior over time, and the Davidson draw term when draws are present). It increases as `iterate()` converges, so it is a handy convergence/diagnostic signal:
+
+```python
+whr.log_likelihood()  # e.g. -12.47 -- higher (closer to 0) as the fit improves
+```
+
+`max_gradient_norm()` returns the largest gradient infinity-norm across all player-days (plus the estimated handicap/komi and draw-tendency parameters) — the exact quantity `auto_iterate(precision=...)` tests. It is the most direct convergence gauge; near 0 means converged:
+
+```python
+whr.max_gradient_norm()  # e.g. 4.1e-4 -- below your target precision => converged
+```
+
+For the win probability of a *specific recorded game* (rather than a hypothetical match-up), use the `Game` object returned by `create_game`:
+
+```python
+game = whr.create_game("shusaku", "shusai", "B", 1, 0)
+whr.iterate(50)
+game.white_win_probability()  # and game.black_win_probability()
+game.prediction_score()       # 1.0 if the model's favourite actually won, 0.0 if not, 0.5 on a coin-flip
+```
+
+In normal use ratings always converge to finite values. Only a genuinely non-finite result (e.g. a pathological input) raises `whr.utils.UnstableRatingException`; it is exported for `except` handling but should not occur in practice.
 
 ### Predicting Match Outcomes
 
