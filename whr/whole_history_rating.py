@@ -17,6 +17,10 @@ from whr.player import Player
 # hang/OOM.
 _MAX_DRIFT_DAY_SPAN = 1_000_000
 
+# Converts a natural-rating (r = ln(gamma)) variance/quantity to elo units:
+# elo = 400/ln(10) * r.
+_ELO_PER_NAT = 400.0 / math.log(10)
+
 
 class WHR:
     def __init__(self, config: dict[str, Any] | None = None):
@@ -399,6 +403,51 @@ class WHR:
         if self.config["uncased"]:
             name = name.lower()
         return self.players.get(name)
+
+    @staticmethod
+    def _player_day(player: Player, day: int | None) -> Any:
+        """The player's given rated day, or its last rated day if ``day`` is
+        None. Raises ValueError if ``day`` is given but not a rated day."""
+        if day is None:
+            return player.days[-1]
+        for d in player.days:
+            if d.day == day:
+                return d
+        raise ValueError(f"player {player.name!r} has no rated day {day}")
+
+    def rating_difference(
+        self,
+        name_a: str,
+        name_b: str,
+        day_a: int | None = None,
+        day_b: int | None = None,
+    ) -> dict[str, Any]:
+        """Elo difference (a - b) between two players and its uncertainty.
+
+        Uses each player's given day (else their last day). The difference
+        variance uses the INDEPENDENCE APPROXIMATION Var(a-b) ~= Var(a)+Var(b);
+        WHR computes no cross-player covariance, so this ignores the correlated
+        errors of players who have faced each other. Returns
+        {"difference", "std_error", "confidence_interval_95"} in elo. Raises
+        ValueError for an unknown/unrated player or day.
+        """
+        pa = self._existing_player(name_a)
+        pb = self._existing_player(name_b)
+        if pa is None or not pa.days:
+            raise ValueError(f"No ratings available for player {name_a!r}")
+        if pb is None or not pb.days:
+            raise ValueError(f"No ratings available for player {name_b!r}")
+        da = self._player_day(pa, day_a)
+        db = self._player_day(pb, day_b)
+        if da.uncertainty < 0 or db.uncertainty < 0:
+            raise ValueError("uncertainties not computed; call iterate() first")
+        difference = da.elo - db.elo
+        se = math.sqrt(da.uncertainty + db.uncertainty) * _ELO_PER_NAT
+        return {
+            "difference": difference,
+            "std_error": se,
+            "confidence_interval_95": (difference - 1.96 * se, difference + 1.96 * se),
+        }
 
     def ratings_for_player(
         self, name, current: bool = False
