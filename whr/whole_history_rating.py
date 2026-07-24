@@ -800,10 +800,11 @@ class WHR:
                 implied by the players' rating variances (Coulom's
                 ``Predict``), hedging the result toward 0.5 when ratings are
                 uncertain.
-            uncertainty_steps (int, optional): Half-width, in standard
-                deviations of the integration grid, used for the Gaussian
-                quadrature when ``account_for_uncertainty`` is ``True``.
-                Ignored otherwise. Defaults to 4.
+            uncertainty_steps (int, optional): Number of quadrature steps on
+                each side of the integration grid used for the Gaussian
+                quadrature when ``account_for_uncertainty`` is ``True``; the
+                grid spans +/-0.5 * uncertainty_steps standard deviations
+                (nodes at x_i = 0.5*i). Ignored otherwise. Defaults to 4.
 
         Returns:
             tuple[float, float]: The winning probabilities for name1 and name2 respectively. Unknown players are treated as an even (gamma = 1) reference without being added to the base.

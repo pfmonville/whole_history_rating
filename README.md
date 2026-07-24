@@ -112,6 +112,84 @@ print(f"Win probability: shusaku: {probability[0]*100}%; shusai: {probability[1]
 ```
 
 
+### Uncertainty
+
+Beyond the per-day `uncertainty` from `ratings_for_player`, three methods turn
+that raw variance into comparisons and predictions. All of them report **elo**
+and require `iterate()`/`auto_iterate()` to have run first (an unrated player
+raises `ValueError`).
+
+**Comparing two players.** A player's own elo doesn't by itself say how
+confidently they're ahead of a rival — the *difference* between the two is
+the comparable quantity, given by `rating_difference()`:
+
+```python
+whr = WHR()
+for day in range(1, 11):
+    whr.create_game("north", "referee", "B", day, 0)  # north usually wins
+for day in range(1, 11):
+    whr.create_game("south", "referee", "W", day, 0)  # south usually loses
+whr.auto_iterate()
+
+whr.rating_difference("north", "south")
+# {'difference': 1054.66, 'std_error': 85.73,
+#  'confidence_interval_95': (886.63, 1222.69)}
+```
+
+This is an **approximation**: WHR never computes cross-player covariance, so
+the difference's variance is `Var(a) + Var(b)` (an independence assumption).
+Two players who have played each other a lot have correlated errors this
+ignores, so treat the CI as indicative rather than exact. Pass `day_a=`/
+`day_b=` to compare specific days instead of each player's latest.
+
+**One player's trajectory over time.** `rating_covariance()` /
+`rating_change()` instead use the *exact* joint covariance among a single
+player's own day ratings (already implicit in WHR's per-player Hessian —
+no approximation involved):
+
+```python
+whr = WHR()
+whr.load_games(["casey dana B 1", "casey dana W 5", "casey dana B 9", "casey dana W 13"])
+whr.iterate(60)
+
+days, cov = whr.rating_covariance("casey")
+# days == [1, 5, 9, 13]; cov is a 4x4 elo^2 matrix, cov[i][j] = Cov(elo on days[i], days[j])
+
+whr.rating_change("casey", day_from=1, day_to=13)
+# {'change': -6.70, 'std_error': 57.48,
+#  'confidence_interval_95': (-119.35, 105.95)}
+```
+
+`rating_change`'s standard error comes from `Var(to) + Var(from) -
+2*Cov(from, to)`, not from naively summing the two days' marginal variances
+(here, `57.48` vs a naive `115.83`) — consecutive days are positively
+correlated through the Wiener prior, so a real change is more certain than
+that naive sum suggests. Use this — not `rating_difference` — to ask "did
+this player change significantly between day X and day Y?"
+
+**Uncertainty-aware predictions.** `probability_future_match()` takes an
+opt-in `account_for_uncertainty` flag:
+
+```python
+whr = WHR()
+whr.load_games(["rookie champ B 1", "rookie champ B 2"])
+whr.iterate(50)
+
+whr.probability_future_match("rookie", "champ")
+# (0.883, 0.117) -- point prediction (default, unchanged from before)
+whr.probability_future_match("rookie", "champ", account_for_uncertainty=True)
+# (0.856, 0.144) -- hedged toward 0.5: still favours rookie, less confidently
+```
+
+The default (`False`) is exactly the pre-existing point prediction
+(non-breaking). `True` integrates the win probability over the Gaussian
+implied by both players' rating uncertainty (Coulom's `Predict`), pulling the
+result toward 0.5 when the ratings involved are uncertain — as above, where
+only two games have been played. `uncertainty_steps` (default `4`) sets the
+number of Gaussian-quadrature steps used on each side of the integration grid,
+which spans `±0.5 * uncertainty_steps` standard deviations; raise it for a
+finer integral at some extra compute cost.
+
 ### Enhanced Batch Loading of Games
 
 This feature facilitates the batch loading of multiple games simultaneously by accepting a list of strings, where each string encapsulates the details of a single game. To accommodate names with both first and last names and ensure flexibility in data formatting, you can specify a custom separator (e.g., a comma) to delineate the game attributes.

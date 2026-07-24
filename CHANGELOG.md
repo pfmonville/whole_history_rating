@@ -47,6 +47,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   predictive log-loss (train on past games, predict future). It is a pure
   query — it returns `{best_w2, log_loss, ...}` without mutating the
   instance; apply the chosen value yourself.
+- `WHR.rating_difference(name_a, name_b, day_a=None, day_b=None)`: the elo gap
+  between two players (each player's given day, else their last day), with a
+  standard error and 95% CI. Uses the INDEPENDENCE APPROXIMATION
+  `Var(a-b) ~= Var(a)+Var(b)`, since WHR computes no cross-player covariance.
+- `WHR.rating_covariance(name)` / `WHR.rating_change(name, day_from, day_to)`:
+  the exact within-player joint covariance of one player's day ratings (in
+  elo²), and the elo change between two of that player's days with a standard
+  error derived from the joint covariance rather than the naive sum of
+  marginals — enabling trajectory confidence bands and a correct "did this
+  player change significantly?" test.
+- `probability_future_match(..., account_for_uncertainty=False,
+  uncertainty_steps=4)`: an opt-in Coulom-style Gaussian-quadrature
+  integration of the win probability over both players' rating uncertainty,
+  hedging the prediction toward 0.5 when ratings are uncertain. Default
+  `False` preserves the existing point-prediction behaviour exactly.
 
 ### Removed
 - The `> 650` elo guard and the `sys.maxsize` log-likelihood guard.
