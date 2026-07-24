@@ -23,8 +23,8 @@ is reproducible from [`benchmarks/`](benchmarks/); the full write-up, method and
 caveats are in [`benchmarks/REPORT.md`](benchmarks/REPORT.md).
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="benchmarks/results/bench_comparison_dark.png">
-  <img alt="Predictive log-loss of WHR versus reference rating systems on NBA, ATP tennis and European football. WHR is within 0.02 nats of FiveThirtyEight's tuned NBA models, reaches 67% accuracy on held-out ATP matches, and its Davidson draw model beats a draw-blind ablation on football." src="benchmarks/results/bench_comparison_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/bench_comparison_dark.png">
+  <img alt="Predictive log-loss of WHR versus reference rating systems on NBA, ATP tennis and European football. WHR is within 0.02 nats of FiveThirtyEight's tuned NBA models, reaches 67% accuracy on held-out ATP matches, and its Davidson draw model beats a draw-blind ablation on football." src="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/bench_comparison_light.png">
 </picture>
 
 Every figure is fitted **only on games played before the test season**, and the
@@ -63,16 +63,16 @@ fan would name: the Celtics' long dominance, the Bulls peaking in 1996, the
 Warriors' spike in 2015, the Spurs' Duncan-era plateau.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="benchmarks/results/nba_history_dark.png">
-  <img alt="WHR rating curves for five NBA franchises from 1947 to 2020, one panel each, showing the Celtics' sustained peak through the 1960s-80s, the Bulls peaking in 1996, the Warriors spiking in 2015 and the Spurs plateauing through the 2000s." src="benchmarks/results/nba_history_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/nba_history_dark.png">
+  <img alt="WHR rating curves for five NBA franchises from 1947 to 2020, one panel each, showing the Celtics' sustained peak through the 1960s-80s, the Bulls peaking in 1996, the Warriors spiking in 2015 and the Spurs plateauing through the 2000s." src="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/nba_history_light.png">
 </picture>
 
 And on ATP tennis, the Federer → Nadal → Djokovic succession falls out of the
 match results alone:
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="benchmarks/results/tennis_history_dark.png">
-  <img alt="WHR skill curves on ATP singles 2000-2015. Federer, Nadal and Djokovic are highlighted in colour against three grey context players. Federer rises to a mid-decade peak, Nadal climbs from 2005, and Djokovic overtakes the field from 2011 to reach the highest rating by 2015." src="benchmarks/results/tennis_history_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/tennis_history_dark.png">
+  <img alt="WHR skill curves on ATP singles 2000-2015. Federer, Nadal and Djokovic are highlighted in colour against three grey context players. Federer rises to a mid-decade peak, Nadal climbs from 2005, and Djokovic overtakes the field from 2011 to reach the highest rating by 2015." src="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/tennis_history_light.png">
 </picture>
 
 > **Honest framing.** These are *comparable re-runs*, not bit-exact
