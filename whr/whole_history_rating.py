@@ -37,6 +37,9 @@ class WHR:
         self.config.setdefault("pinned_handicap", {})
         self.config.setdefault("pinned_komi", {})
         self.config.setdefault("estimate_handicap_zero", False)
+        self.config.setdefault("pinned_draw", None)
+        self._has_draws = False
+        self.nu = 0.0
         self.games: list[Game] = []
         self.players: dict[str, Player] = {}
         self.handicap_gamma: dict[Any, float] = {}
@@ -619,8 +622,19 @@ class WHR:
             raise RuntimeError(
                 "Game could not be attached to the black player's playing day"
             )
+        if game.winner == "D":
+            self._has_draws = True
+            pinned_draw = self.config["pinned_draw"]
+            if pinned_draw is not None:
+                self.nu = pinned_draw
+            elif self.nu == 0.0:
+                self.nu = 1.0
         self.games.append(game)
         return game
+
+    @property
+    def draw_tendency(self) -> float:
+        return self.nu
 
     def iterate(self, count: int) -> None:
         """Performs a specified number of iterations of the algorithm.

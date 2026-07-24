@@ -12,6 +12,7 @@ class PlayerDay:
         self.player = player
         self.won_games: list[G.Game] = []
         self.lost_games: list[G.Game] = []
+        self.drawn_games: list[G.Game] = []
         self._won_game_terms: list[list[float]] | None = None
         self._lost_game_terms: list[list[float]] | None = None
         self.uncertainty: float = -1
@@ -146,7 +147,9 @@ class PlayerDay:
         Args:
             game (G.Game): The game to add.
         """
-        if (game.winner == "W" and game.white_player == self.player) or (
+        if game.winner == "D":
+            self.drawn_games.append(game)
+        elif (game.winner == "W" and game.white_player == self.player) or (
             game.winner == "B" and game.black_player == self.player
         ):
             self.won_games.append(game)

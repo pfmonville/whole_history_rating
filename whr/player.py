@@ -19,6 +19,7 @@ class Player:
         self.initial_prior_wins = config["initial_prior_wins"]
         self.hessian_damping = config["hessian_damping"]
         self.days: list[PD.PlayerDay] = []
+        self.draw_tendency: float = 0.0
 
     def log_likelihood(self) -> float:
         """Log-posterior contribution of this player.

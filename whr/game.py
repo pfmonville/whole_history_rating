@@ -80,6 +80,32 @@ class Game:
             raise AttributeError("bad adjusted gamma")
         return rval
 
+    def effective_gammas(self, player: P.Player) -> tuple[float, float]:
+        """(player's, opponent's) effective gammas, folding in handicap/komi.
+
+        Black's effective gamma is gamma*handicap_gamma; white's is
+        gamma*komi_gamma. Returns (S, O) from ``player``'s perspective.
+        """
+        if self.bpd is None or self.wpd is None:
+            raise AttributeError("black player day and white player day must be set")
+        gh = (
+            1.0
+            if self.handicap_gamma is None
+            else self.handicap_gamma.get(self.handicap, 1.0)
+        )
+        gk = (
+            1.0
+            if self.komi_gamma is None
+            else self.komi_gamma.get(self.extras["komi"], 1.0)
+        )
+        black_eff = self.bpd.gamma() * gh
+        white_eff = self.wpd.gamma() * gk
+        if player == self.black_player:
+            return black_eff, white_eff
+        if player == self.white_player:
+            return white_eff, black_eff
+        raise AttributeError(f"{player.name!r} is not in this game")
+
     def opponent(self, player: P.Player) -> P.Player:
         """
         Returns the opponent of the specified player in this game.
