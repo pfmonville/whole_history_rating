@@ -754,6 +754,8 @@ class WHR:
         handicap: float = 0,
         handicap_key: Any = None,
         komi_key: Any = None,
+        account_for_uncertainty: bool = False,
+        uncertainty_steps: int = 4,
     ) -> tuple[float, float]:
         """Calculates the winning probability for a hypothetical match between two players.
 
@@ -791,6 +793,17 @@ class WHR:
             komi_key (Any, optional): A komi *category key* whose learned/pinned
                 ``komi_gamma`` advantage (favouring name2) is folded in.
                 ``None`` (default) applies no komi advantage.
+            account_for_uncertainty (bool, optional): When ``False`` (default,
+                backward-compatible), returns the point probability computed
+                from the players' current ratings only. When ``True``,
+                integrates the point probability's logit over the Gaussian
+                implied by the players' rating variances (Coulom's
+                ``Predict``), hedging the result toward 0.5 when ratings are
+                uncertain.
+            uncertainty_steps (int, optional): Half-width, in standard
+                deviations of the integration grid, used for the Gaussian
+                quadrature when ``account_for_uncertainty`` is ``True``.
+                Ignored otherwise. Defaults to 4.
 
         Returns:
             tuple[float, float]: The winning probabilities for name1 and name2 respectively. Unknown players are treated as an even (gamma = 1) reference without being added to the base.
@@ -830,21 +843,49 @@ class WHR:
             player2_proba = wpd_gamma / (
                 wpd_gamma + 10 ** ((bpd_elo + handicap) / 400.0)
             )
+        else:
+            # Learned-advantage path: fold the category-key advantage gammas
+            # into the opponent's gamma exactly as
+            # ``Game.opponents_adjusted_gamma`` does (handicap boosts black =
+            # name1, komi boosts white = name2), and stack the raw
+            # ``handicap`` elo shift on top as a further name1 boost.
+            gh = (
+                1.0
+                if handicap_key is None
+                else self.handicap_gamma.get(handicap_key, 1.0)
+            )
+            gk = 1.0 if komi_key is None else self.komi_gamma.get(komi_key, 1.0)
+            if not math.isfinite(gh) or gh <= 0 or not math.isfinite(gk) or gk <= 0:
+                raise AttributeError("bad advantage gamma")
+            h_shift = 10 ** (handicap / 400.0)
+            opponent_of_name1 = wpd_gamma * gk / gh / h_shift
+            opponent_of_name2 = bpd_gamma * gh / gk * h_shift
+            player1_proba = bpd_gamma / (bpd_gamma + opponent_of_name1)
+            player2_proba = wpd_gamma / (wpd_gamma + opponent_of_name2)
+
+        if not account_for_uncertainty:
             return player1_proba, player2_proba
-        # Learned-advantage path: fold the category-key advantage gammas into
-        # the opponent's gamma exactly as ``Game.opponents_adjusted_gamma``
-        # does (handicap boosts black = name1, komi boosts white = name2), and
-        # stack the raw ``handicap`` elo shift on top as a further name1 boost.
-        gh = 1.0 if handicap_key is None else self.handicap_gamma.get(handicap_key, 1.0)
-        gk = 1.0 if komi_key is None else self.komi_gamma.get(komi_key, 1.0)
-        if not math.isfinite(gh) or gh <= 0 or not math.isfinite(gk) or gk <= 0:
-            raise AttributeError("bad advantage gamma")
-        h_shift = 10 ** (handicap / 400.0)
-        opponent_of_name1 = wpd_gamma * gk / gh / h_shift
-        opponent_of_name2 = bpd_gamma * gh / gk * h_shift
-        player1_proba = bpd_gamma / (bpd_gamma + opponent_of_name1)
-        player2_proba = wpd_gamma / (wpd_gamma + opponent_of_name2)
-        return player1_proba, player2_proba
+
+        var1 = player1.days[-1].uncertainty if (player1 and player1.days) else 0.0
+        var2 = player2.days[-1].uncertainty if (player2 and player2.days) else 0.0
+        var1 = max(var1, 0.0)  # uncertainty is -1 before iterate()
+        var2 = max(var2, 0.0)
+        sigma = math.sqrt(var1 + var2)
+        if sigma == 0.0:
+            return player1_proba, player2_proba
+
+        eps = 1e-12
+        p1c = min(max(player1_proba, eps), 1.0 - eps)
+        delta_r = math.log(p1c / (1.0 - p1c))  # logit of the point probability
+        total_weight = 0.0
+        integral = 0.0
+        for i in range(-uncertainty_steps, uncertainty_steps + 1):
+            x = 0.5 * i
+            weight = math.exp(-x * x / 2.0)
+            integral += weight / (1.0 + math.exp(-(delta_r + sigma * x)))
+            total_weight += weight
+        p1 = integral / total_weight
+        return p1, 1.0 - p1
 
     def _run_one_iteration(self) -> None:
         """Runs one iteration of the WHR algorithm."""

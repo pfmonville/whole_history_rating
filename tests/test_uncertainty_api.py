@@ -80,3 +80,23 @@ def test_rating_covariance_and_change_errors():
         w.rating_covariance("ghost")
     with pytest.raises(ValueError):
         w.rating_change("a", 1, 999)
+
+
+def test_prediction_uncertainty_default_unchanged():
+    w = _rated(["a b B 1", "a b B 2", "a b B 3", "a b B 4"])
+    point = w.probability_future_match("a", "b")
+    also = w.probability_future_match("a", "b", account_for_uncertainty=False)
+    assert also == point
+
+
+def test_prediction_uncertainty_hedges_toward_half():
+    # few games -> high uncertainty; integrating should pull the favourite's
+    # probability toward 0.5.
+    w = _rated(["a b B 1", "a b B 2"], iters=50)
+    p_point, _ = w.probability_future_match("a", "b")
+    p_unc, _ = w.probability_future_match("a", "b", account_for_uncertainty=True)
+    assert p_point > 0.5
+    assert 0.5 < p_unc < p_point  # hedged toward 0.5 but same side
+    # both pairs still sum to 1
+    p1, p2 = w.probability_future_match("a", "b", account_for_uncertainty=True)
+    assert p1 + p2 == pytest.approx(1.0)
