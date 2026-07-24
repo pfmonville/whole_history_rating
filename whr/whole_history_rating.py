@@ -8,6 +8,8 @@ import warnings
 from collections.abc import Iterator
 from typing import Any
 
+import numpy as np
+
 from whr.game import Game
 from whr.player import Player
 
@@ -447,6 +449,58 @@ class WHR:
             "difference": difference,
             "std_error": se,
             "confidence_interval_95": (difference - 1.96 * se, difference + 1.96 * se),
+        }
+
+    def rating_covariance(self, name: str) -> tuple[list[int], np.ndarray]:
+        """Full within-player covariance of a player's day ratings, in elo^2.
+
+        Returns (days, matrix) where matrix[i][j] = Cov(elo on days[i], elo on
+        days[j]) — the exact inverse of the player's negative tridiagonal
+        Hessian scaled to elo^2. The diagonal equals the per-day marginal
+        variance. Raises ValueError for an unknown/unrated player.
+        """
+        player = self._existing_player(name)
+        if player is None or not player.days:
+            raise ValueError(f"No ratings available for player {name!r}")
+        n = len(player.days)
+        sigma2 = player.compute_sigma2()
+        diagonal, sub_diagonal = Player.hessian(
+            player.days, sigma2, player.hessian_damping
+        )
+        neg_h = np.zeros((n, n))
+        for i in range(n):
+            neg_h[i, i] = -diagonal[i]
+        for i in range(n - 1):
+            neg_h[i, i + 1] = -sub_diagonal[i]
+            neg_h[i + 1, i] = -sub_diagonal[i]
+        cov = np.linalg.inv(neg_h) * (_ELO_PER_NAT**2)
+        days = [d.day for d in player.days]
+        return days, cov
+
+    def rating_change(self, name: str, day_from: int, day_to: int) -> dict[str, Any]:
+        """Elo change of one player between two of their days, with uncertainty.
+
+        Var(change) = C[to,to] + C[from,from] - 2*C[from,to] from the WITHIN-
+        player covariance (exact; consecutive days are positively correlated via
+        the Wiener prior, so a change is more certain than summing marginals).
+        Returns {"change", "std_error", "confidence_interval_95"} in elo. Raises
+        ValueError for an unknown player or an unknown day.
+        """
+        player = self._existing_player(name)
+        if player is None or not player.days:
+            raise ValueError(f"No ratings available for player {name!r}")
+        days, cov = self.rating_covariance(name)
+        index = {d: i for i, d in enumerate(days)}
+        if day_from not in index or day_to not in index:
+            raise ValueError(f"player {name!r} has no rated day {day_from} / {day_to}")
+        i, j = index[day_from], index[day_to]
+        change = player.days[j].elo - player.days[i].elo
+        var = cov[j, j] + cov[i, i] - 2 * cov[i, j]
+        se = math.sqrt(max(var, 0.0))
+        return {
+            "change": change,
+            "std_error": se,
+            "confidence_interval_95": (change - 1.96 * se, change + 1.96 * se),
         }
 
     def ratings_for_player(

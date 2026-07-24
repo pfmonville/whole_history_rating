@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import pytest
 
 from whr.whole_history_rating import WHR
@@ -41,3 +42,41 @@ def test_rating_difference_unknown_player_raises():
         w.rating_difference("a", "ghost")
     with pytest.raises(ValueError):
         w.rating_difference("a", "b", day_a=999)
+
+
+def test_rating_covariance_diagonal_matches_uncertainty():
+    w = _rated(["a b B 1", "a b W 5", "a b B 9", "a b W 13"])
+    days, cov = w.rating_covariance("a")
+    assert days == [1, 5, 9, 13]
+    p = w.player_by_name("a")
+    # diagonal, converted back to r-space, matches stored per-day uncertainty
+    for i, d in enumerate(p.days):
+        assert cov[i, i] / (_K**2) == pytest.approx(d.uncertainty, rel=1e-6, abs=1e-9)
+
+
+def test_rating_covariance_symmetric_and_psd():
+    w = _rated(["a b B 1", "a b W 5", "a b B 9"])
+    _, cov = w.rating_covariance("a")
+    assert np.allclose(cov, cov.T)
+    eigvals = np.linalg.eigvalsh(cov)
+    assert (eigvals > -1e-9).all()  # positive semi-definite
+
+
+def test_rating_change_uses_joint_covariance_not_marginals():
+    w = _rated(["a b B 1", "a b W 5", "a b B 9", "a b W 13"], iters=60)
+    p = w.player_by_name("a")
+    res = w.rating_change("a", 1, 13)
+    d_from = next(d for d in p.days if d.day == 1)
+    d_to = next(d for d in p.days if d.day == 13)
+    assert res["change"] == pytest.approx(d_to.elo - d_from.elo)
+    naive_se = math.sqrt(d_from.uncertainty + d_to.uncertainty) * _K
+    # consecutive days positively correlated -> joint SE strictly smaller than naive
+    assert res["std_error"] < naive_se
+
+
+def test_rating_covariance_and_change_errors():
+    w = _rated(["a b B 1", "a b W 2"])
+    with pytest.raises(ValueError):
+        w.rating_covariance("ghost")
+    with pytest.raises(ValueError):
+        w.rating_change("a", 1, 999)
