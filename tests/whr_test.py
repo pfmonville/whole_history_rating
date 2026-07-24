@@ -1,3 +1,4 @@
+import ast
 import math
 import pickle
 import warnings
@@ -13,6 +14,66 @@ def setup_game_with_elo(white_elo, black_elo, handicap):
     game.black_player.days[0].elo = black_elo
     game.white_player.days[0].elo = white_elo
     return game
+
+
+# --- helpers for pytest.approx-tolerant golden assertions -----------------
+#
+# These exist because pytest.approx() does not support the nested shapes the
+# golden assertions below need: it raises TypeError on a list of lists (same
+# nested type), and silently falls back to *exact* equality for tuples
+# nested inside a list (different nested type), which would defeat the
+# point of loosening these assertions. Both helpers walk the structure
+# manually and apply pytest.approx() only to the numeric leaves, so the
+# vectorization work (Phase-7 tasks 2-3) can reorder float summation
+# (~1e-12 drift) without breaking these golden values, while day indices and
+# player names must still match exactly.
+
+
+def _assert_ratings_approx(actual, expected, rel=1e-9, abs=1e-9):
+    """Compare `ratings_for_player()`-style lists of (day, elo, uncertainty)
+    tuples: day must match exactly, elo/uncertainty are compared with
+    pytest.approx."""
+    assert len(actual) == len(expected)
+    for (a_day, a_elo, a_unc), (e_day, e_elo, e_unc) in zip(
+        actual, expected, strict=True
+    ):
+        assert a_day == e_day
+        assert a_elo == pytest.approx(e_elo, rel=rel, abs=abs)
+        assert a_unc == pytest.approx(e_unc, rel=rel, abs=abs)
+
+
+def _assert_nested_approx(actual, expected, rel=1e-9, abs=1e-9):
+    """Recursively compare nested lists/tuples that mix player-name strings
+    (compared exactly) with elo floats (compared with pytest.approx)."""
+    if isinstance(expected, (list, tuple)):
+        assert isinstance(actual, (list, tuple))
+        assert len(actual) == len(expected)
+        for a, e in zip(actual, expected, strict=True):
+            _assert_nested_approx(a, e, rel=rel, abs=abs)
+    elif isinstance(expected, str):
+        assert actual == expected
+    else:
+        assert actual == pytest.approx(expected, rel=rel, abs=abs)
+
+
+def _parse_ordered_ratings_display(output):
+    """Parse `print_ordered_ratings()` output (``name => [elo, ...]`` lines,
+    one per player in ranked order) into ``[(name, [elo, ...]), ...]``."""
+    parsed = []
+    for line in output.splitlines():
+        name, _, rest = line.partition(" => ")
+        parsed.append((name, ast.literal_eval(rest)))
+    return parsed
+
+
+def _parse_ordered_ratings_display_current(output):
+    """Parse `print_ordered_ratings(current=True)` output (``name => elo``
+    lines) into ``[(name, elo), ...]``."""
+    parsed = []
+    for line in output.splitlines():
+        name, _, rest = line.partition(" => ")
+        parsed.append((name, float(rest)))
+    return parsed
 
 
 def test_even_game_between_equal_strength_players_should_have_white_winrate_of_50_percent():
@@ -73,16 +134,22 @@ def test_output():
     whr.create_game("shusaku", "shusai", "W", 2, 0)
     whr.create_game("shusaku", "shusai", "W", 3, 0)
     whr.iterate(50)
-    assert [
-        (1, -5, 0.26),
-        (2, -6, 0.26),
-        (3, -7, 0.26),
-    ] == whr.ratings_for_player("shusaku")
-    assert [
-        (1, 4, 0.26),
-        (2, 5, 0.26),
-        (3, 6, 0.26),
-    ] == whr.ratings_for_player("shusai")
+    _assert_ratings_approx(
+        whr.ratings_for_player("shusaku"),
+        [
+            (1, -5, 0.26),
+            (2, -6, 0.26),
+            (3, -7, 0.26),
+        ],
+    )
+    _assert_ratings_approx(
+        whr.ratings_for_player("shusai"),
+        [
+            (1, 4, 0.26),
+            (2, 5, 0.26),
+            (3, 6, 0.26),
+        ],
+    )
 
 
 # re-baselined for phase-3 (estimated handicap/komi): all games share the
@@ -97,18 +164,24 @@ def test_output2():
     whr.create_game("shusaku", "shusai", "W", 4, 0)
     whr.create_game("shusaku", "shusai", "W", 4, 0)
     whr.iterate(50)
-    assert [
-        (1, -13, 0.21),
-        (2, -14, 0.2),
-        (3, -15, 0.2),
-        (4, -16, 0.21),
-    ] == whr.ratings_for_player("shusaku")
-    assert [
-        (1, 12, 0.21),
-        (2, 13, 0.2),
-        (3, 14, 0.2),
-        (4, 15, 0.21),
-    ] == whr.ratings_for_player("shusai")
+    _assert_ratings_approx(
+        whr.ratings_for_player("shusaku"),
+        [
+            (1, -13, 0.21),
+            (2, -14, 0.2),
+            (3, -15, 0.2),
+            (4, -16, 0.21),
+        ],
+    )
+    _assert_ratings_approx(
+        whr.ratings_for_player("shusai"),
+        [
+            (1, 12, 0.21),
+            (2, 13, 0.2),
+            (3, 14, 0.2),
+            (4, 15, 0.21),
+        ],
+    )
 
 
 # re-baselined for phase-1 (anchor 0.5, damping 1.0): the huge handicap no
@@ -192,43 +265,64 @@ def test_loading_several_games_at_once(capsys, tmp_path):
     # nobody < shusaku < shusai and all finite/positive-uncertainty) relative
     # to the phase-1 baseline (anchor 0.5, damping 1.0).
     # test getting ratings for player shusaku (day, elo, uncertainty)
-    assert whr.ratings_for_player("shusaku") == [
-        (1, 16, 0.25),
-        (2, 15, 0.24),
-        (3, 15, 0.25),
-    ]
+    _assert_ratings_approx(
+        whr.ratings_for_player("shusaku"),
+        [
+            (1, 16, 0.25),
+            (2, 15, 0.24),
+            (3, 15, 0.25),
+        ],
+    )
     # test getting ratings for player shusai, only current elo and uncertainty
-    assert whr.ratings_for_player("shusai", current=True) == (125, 0.26)
+    assert whr.ratings_for_player("shusai", current=True) == pytest.approx(
+        (125, 0.26), rel=1e-9, abs=1e-9
+    )
     # test getting probability of future match between shusai and nobody2 (an
     # unknown player, treated as an even gamma=1 reference); it is a pure query
     # that neither prints nor persists nobody2.
-    assert whr.probability_future_match("shusai", "nobody2", 0) == (
-        0.6719847779500109,
-        0.32801522204998923,
+    assert whr.probability_future_match("shusai", "nobody2", 0) == pytest.approx(
+        (0.6719847779500109, 0.32801522204998923), rel=1e-9, abs=1e-9
     )
     assert capsys.readouterr().out == ""
     assert "nobody2" not in whr.players
     # test getting log likelihood of base
-    assert whr.log_likelihood() == pytest.approx(-1.061578579328394)
+    assert whr.log_likelihood() == pytest.approx(-1.061578579328394, rel=1e-9, abs=1e-9)
     # test printing ordered ratings
     whr.print_ordered_ratings()
-    display = "nobody => [-167.88581941373636]\nshusaku => [15.847593903408283, 14.852900414900345, 14.545508206558283]\nshusai => [122.57458064806248, 123.91642306478018, 124.58617483320234]\n"
     captured = capsys.readouterr()
-    assert display == captured.out
+    _assert_nested_approx(
+        _parse_ordered_ratings_display(captured.out),
+        [
+            ("nobody", [-167.88581941373636]),
+            ("shusaku", [15.847593903408283, 14.852900414900345, 14.545508206558283]),
+            ("shusai", [122.57458064806248, 123.91642306478018, 124.58617483320234]),
+        ],
+    )
     # test printing ordered ratings, only current elo
     whr.print_ordered_ratings(current=True)
-    display = "nobody => -167.88581941373636\nshusaku => 14.545508206558283\nshusai => 124.58617483320234\n"
     captured = capsys.readouterr()
-    assert display == captured.out
+    _assert_nested_approx(
+        _parse_ordered_ratings_display_current(captured.out),
+        [
+            ("nobody", -167.88581941373636),
+            ("shusaku", 14.545508206558283),
+            ("shusai", 124.58617483320234),
+        ],
+    )
     # test getting ordered ratings, compact form
-    assert whr.get_ordered_ratings(compact=True) == [
-        [-167.88581941373636],
-        [15.847593903408283, 14.852900414900345, 14.545508206558283],
-        [122.57458064806248, 123.91642306478018, 124.58617483320234],
-    ]
+    _assert_nested_approx(
+        whr.get_ordered_ratings(compact=True),
+        [
+            [-167.88581941373636],
+            [15.847593903408283, 14.852900414900345, 14.545508206558283],
+            [122.57458064806248, 123.91642306478018, 124.58617483320234],
+        ],
+    )
     # test getting ordered ratings, only current elo with compact form
     assert whr.get_ordered_ratings(compact=True, current=True) == pytest.approx(
-        [-167.88581941373636, 14.545508206558283, 124.58617483320234]
+        [-167.88581941373636, 14.545508206558283, 124.58617483320234],
+        rel=1e-9,
+        abs=1e-9,
     )
     # test saving base
     path = str(tmp_path / "state.pkl")
