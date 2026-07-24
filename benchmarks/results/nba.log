@@ -1,0 +1,24 @@
+loaded 69377 games, 74 seasons (1947-2020)
+home (team1) win rate on non-neutral games: 0.619
+train_v=39967 valid=1312 train_t=41279 test=1312
+    fit: 39967 games, grad_norm=4.59e-03, iters~(40, True)
+  w2= 100.0: valid log-loss (WHR+home) = 0.6700
+    fit: 39967 games, grad_norm=4.06e-03, iters~(50, True)
+  w2= 300.0: valid log-loss (WHR+home) = 0.6618
+    fit: 39967 games, grad_norm=4.39e-03, iters~(30, True)
+  w2=1000.0: valid log-loss (WHR+home) = 0.6577
+    fit: 39967 games, grad_norm=4.47e-03, iters~(30, True)
+  w2=3000.0: valid log-loss (WHR+home) = 0.6662
+selected w2=1000.0 (valid log-loss 0.6577)
+    fit: 41279 games, grad_norm=4.39e-03, iters~(30, True)
+    fit: 41279 games, grad_norm=4.16e-03, iters~(30, True)
+TEST SEASON 2018-19 (season=2019):
+  base_rate        log-loss=0.6783 acc=0.5907 (n=1312)
+  whr_plain        log-loss=0.6839 acc=0.6029 (n=1312)
+  whr_home_frozen  log-loss=0.6699 acc=0.6364 (n=1312)
+  whr_home_online  log-loss=0.6343 acc=0.6425 (n=1312)
+  fte_elo          log-loss=0.6192 acc=0.6532 (n=1312)
+  fte_raptor       log-loss=0.6152 acc=0.6562 (n=1312)
+estimated home advantage: 98.2 elo
+    fit: 69377 games, grad_norm=4.79e-03, iters~(120, True)
+wrote results/nba_results.json and results/nba_history.png

@@ -1,0 +1,18 @@
+loaded 18085 matches, seasons 2014-15..2023-24, 202 teams, draw rate 0.252
+train_v=12681 valid=1826 train_t=14507 test=1826
+    fit: 12681 games, grad_norm=2.70e-03, iters~(50, True), nu=0.7900
+  w2=  30.0: valid 3-way log-loss = 1.0088
+    fit: 12681 games, grad_norm=2.53e-03, iters~(60, True), nu=0.7971
+  w2= 100.0: valid 3-way log-loss = 1.0109
+    fit: 12681 games, grad_norm=2.59e-03, iters~(60, True), nu=0.8069
+  w2= 300.0: valid 3-way log-loss = 1.0154
+    fit: 12681 games, grad_norm=1.98e-03, iters~(60, True), nu=0.8228
+  w2=1000.0: valid 3-way log-loss = 1.0249
+selected w2=30.0 (valid 3-way log-loss 1.0088)
+    fit: 14507 games, grad_norm=2.45e-03, iters~(60, True), nu=0.7932
+    fit: 10863 games, grad_norm=2.49e-03, iters~(60, True)
+TEST SEASON 2022-23:  (nu=0.7932, home=80.3 elo)
+  base_rate            3way-log-loss=1.0630 acc=0.4573
+  whr_bt_constdraw     3way-log-loss=1.0132 acc=0.5170
+  whr_davidson         3way-log-loss=1.0089 acc=0.5153
+wrote results/football_results.json
