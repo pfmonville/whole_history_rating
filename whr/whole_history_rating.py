@@ -147,11 +147,18 @@ class WHR:
         d_komi = gb * gh
         c_handicap = gb
         d_handicap = gw * gk
-        div = 1.0 / (d_komi + d_handicap)
-        h_grad_g = c_handicap * div
-        h_hess_g = c_handicap * d_handicap * div**2
-        k_grad_g = c_komi * div
-        k_hess_g = c_komi * d_komi * div**2
+        # Guard the vectorized division: these gammas are read directly (no
+        # opponents_adjusted_gamma positivity guard upstream), so a 0
+        # denominator is theoretically reachable if a gamma underflows to 0.0
+        # (only around -129000 elo, so unreachable in normal ranges). Raise a
+        # loud, deterministic FloatingPointError then, rather than emitting
+        # numpy's silent inf + divide-by-zero RuntimeWarning.
+        with np.errstate(divide="raise", invalid="raise"):
+            div = 1.0 / (d_komi + d_handicap)
+            h_grad_g = c_handicap * div
+            h_hess_g = c_handicap * d_handicap * div**2
+            k_grad_g = c_komi * div
+            k_hess_g = c_komi * d_komi * div**2
 
         h_grad_arr = np.bincount(hi, weights=h_grad_g, minlength=nh)
         h_hess_arr = np.bincount(hi, weights=h_hess_g, minlength=nh)
@@ -167,6 +174,9 @@ class WHR:
             h_grad[key] = float(h_grad_arr[idx])
             h_hess[key] = float(h_hess_arr[idx])
             h_games[key] = int(h_games_arr[idx])
+            # h_wins_arr is a bincount of 0/1 win-count weights, so each entry
+            # is an exact integer count well under 2^53; round()+int() recovers
+            # it exactly (guarding only against float bincount rounding dust).
             wins = int(round(h_wins_arr[idx]))
             if wins:
                 h_wins[key] = wins
@@ -174,6 +184,7 @@ class WHR:
             k_grad[key] = float(k_grad_arr[idx])
             k_hess[key] = float(k_hess_arr[idx])
             k_games[key] = int(k_games_arr[idx])
+            # Exact integer bincount, as for h_wins_arr above.
             wins = int(round(k_wins_arr[idx]))
             if wins:
                 k_wins[key] = wins
@@ -323,8 +334,9 @@ class WHR:
         held-out later games. Does NOT mutate this instance. See the design spec
         for details. Raises ValueError if a temporal split is impossible, or if
         ``candidates`` is an explicitly empty list. Warns (``UserWarning``) if
-        every test game is cold-start (none can be scored), in which case
-        ``log_loss`` is all-``inf`` and ``best_w2`` is not meaningful.
+        no test game can be scored (every one is cold-start or a draw), in
+        which case ``log_loss`` is all-``inf`` and ``best_w2`` is not
+        meaningful.
         """
         if candidates is None:
             candidates = [10.0, 30.0, 100.0, 300.0, 1000.0, 3000.0]
@@ -385,8 +397,8 @@ class WHR:
         if n_scored == 0:
             warnings.warn(
                 "fit_w2: no test games could be scored across any fold/candidate "
-                "(all cold-start) -- log_loss is all inf and best_w2 is not "
-                "meaningful. Check n_test_scored/n_test_skipped; try fewer "
+                "(cold-start or all-draw) -- log_loss is all inf and best_w2 is "
+                "not meaningful. Check n_test_scored/n_test_skipped; try fewer "
                 "n_splits or provide more historical data.",
                 UserWarning,
                 stacklevel=2,
@@ -958,9 +970,9 @@ class WHR:
         Args:
             name1 (str): The name of the first player.
             name2 (str): The name of the second player.
-            handicap (float, optional): A raw elo adjustment favouring name1 by
-                shifting the effective elo gap ``handicap`` points in name1's
-                favour, not a handicap category key.
+            handicap (float, optional): A raw elo adjustment (not a handicap
+                category key) that shifts the effective elo gap ``handicap``
+                points in name1's favour.
             handicap_key (Any, optional): A handicap *category key* whose
                 learned/pinned ``handicap_gamma`` advantage (favouring name1)
                 is folded in. ``None`` (default) applies no handicap advantage.
@@ -1132,7 +1144,12 @@ class WHR:
 
         t_arr = self.nu * np.sqrt(s_arr * o_arr)
         z_arr = s_arr + o_arr + t_arr
-        ratio = t_arr / z_arr
+        # Guard the vectorized division as in davidson_derivatives: z = S+O+T
+        # comes from the unguarded effective_gammas, so a 0 denominator is
+        # only reachable via a gamma underflow to 0.0 (unreachable in normal
+        # ranges). Raise a loud FloatingPointError rather than a silent inf/nan.
+        with np.errstate(divide="raise", invalid="raise"):
+            ratio = t_arr / z_arr
         gradient = float(np.sum(is_draw_arr) - np.sum(ratio))
         hessian = float(-np.sum(ratio * (1.0 - ratio)))
         return gradient, hessian

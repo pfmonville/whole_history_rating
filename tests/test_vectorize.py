@@ -452,3 +452,51 @@ def test_benchmark_smoke_large_history():
     for _rated_day, elo, uncertainty in ratings:
         assert math.isfinite(elo)
         assert math.isfinite(uncertainty)
+
+
+# --- Vectorized-division 0-denominator guards (np.errstate) -----------------
+#
+# The vectorized divisions whose denominators are built from directly-read /
+# effective_gammas gammas (no upstream positivity guard) are wrapped in
+# ``np.errstate(divide="raise", invalid="raise")`` so a denominator that
+# underflows to exactly 0.0 raises a loud, deterministic FloatingPointError
+# rather than silently yielding inf/nan with a RuntimeWarning. That underflow
+# needs a gamma of 0.0 (around -129000 elo) -- unreachable in normal use, so
+# these tests force it by pushing r far negative until gamma() underflows.
+# (log_likelihood_derivative / _second_derivative are NOT guarded here: their
+# denominator gamma+d is provably > 0, since opponents_adjusted_gamma already
+# rejects a non-positive opponent gamma d.)
+
+
+def test_accumulate_handicap_komi_raises_on_zero_denominator():
+    """A gamma underflow to 0.0 zeroes the handicap/komi Newton denominator
+    (d_komi + d_handicap); it must raise, not silently yield inf."""
+    w = WHR()
+    w.create_game("a", "b", "B", 1, 0)
+    for p in w.players.values():
+        p.days[0].r = -1e9  # gamma() underflows to exactly 0.0
+    with pytest.raises(FloatingPointError):
+        w._accumulate_handicap_komi()
+
+
+def test_davidson_derivatives_raises_on_zero_denominator():
+    """Both gammas underflowing to 0.0 make z = S+O+T == 0; the Davidson
+    gradient/Hessian division must raise, not yield nan."""
+    w = WHR()
+    w.create_game("a", "b", "D", 1, 0)
+    for p in w.players.values():
+        p.days[0].r = -1e9
+    day = w.players["a"].days[0]
+    with pytest.raises(FloatingPointError):
+        day.davidson_derivatives(1.5)
+
+
+def test_nu_gradient_hessian_raises_on_zero_denominator():
+    """Both gammas underflowing to 0.0 make z = S+O+T == 0; the global nu
+    gradient/Hessian division must raise, not yield nan."""
+    w = WHR()
+    w.create_game("a", "b", "D", 1, 0)
+    for p in w.players.values():
+        p.days[0].r = -1e9
+    with pytest.raises(FloatingPointError):
+        w._nu_gradient_hessian()

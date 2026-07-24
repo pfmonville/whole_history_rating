@@ -224,9 +224,10 @@ class PlayerDay:
         (see ``test_davidson_log_likelihood_matches_bt_at_nu_zero``).
 
         Raises:
-            ValueError: if ``num`` is non-positive, which happens exactly
-                when the day has a drawn game and ``nu <= 0`` (a draw has
-                zero probability when the draw tendency is 0).
+            ValueError: if ``num`` is non-positive. For a drawn game ``num``
+                is the draw mass ``T = nu*sqrt(S*O)``, which is 0 when
+                ``nu <= 0`` -- or, at ``nu > 0``, when ``nu*sqrt(S*O)``
+                underflows to 0.
         """
         s, o, w = self._davidson_game_arrays()
         if s.size == 0:
@@ -236,8 +237,9 @@ class PlayerDay:
         num = np.where(w == 1.0, s, np.where(w == 0.0, o, t))
         if np.any(num <= 0.0):
             raise ValueError(
-                "davidson_log_likelihood is undefined for a draw at nu=0 "
-                "(a draw has zero probability when the draw tendency is 0)"
+                "davidson_log_likelihood is undefined for a drawn game whose "
+                "draw mass is 0 (T = nu*sqrt(S*O) <= 0): nu <= 0, or "
+                "nu*sqrt(S*O) underflowed to 0 at nu > 0"
             )
         return float(np.sum(np.log(num) - np.log(z)))
 
@@ -253,9 +255,16 @@ class PlayerDay:
         z = s + o + t
         n = s + t / 2.0
         n2 = s + t / 4.0
-        ratio = n / z
-        gradient = float(np.sum(w - ratio))
-        hessian = float(np.sum(ratio**2 - n2 / z))
+        # Guard the vectorized division: ``z = S+O+T`` comes from the
+        # unguarded ``effective_gammas`` (no positivity check), so a 0
+        # denominator is theoretically reachable if a gamma underflows to 0.0
+        # (only around -129000 elo, so unreachable in normal ranges). Raise a
+        # loud, deterministic FloatingPointError then, rather than emitting
+        # numpy's silent inf/nan + divide-by-zero RuntimeWarning.
+        with np.errstate(divide="raise", invalid="raise"):
+            ratio = n / z
+            gradient = float(np.sum(w - ratio))
+            hessian = float(np.sum(ratio**2 - n2 / z))
         return gradient, hessian
 
     def update_by_1d_newtons_method(self) -> None:
