@@ -2,6 +2,7 @@ import math
 
 import pytest
 
+from whr.player import Player
 from whr.whole_history_rating import WHR
 
 
@@ -100,3 +101,105 @@ def test_davidson_reduces_to_bt_at_nu_zero():
     davidson_grad, davidson_hess = a_day.davidson_derivatives(0.0)
     assert davidson_grad == pytest.approx(a_day.log_likelihood_derivative())
     assert davidson_hess == pytest.approx(a_day.log_likelihood_second_derivative())
+
+
+def test_multiday_gradient_hessian_route_to_davidson_when_draw_tendency_positive():
+    """Task 2 coverage gap: with ``draw_tendency > 0``, ``Player.gradient``
+    and the static ``Player.hessian`` must take each day's Davidson game-part
+    (``day.davidson_derivatives``) rather than the plain win/loss derivatives.
+
+    Nothing wires ``draw_tendency`` above zero until Task 3, so this test sets
+    it directly and reconstructs the expected gradient/hessian from
+    ``davidson_derivatives`` plus the (independently expressed) temporal-prior
+    / anchor terms -- this fails if the ``> 0`` routing branch is removed.
+    """
+    w = WHR()
+    w.create_game("a", "b", "D", 1, 0)  # day 1: a draws with b
+    w.create_game("a", "b", "B", 5, 0)  # day 5: a (black) wins outright
+    a = w.player_by_name("a")
+    b = w.player_by_name("b")
+    # Distinct, non-symmetric gammas so the Davidson vs. win/loss derivatives
+    # can't accidentally coincide (e.g. S == O would zero out some terms).
+    a.days[0].set_gamma(2.0)
+    b.days[0].set_gamma(1.0)
+    a.days[1].set_gamma(3.0)
+    b.days[1].set_gamma(1.5)
+    a.draw_tendency = 0.3
+
+    assert len(a.days) == 2
+    r = [d.r for d in a.days]
+    sigma2 = a.compute_sigma2()
+
+    grad = a.gradient(r, a.days, sigma2)
+    diag, _sub_diag = Player.hessian(a.days, sigma2, a.hessian_damping)
+
+    for idx, day in enumerate(a.days):
+        davidson_grad, davidson_hess = day.davidson_derivatives(0.3)
+        prior_grad = 0.0
+        prior_hess = 0.0
+        if idx < len(a.days) - 1:
+            prior_grad += -(r[idx] - r[idx + 1]) / sigma2[idx]
+            prior_hess += -1 / sigma2[idx]
+        if idx > 0:
+            prior_grad += -(r[idx] - r[idx - 1]) / sigma2[idx - 1]
+            prior_hess += -1 / sigma2[idx - 1]
+        expected_grad = davidson_grad + prior_grad
+        expected_hess = davidson_hess + prior_hess - a.hessian_damping
+        if idx == 0:
+            expected_grad += day.anchor_gradient()
+            expected_hess += day.anchor_hessian()
+        assert grad[idx] == pytest.approx(expected_grad)
+        assert diag[idx] == pytest.approx(expected_hess)
+
+    # Sanity: falling back to the win/loss derivatives would give a
+    # different game-part on BOTH days here -- the draw day because a drawn
+    # game never appears in won_games/lost_games, and the decisive day
+    # because the Davidson draw-mass term (`t`) still perturbs the ratio for
+    # nu > 0 even without an actual draw that day. This confirms the
+    # reconstruction above is tight enough to distinguish the two paths.
+    for day in a.days:
+        bt_grad = day.log_likelihood_derivative()
+        bt_hess = day.log_likelihood_second_derivative()
+        davidson_grad, davidson_hess = day.davidson_derivatives(0.3)
+        assert davidson_grad != pytest.approx(bt_grad)
+        assert davidson_hess != pytest.approx(bt_hess)
+
+
+def test_single_day_update_by_1d_newton_routes_to_davidson():
+    """Task 2 coverage gap: ``PlayerDay.update_by_1d_newtons_method`` must
+    take the Davidson game-part when ``draw_tendency > 0``, for a
+    single-day player.
+    """
+    w = WHR()
+    w.create_game("a", "b", "D", 1, 0)  # a's only day: a single draw vs b
+    a = w.player_by_name("a")
+    b = w.player_by_name("b")
+    a.days[0].set_gamma(2.0)
+    b.days[0].set_gamma(1.0)
+    a.draw_tendency = 0.5
+
+    day = a.days[0]
+    r_before = day.r
+
+    davidson_grad, davidson_hess = day.davidson_derivatives(0.5)
+    bt_grad = day.log_likelihood_derivative()
+    bt_hess = day.log_likelihood_second_derivative()
+    anchor_grad = day.anchor_gradient()
+    anchor_hess = day.anchor_hessian()
+    damping = a.hessian_damping
+
+    expected_davidson_r = r_before - (davidson_grad + anchor_grad) / (
+        davidson_hess + anchor_hess - damping
+    )
+    counterfactual_bt_r = r_before - (bt_grad + anchor_grad) / (
+        bt_hess + anchor_hess - damping
+    )
+    # Sanity: the two paths must actually diverge for this data, else the
+    # test couldn't tell which branch ran (a drawn game is never counted in
+    # won_games/lost_games, so the BT path sees no game at all here).
+    assert expected_davidson_r != pytest.approx(counterfactual_bt_r)
+
+    day.update_by_1d_newtons_method()
+
+    assert day.r == pytest.approx(expected_davidson_r)
+    assert day.r != pytest.approx(counterfactual_bt_r)
