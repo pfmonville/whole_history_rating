@@ -1,0 +1,6 @@
+# Raw datasets are downloaded on demand by each script (see README); not committed.
+data/
+# Cached fitted models, if any.
+*.pkl
+__pycache__/
+*.pyc

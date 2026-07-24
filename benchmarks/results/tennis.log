@@ -1,0 +1,16 @@
+loaded 48335 matches, 2000-2015, 1948 players
+train_v=41446 valid=2959 train_t=44405 test=2816
+    fit: 41446 games, grad_norm=4.88e-03, iters~(310, True)
+  w2=   1.0: valid log-loss = 0.6132
+    fit: 41446 games, grad_norm=4.96e-03, iters~(310, True)
+  w2=   3.0: valid log-loss = 0.6127
+    fit: 41446 games, grad_norm=4.96e-03, iters~(320, True)
+  w2=  10.0: valid log-loss = 0.6164
+    fit: 41446 games, grad_norm=4.82e-03, iters~(350, True)
+  w2=  30.0: valid log-loss = 0.6260
+selected w2=3.0 (valid log-loss 0.6127)
+    fit: 44405 games, grad_norm=4.87e-03, iters~(320, True)
+  base_rate_0.5  log-loss=0.6931 acc=0.5000
+  whr            log-loss=0.6164 acc=0.6697
+    fit: 48335 games, grad_norm=4.81e-03, iters~(330, True)
+wrote results/tennis_results.json and results/tennis_history.png

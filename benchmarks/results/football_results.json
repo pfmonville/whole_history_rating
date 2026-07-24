@@ -1,0 +1,30 @@
+{
+  "dataset": "football_big5",
+  "seasons": [
+    "2014-15",
+    "2023-24"
+  ],
+  "w2": 30.0,
+  "test_season": "2022-23",
+  "n_test": 1826,
+  "draw_rate_overall": 0.251589715233619,
+  "draw_tendency_nu": 0.7931938830081616,
+  "home_advantage_elo": 80.34408616334241,
+  "models": {
+    "base_rate": {
+      "log_loss": 1.0630247108973352,
+      "accuracy": 0.45728368017524645,
+      "n": 1826
+    },
+    "whr_bt_constdraw": {
+      "log_loss": 1.013241775257274,
+      "accuracy": 0.5169769989047097,
+      "n": 1826
+    },
+    "whr_davidson": {
+      "log_loss": 1.008869673827301,
+      "accuracy": 0.5153340635268346,
+      "n": 1826
+    }
+  }
+}

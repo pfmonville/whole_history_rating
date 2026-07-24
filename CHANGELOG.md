@@ -22,6 +22,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `create_game(..., handicap, komi=None, extras=None)` — a first-class `komi`
   argument (placed before `extras`). A game with no komi contributes a neutral
   komi gamma and registers no komi key, so nothing is estimated for it.
+- A "How well does it actually work?" section in the README: WHR benchmarked on
+  the real datasets used by KickScore (NBA, football) and TrueSkill Through Time
+  (ATP tennis), with figures, a summary table and a reproducible `benchmarks/`
+  suite.
+
+### Fixed
+- **Stale worked examples in the README.** Several documented outputs still
+  showed pre-3.0.0 values (e.g. `ratings_for_player` reported `-43 … 0.84` where
+  the current fit gives `-50 … 0.26`), `log_likelihood` was described as
+  approaching 0 from below when it is a log *density* that can be positive, and
+  the `rating_change` example's "naive `115.83`" was quoted without saying it is
+  `sqrt(Var(from) + Var(to))`. Every number in the README is now the real current
+  output of the snippet above it, with its derivation shown, and
+  `tests/test_readme_examples.py` asserts them so they cannot silently rot again.
 
 ## [3.0.1] - 2026-07-24
 
