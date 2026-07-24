@@ -30,7 +30,7 @@ def test_temporal_folds_are_expanding_and_leak_free():
 def test_temporal_folds_cover_later_games_and_copy_extras():
     w = WHR()
     for d in range(1, 7):
-        w.create_game("a", "b", "B", d, 0, {"komi": 6.5})
+        w.create_game("a", "b", "B", d, 0, komi=6.5)
     folds = w._temporal_folds(2)
     # extras are copies, not the live Game dict
     train0 = folds[0][0]

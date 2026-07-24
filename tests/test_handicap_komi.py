@@ -121,13 +121,13 @@ def test_recovers_white_side_advantage_via_komi():
     # white wins 64% -> ~100 elo attributed to komi 6.5. Single day.
     w = WHR()
     for _ in range(64):
-        w.create_game("a", "b", "W", 1, 0)
+        w.create_game("a", "b", "W", 1, 0, komi=6.5)
     for _ in range(36):
-        w.create_game("a", "b", "B", 1, 0)
+        w.create_game("a", "b", "B", 1, 0, komi=6.5)
     for _ in range(64):
-        w.create_game("b", "a", "W", 1, 0)
+        w.create_game("b", "a", "W", 1, 0, komi=6.5)
     for _ in range(36):
-        w.create_game("b", "a", "B", 1, 0)
+        w.create_game("b", "a", "B", 1, 0, komi=6.5)
     w.iterate(200)
     assert _elo(w.komi_gamma[6.5]) == pytest.approx(100.0, abs=40.0)
 
@@ -216,7 +216,7 @@ def test_underflowed_pinned_gamma_raises_attribute_error_not_zero_division():
     # zero divisor must not surface as a raw ZeroDivisionError; the guard is
     # supposed to catch it and raise the intended AttributeError instead.
     w = WHR(config={"pinned_komi": {6.5: -130000.0}})
-    w.create_game("a", "b", "B", 1, 0)
+    w.create_game("a", "b", "B", 1, 0, komi=6.5)
     game = w.games[0]
     with pytest.raises(AttributeError, match="bad adjusted gamma"):
         game.white_win_probability()
@@ -233,13 +233,13 @@ def test_auto_iterate_waits_for_komi_advantage_to_stabilize():
     def build() -> WHR:
         w = WHR(config={"pinned_handicap": {0: 0.0}})
         for _ in range(64):
-            w.create_game("a", "b", "W", 1, 0)
+            w.create_game("a", "b", "W", 1, 0, komi=6.5)
         for _ in range(36):
-            w.create_game("a", "b", "B", 1, 0)
+            w.create_game("a", "b", "B", 1, 0, komi=6.5)
         for _ in range(64):
-            w.create_game("b", "a", "W", 1, 0)
+            w.create_game("b", "a", "W", 1, 0, komi=6.5)
         for _ in range(36):
-            w.create_game("b", "a", "B", 1, 0)
+            w.create_game("b", "a", "B", 1, 0, komi=6.5)
         return w
 
     w = build()
@@ -277,3 +277,58 @@ def test_legacy_load_without_advantage_attrs_still_predicts(tmp_path):
     for game in loaded.games:
         assert math.isfinite(game.black_win_probability())
         assert math.isfinite(game.white_win_probability())
+
+
+# --- komi opt-in (3.1.0) ---------------------------------------------------
+
+
+def test_komi_is_opt_in_no_default_key():
+    # No komi passed -> no komi key registered and no komi advantage modelled;
+    # the game's komi gamma is neutral (1.0), and nothing crashes.
+    w = WHR()
+    w.create_game("a", "b", "B", 1, 0)
+    w.iterate(10)
+    assert w.komi_gamma == {}
+    assert "komi" not in w.games[0].extras
+    assert math.isfinite(w.games[0].white_win_probability())
+
+
+def test_handicap_estimated_with_no_komi():
+    # Colour-swap-balanced so only the handicap 'h' (on black) is free; no komi
+    # is passed. The handicap must still be estimated (~+100 elo for a 64% edge)
+    # and no komi key is ever created.
+    w = WHR()
+    for _ in range(64):
+        w.create_game("a", "b", "B", 1, "h")
+    for _ in range(36):
+        w.create_game("a", "b", "W", 1, "h")
+    for _ in range(64):
+        w.create_game("b", "a", "B", 1, "h")
+    for _ in range(36):
+        w.create_game("b", "a", "W", 1, "h")
+    w.iterate(200)
+    assert _elo(w.handicap_gamma["h"]) == pytest.approx(100.0, abs=40.0)
+    assert w.komi_gamma == {}
+
+
+def test_komi_arg_and_extras_are_equivalent():
+    a = WHR()
+    a.create_game("x", "y", "W", 1, 0, komi=7.5)
+    b = WHR()
+    b.create_game("x", "y", "W", 1, 0, extras={"komi": 7.5})
+    assert a.games[0].extras.get("komi") == 7.5
+    assert b.games[0].extras.get("komi") == 7.5
+    assert 7.5 in a.komi_gamma and 7.5 in b.komi_gamma
+
+
+def test_save_load_roundtrips_komi_and_no_komi(tmp_path):
+    w = WHR()
+    w.create_game("a", "b", "B", 1, 0, komi=7.5)  # a komi game
+    w.create_game("a", "b", "W", 2, 0)  # a no-komi game
+    w.iterate(20)
+    path = str(tmp_path / "state.pkl")
+    WHR.save_base(w, path)
+    w2 = WHR.load_base(path)
+    assert w2.games[0].extras.get("komi") == 7.5
+    assert w2.games[1].extras.get("komi") is None
+    assert 7.5 in w2.komi_gamma

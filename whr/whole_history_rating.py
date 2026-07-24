@@ -69,10 +69,13 @@ class WHR:
 
     def _ensure_advantage_keys(self, handicap: Any, komi: Any) -> None:
         """Ensure the advantage tables have an entry (default gamma 1.0) for a
-        game's handicap and komi keys, without overwriting existing/pinned ones."""
+        game's handicap and komi keys, without overwriting existing/pinned ones.
+
+        A ``komi`` of ``None`` means the game has no komi (opt-in, 3.1.0): no
+        komi key is registered, so it is never estimated."""
         if handicap not in self.handicap_gamma:
             self.handicap_gamma[handicap] = 1.0
-        if komi not in self.komi_gamma:
+        if komi is not None and komi not in self.komi_gamma:
             self.komi_gamma[komi] = 1.0
 
     def _accumulate_handicap_komi(
@@ -118,7 +121,10 @@ class WHR:
             if g.winner == "D":
                 continue
             handicaps.append(g.handicap)
-            komis.append(g.extras["komi"])
+            # komi is opt-in: a game with no komi contributes gamma 1.0 to the
+            # math (below) but its ``None`` komi key is never scattered into the
+            # per-key results, so it is never estimated.
+            komis.append(g.extras.get("komi"))
             gb_vals.append(g.bpd.gamma())
             gw_vals.append(g.wpd.gamma())
             black_win.append(g.winner == "B")
@@ -151,7 +157,7 @@ class WHR:
         gb = np.array(gb_vals, dtype=np.float64)
         gw = np.array(gw_vals, dtype=np.float64)
         gh = np.array([self.handicap_gamma[h] for h in handicaps], dtype=np.float64)
-        gk = np.array([self.komi_gamma[k] for k in komis], dtype=np.float64)
+        gk = np.array([self.komi_gamma.get(k, 1.0) for k in komis], dtype=np.float64)
         black_win_arr = np.array(black_win, dtype=np.float64)
 
         c_komi = gw
@@ -192,6 +198,8 @@ class WHR:
             if wins:
                 h_wins[key] = wins
         for key, idx in k_index_of.items():
+            if key is None:
+                continue  # the no-komi sentinel: never estimated
             k_grad[key] = float(k_grad_arr[idx])
             k_hess[key] = float(k_hess_arr[idx])
             k_games[key] = int(k_games_arr[idx])
@@ -400,7 +408,9 @@ class WHR:
             for train, test in folds:
                 model = WHR(sub_config)
                 for black, white, winner, day, handicap, extras in train:
-                    model.create_game(black, white, winner, day, handicap, extras)
+                    model.create_game(
+                        black, white, winner, day, handicap, extras=extras
+                    )
                 model.iterate(iterations)
                 for black, white, winner, _day, handicap, extras in test:
                     if winner == "D":
@@ -409,7 +419,7 @@ class WHR:
                         # n_test_skipped above), do not score it as a white
                         # win.
                         continue
-                    komi = extras.get("komi", 6.5)
+                    komi = extras.get("komi")  # None -> no komi (opt-in)
                     p_black = model._predict_black_win_probability(
                         black, white, handicap, komi
                     )
@@ -702,6 +712,7 @@ class WHR:
         winner: str,
         time_step: int,
         handicap: float,
+        komi: Any = None,
         extras: dict[str, Any] | None = None,
     ) -> Game:
         """Creates a new game to be added to the base.
@@ -709,25 +720,35 @@ class WHR:
         Args:
             black (str): The name of the black player.
             white (str): The name of the white player.
-            winner (str): "B" if black won, "W" if white won.
+            winner (str): "B" if black won, "W" if white won, "D" for a draw.
             time_step (int): The day of the match from the origin.
             handicap (float): The handicap category key (e.g. a stone count).
                 Its advantage is estimated from the data (or pinned to a
                 known elo value via the ``pinned_handicap`` config), not a
                 fixed elo amount itself — see "Handicap and komi" in the
                 README.
-            extras (dict[str, Any] | None, optional): Extra parameters.
+            komi (Any, optional): The komi category key (a white-side
+                advantage). **Opt-in**: ``None`` (the default) models no komi at
+                all — nothing is estimated. Pass a value (e.g. ``6.5``) to have
+                that komi category's advantage estimated (or pinned via
+                ``pinned_komi``). Prior to 3.1.0 a komi of ``6.5`` was assumed
+                and estimated for every game; pass ``komi=6.5`` to reproduce
+                that.
+            extras (dict[str, Any] | None, optional): Extra per-game metadata.
+                A ``"komi"`` entry here is still honoured (equivalent to the
+                ``komi`` argument) for backward compatibility.
 
         Returns:
             Game: The newly added game.
         """
-        if extras is None:
-            extras = {}
+        extras = dict(extras) if extras else {}
+        if komi is not None:
+            extras["komi"] = komi
         if self.config["uncased"]:
             black = black.lower()
             white = white.lower()
         game = self._setup_game(black, white, winner, time_step, handicap, extras)
-        self._ensure_advantage_keys(game.handicap, game.extras["komi"])
+        self._ensure_advantage_keys(game.handicap, game.extras.get("komi"))
         return self._add_game(game)
 
     def _add_game(self, game: Game) -> Game:
@@ -1250,7 +1271,9 @@ class WHR:
             if self.config["uncased"]:
                 black, white = black.lower(), white.lower()
 
-            self.create_game(black, white, winner, int(time_step), handicap, extras)
+            self.create_game(
+                black, white, winner, int(time_step), handicap, extras=extras
+            )
 
     def save_base(self, path: str) -> None:
         """Saves the current state of the base to a specified path.
@@ -1362,11 +1385,13 @@ class WHR:
             for game in result.games:
                 game.handicap_gamma = result.handicap_gamma
                 game.komi_gamma = result.komi_gamma
-                result._ensure_advantage_keys(game.handicap, game.extras["komi"])
+                result._ensure_advantage_keys(game.handicap, game.extras.get("komi"))
             return result
         result = WHR(data["config"])
         for black, white, winner, time_step, handicap, extras in data["games"]:
-            result.create_game(black, white, winner, time_step, handicap, extras)
+            # extras carries komi (when set); pass it by keyword since `komi`
+            # now precedes `extras` in create_game's signature.
+            result.create_game(black, white, winner, time_step, handicap, extras=extras)
         result.handicap_gamma.update(data.get("handicap_gamma", {}))
         result.komi_gamma.update(data.get("komi_gamma", {}))
         for name, days in data["ratings"].items():

@@ -30,7 +30,7 @@ whr = WHR()
 
 ### Creating Games
 
-Add games to the system using `create_game()` method. It takes the names of the black and white players, the winner (`"B"` black, `"W"` white, or `"D"` draw), the day number, a `handicap` key, and optional `extras`.
+Add games to the system using `create_game()` method. It takes the names of the black and white players, the winner (`"B"` black, `"W"` white, or `"D"` draw), the day number, a `handicap` key, and an optional `komi` key.
 
 ```python
 whr.create_game("shusaku", "shusai", "B", 1, 0)
@@ -40,11 +40,13 @@ whr.create_game("shusaku", "shusai", "W", 3, 0)
 
 - `handicap` is a **category key**, not a fixed elo bonus — its advantage is learned from the data (or pinned). See "Handicap and komi" below; use `0` for an even game. (This changed in 3.0.0 — in 2.x it was a raw elo constant.)
 - `"D"` records a draw — see "Draws".
-- `extras` is an optional dict; its `komi` entry (default `6.5`) is the white-side category key. Pass a per-game komi like this:
+- `komi` is **opt-in** (as of 3.1.0): the default `None` models no komi at all. Pass a value to model a white-side (komi) advantage for that game, whose category is learned like the handicap:
 
 ```python
-whr.create_game("shusaku", "shusai", "B", 1, 0, extras={"komi": 7.5})
+whr.create_game("shusaku", "shusai", "B", 1, 0, komi=7.5)
 ```
+
+(An `extras={"komi": …}` dict is still accepted for backward compatibility. Before 3.1.0 a komi of `6.5` was assumed for every game and estimated; pass `komi=6.5` to reproduce that.)
 
 
 ### Refining Ratings Towards Stability
@@ -388,7 +390,7 @@ This step is opt-in: it does not run automatically and does not change what `ite
 
 ### Handicap and komi
 
-Every game carries a `handicap` key (the `handicap` argument to `create_game`/`load_games`) and a `komi` key (`extras['komi']`, default `6.5`). Handicap boosts **black**; komi boosts **white**. Rather than a fixed elo constant, each distinct key is a Bradley-Terry *category*: its advantage, in elo, is a parameter co-estimated alongside the player ratings on every iteration (a faithful port of Coulom's `NewtonKomiHandicap`), and is readable at any time from `whr.handicap_gamma` / `whr.komi_gamma` — dicts mapping each key to its estimated gamma (convert to elo with `400 * log10(gamma)`).
+Every game carries a `handicap` key (the `handicap` argument to `create_game`/`load_games`) and an optional `komi` key (the `komi` argument — **opt-in since 3.1.0**: `None`/absent means the game has no komi and none is estimated). Handicap boosts **black**; komi boosts **white**. Rather than a fixed elo constant, each distinct key is a Bradley-Terry *category*: its advantage, in elo, is a parameter co-estimated alongside the player ratings on every iteration (a faithful port of Coulom's `NewtonKomiHandicap`), and is readable at any time from `whr.handicap_gamma` / `whr.komi_gamma` — dicts mapping each key to its estimated gamma (convert to elo with `400 * log10(gamma)`).
 
 The `handicap` key `0` (no handicap) is a pinned no-advantage baseline (gamma `1.0`, i.e. `0` elo) by default and is never moved by estimation — this resolves an identifiability confound between the black/white baseline and the komi advantage. Set `estimate_handicap_zero=True` if you want it estimated instead.
 
@@ -401,11 +403,11 @@ whr.create_game("weaker", "stronger", "B", 1, 2)
 
 Pinning a handicap key to its known elo value reproduces the fixed-elo handicap behaviour of earlier versions of this library (see below).
 
-The same mechanism generalises beyond Go: if every game shares a single komi key (e.g. all games use the default `6.5`, or you set a constant key of your own choosing), `komi_gamma` for that key becomes a single learned **white/side advantage** — the colour advantage in chess, or a home advantage in other sports. No Go-specific assumption is involved.
+The same mechanism generalises beyond Go: if every game shares a single komi key (pass the same `komi=` value — e.g. `komi="side"` — to each game), `komi_gamma` for that key becomes a single learned **white/side advantage** — the colour advantage in chess, or a home advantage in other sports. No Go-specific assumption is involved. (For a home advantage you may instead prefer a `handicap` key on the home player.)
 
 **This changes the meaning of `handicap` versus earlier versions**, where it was a fixed elo bonus added directly to black's elo. It is now a category label whose advantage is learned (or pinned). If you relied on the old fixed-elo behaviour, pin every handicap value you use, e.g. `WHR({'pinned_handicap': {h: elo_value, ...}})` for each handicap `h` your data contains.
 
-**Caveat — don't estimate what your data can't support.** Estimating a handicap/komi advantage well requires enough games where player strengths and colours are reasonably balanced (as in the recovery tests: many games, colours swapped, roughly even overall). With a small or skewed sample, the estimated advantage — especially komi, since most games share the same default komi key — can silently absorb what is really just a player-strength difference (e.g. if white happens to be the stronger player more often in your data, `komi_gamma` will drift up to explain it instead of the player ratings doing so). If you don't have enough data to support estimating it, pin the value to disable estimation, e.g. `WHR({'pinned_komi': {6.5: 0}})`.
+**Caveat — don't estimate what your data can't support.** Estimating a handicap/komi advantage well requires enough games where player strengths and colours are reasonably balanced (as in the recovery tests: many games, colours swapped, roughly even overall). With a small or skewed sample, the estimated advantage can silently absorb what is really just a player-strength difference (e.g. if the stronger player is disproportionately one colour in your data, a shared komi/side key will drift to explain it instead of the player ratings doing so). If you don't have enough data to support estimating it, simply don't pass a `komi` (opt-in — the default), or pin a known value to disable estimation, e.g. `WHR({'pinned_komi': {"side": 0}})`.
 
 **Note — `probability_future_match`'s `handicap` is not this mechanism (but its `handicap_key`/`komi_key` are).** The positional `handicap` argument is a raw elo adjustment that shifts the effective elo gap in name1's favour for a what-if query; it is *not* a category key and applies no learned advantage. To have a prediction reflect the estimated advantages, pass the category keys explicitly via `handicap_key` (favouring name1, the black role) and/or `komi_key` (favouring name2, the white role); their learned/pinned gammas are then folded in exactly as in a real game, and any raw `handicap` elo stacks on top. Unseen keys default to no advantage.
 
