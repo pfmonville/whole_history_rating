@@ -792,6 +792,60 @@ class WHR:
                 applied[pd.day] = correction_elo
         return applied
 
+    def _match_player_days(
+        self, name1: str, name2: str
+    ) -> tuple[Player | None, Player | None, float, float, float, float]:
+        """Resolves two players by name for a hypothetical match, without
+        creating persistent entries (a pure query).
+
+        Returns ``(player1, player2, bpd_gamma, bpd_elo, wpd_gamma, wpd_elo)``:
+        the two ``Player`` objects (``None`` if unknown) and, from each
+        player's last day, the gamma and elo used as black (name1) / white
+        (name2) respectively. Unknown or unrated players default to
+        gamma=1.0, elo=0.0 (an even reference).
+
+        Raises:
+            AttributeError: If name1 and name2 are equal.
+        """
+        if self.config["uncased"]:
+            name1 = name1.lower()
+            name2 = name2.lower()
+        if name1 == name2:
+            raise AttributeError("Invalid game (black == white)")
+        player1 = self._existing_player(name1)
+        player2 = self._existing_player(name2)
+        bpd_gamma = 1.0
+        bpd_elo = 0.0
+        wpd_gamma = 1.0
+        wpd_elo = 0.0
+        if player1 is not None and len(player1.days) > 0:
+            bpd = player1.days[-1]
+            bpd_gamma = bpd.gamma()
+            bpd_elo = bpd.elo
+        if player2 is not None and len(player2.days) > 0:
+            wpd = player2.days[-1]
+            wpd_gamma = wpd.gamma()
+            wpd_elo = wpd.elo
+        return player1, player2, bpd_gamma, bpd_elo, wpd_gamma, wpd_elo
+
+    def _resolve_advantage_gammas(
+        self, handicap_key: Any, komi_key: Any
+    ) -> tuple[float, float]:
+        """Resolves the (handicap, komi) category-key advantage gammas.
+
+        Unseen or omitted (``None``) keys default to gamma 1.0 (no
+        advantage).
+
+        Raises:
+            AttributeError: If a supplied key resolves to a non-finite or
+                non-positive gamma.
+        """
+        gh = 1.0 if handicap_key is None else self.handicap_gamma.get(handicap_key, 1.0)
+        gk = 1.0 if komi_key is None else self.komi_gamma.get(komi_key, 1.0)
+        if not math.isfinite(gh) or gh <= 0 or not math.isfinite(gk) or gk <= 0:
+            raise AttributeError("bad advantage gamma")
+        return gh, gk
+
     def probability_future_match(
         self,
         name1: str,
@@ -863,26 +917,9 @@ class WHR:
                 ``uncertainty_steps`` is less than 1.
         """
         # Avoid self-played games (no info)
-        if self.config["uncased"]:
-            name1 = name1.lower()
-            name2 = name2.lower()
-        if name1 == name2:
-            raise AttributeError("Invalid game (black == white)")
-        # Pure query: look players up without creating persistent entries.
-        player1 = self._existing_player(name1)
-        player2 = self._existing_player(name2)
-        bpd_gamma = 1.0
-        bpd_elo = 0.0
-        wpd_gamma = 1.0
-        wpd_elo = 0.0
-        if player1 is not None and len(player1.days) > 0:
-            bpd = player1.days[-1]
-            bpd_gamma = bpd.gamma()
-            bpd_elo = bpd.elo
-        if player2 is not None and len(player2.days) > 0:
-            wpd = player2.days[-1]
-            wpd_gamma = wpd.gamma()
-            wpd_elo = wpd.elo
+        player1, player2, bpd_gamma, bpd_elo, wpd_gamma, wpd_elo = (
+            self._match_player_days(name1, name2)
+        )
         if handicap_key is None and komi_key is None:
             # Backward-compatible raw-elo path (byte-identical to prior
             # releases): no learned advantages are consulted.
@@ -898,14 +935,7 @@ class WHR:
             # ``Game.opponents_adjusted_gamma`` does (handicap boosts black =
             # name1, komi boosts white = name2), and stack the raw
             # ``handicap`` elo shift on top as a further name1 boost.
-            gh = (
-                1.0
-                if handicap_key is None
-                else self.handicap_gamma.get(handicap_key, 1.0)
-            )
-            gk = 1.0 if komi_key is None else self.komi_gamma.get(komi_key, 1.0)
-            if not math.isfinite(gh) or gh <= 0 or not math.isfinite(gk) or gk <= 0:
-                raise AttributeError("bad advantage gamma")
+            gh, gk = self._resolve_advantage_gammas(handicap_key, komi_key)
             h_shift = 10 ** (handicap / 400.0)
             opponent_of_name1 = wpd_gamma * gk / gh / h_shift
             opponent_of_name2 = bpd_gamma * gh / gk * h_shift
@@ -938,6 +968,65 @@ class WHR:
             total_weight += weight
         p1 = integral / total_weight
         return p1, 1.0 - p1
+
+    def win_draw_loss_probabilities(
+        self,
+        name1: str,
+        name2: str,
+        handicap: float = 0,
+        handicap_key: Any = None,
+        komi_key: Any = None,
+    ) -> tuple[float, float, float]:
+        """(P(name1 wins), P(draw), P(name2 wins)) for a hypothetical match,
+        under the fitted Davidson model.
+
+        name1 plays the black role and name2 the white role, matching
+        ``create_game(black, white, ...)``. The player lookup and the
+        handicap/komi advantage handling are identical to
+        ``probability_future_match`` (see its docstring for the full
+        semantics of ``handicap``, ``handicap_key``, and ``komi_key``).
+
+        The two players' effective gammas ``s1`` (name1) and ``s2`` (name2)
+        at their last day are combined with the fitted draw tendency
+        ``self.nu`` (Davidson's model): ``t = nu * sqrt(s1 * s2)``,
+        ``z = s1 + s2 + t``, giving ``(s1/z, t/z, s2/z)``. When ``nu == 0``
+        (no draws observed/fitted), ``t == 0``, the draw probability is 0,
+        and the win/loss pair reduces to the Bradley-Terry split used by
+        ``probability_future_match``.
+
+        Args:
+            name1 (str): The name of the first (black) player.
+            name2 (str): The name of the second (white) player.
+            handicap (float, optional): A raw elo adjustment favouring name1,
+                as in ``probability_future_match``.
+            handicap_key (Any, optional): A handicap category key whose
+                learned/pinned advantage gamma is folded in, as in
+                ``probability_future_match``.
+            komi_key (Any, optional): A komi category key whose
+                learned/pinned advantage gamma is folded in, as in
+                ``probability_future_match``.
+
+        Returns:
+            tuple[float, float, float]: ``(P(name1 wins), P(draw), P(name2
+            wins))``, non-negative and summing to 1. Unknown players are
+            treated as an even (gamma = 1) reference without being added to
+            the base.
+
+        Raises:
+            AttributeError: Raised if name1 and name2 are equal, or if a
+                supplied category key resolves to a non-finite/non-positive
+                advantage gamma.
+        """
+        _player1, _player2, bpd_gamma, _bpd_elo, wpd_gamma, _wpd_elo = (
+            self._match_player_days(name1, name2)
+        )
+        gh, gk = self._resolve_advantage_gammas(handicap_key, komi_key)
+        h_shift = 10 ** (handicap / 400.0)
+        s1 = bpd_gamma * gh * h_shift
+        s2 = wpd_gamma * gk
+        t = self.nu * math.sqrt(s1 * s2)
+        z = s1 + s2 + t
+        return s1 / z, t / z, s2 / z
 
     def _newton_draw(self) -> None:
         """One Newton step on the global draw tendency nu (Davidson), in log-nu

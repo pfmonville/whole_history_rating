@@ -255,3 +255,23 @@ def test_no_draw_iteration_still_matches_baseline():
     assert w.nu == 0.0
     elo, _ = w.ratings_for_player("a", current=True)
     assert math.isfinite(elo)
+
+
+def test_win_draw_loss_sums_to_one_and_reflects_nu():
+    rng = random.Random(3)
+    w = _davidson_balanced_history(rng, 1.5, n_pairs=20, n_games=40)
+    w.iterate(60)
+    p1, pd, p2 = w.win_draw_loss_probabilities("a0", "b0")
+    assert p1 + pd + p2 == pytest.approx(1.0)
+    assert all(p >= 0.0 for p in (p1, pd, p2))
+    assert pd > 0.05  # meaningful draw mass with nu ~ 1.5
+
+
+def test_win_draw_loss_no_draws_gives_zero_draw():
+    w = WHR()
+    for d in range(1, 6):
+        w.create_game("a", "b", "B", d, 0)
+    w.iterate(20)
+    p1, pd, p2 = w.win_draw_loss_probabilities("a", "b")
+    assert pd == pytest.approx(0.0)
+    assert p1 + p2 == pytest.approx(1.0)
