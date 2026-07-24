@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from whr.whole_history_rating import WHR
@@ -66,3 +68,35 @@ def test_draws_do_not_inflate_komi_gamma():
     w.create_game("a", "b", "D", 1, 0)
     w.iterate(50)
     assert abs(w.komi_gamma[6.5] - 1.0) < 0.1
+
+
+def test_davidson_derivatives_match_closed_form():
+    w = WHR()
+    g = w.create_game("a", "b", "D", 1, 0)  # a draw on day 1
+    a_day = w.player_by_name("a").days[0]
+    a_day.set_gamma(2.0)
+    w.player_by_name("b").days[0].set_gamma(1.0)
+    nu = 1.5
+    s, o = g.effective_gammas(a_day.player)  # S=2, O=1 (no advantages)
+    t = nu * math.sqrt(s * o)
+    z = s + o + t
+    n = s + t / 2.0
+    n_prime = s + t / 4.0
+    w_weight = 0.5  # draw
+    exp_grad = w_weight - n / z
+    exp_hess = (n / z) ** 2 - n_prime / z
+    grad, hess = a_day.davidson_derivatives(nu)
+    assert grad == pytest.approx(exp_grad)
+    assert hess == pytest.approx(exp_hess)
+
+
+def test_davidson_reduces_to_bt_at_nu_zero():
+    # Same win/loss data, compute the day's game-part gradient both ways at nu=0.
+    w = WHR()
+    w.create_game("a", "b", "B", 1, 0)  # a (black) won
+    a_day = w.player_by_name("a").days[0]
+    a_day.set_gamma(2.0)
+    w.player_by_name("b").days[0].set_gamma(1.0)
+    davidson_grad, davidson_hess = a_day.davidson_derivatives(0.0)
+    assert davidson_grad == pytest.approx(a_day.log_likelihood_derivative())
+    assert davidson_hess == pytest.approx(a_day.log_likelihood_second_derivative())

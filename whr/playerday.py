@@ -156,6 +156,33 @@ class PlayerDay:
         else:
             self.lost_games.append(game)
 
+    def _weighted_games(self):
+        """Yield (game, outcome_weight): 1.0 won, 0.0 lost, 0.5 drawn."""
+        for g in self.won_games:
+            yield g, 1.0
+        for g in self.lost_games:
+            yield g, 0.0
+        for g in self.drawn_games:
+            yield g, 0.5
+
+    def davidson_derivatives(self, nu: float) -> tuple[float, float]:
+        """(gradient, Hessian) of this day's game log-likelihood under Davidson.
+
+        Reduces to the plain Bradley-Terry win/loss derivatives at nu=0.
+        """
+        gradient = 0.0
+        hessian = 0.0
+        for game, weight in self._weighted_games():
+            s, o = game.effective_gammas(self.player)
+            t = nu * math.sqrt(s * o)
+            z = s + o + t
+            n = s + t / 2.0
+            n_prime = s + t / 4.0
+            ratio = n / z
+            gradient += weight - ratio
+            hessian += ratio * ratio - n_prime / z
+        return gradient, hessian
+
     def update_by_1d_newtons_method(self) -> None:
         """Updates the player's rating using one-dimensional Newton's method.
 
@@ -164,11 +191,12 @@ class PlayerDay:
         players, so a single-day player is damped consistently with the
         covariance computation that reads back through ``Player.hessian``.
         """
-        dlogp = self.log_likelihood_derivative() + self.anchor_gradient()
-        d2logp = (
-            self.log_likelihood_second_derivative()
-            + self.anchor_hessian()
-            - self.player.hessian_damping
-        )
+        if self.player.draw_tendency > 0.0:
+            game_grad, game_hess = self.davidson_derivatives(self.player.draw_tendency)
+        else:
+            game_grad = self.log_likelihood_derivative()
+            game_hess = self.log_likelihood_second_derivative()
+        dlogp = game_grad + self.anchor_gradient()
+        d2logp = game_hess + self.anchor_hessian() - self.player.hessian_damping
         dr = dlogp / d2logp
         self.r = self.r - dr

@@ -62,9 +62,12 @@ class Player:
                 prior += -1 / sigma2[row]
             if row > 0:
                 prior += -1 / sigma2[row - 1]
-            diagonal[row] = (
-                days[row].log_likelihood_second_derivative() + prior - damping
-            )
+            player = days[row].player
+            if player.draw_tendency > 0.0:
+                _, game_hess = days[row].davidson_derivatives(player.draw_tendency)
+            else:
+                game_hess = days[row].log_likelihood_second_derivative()
+            diagonal[row] = game_hess + prior - damping
         diagonal[0] += days[0].anchor_hessian()
         for i in range(n - 1):
             sub_diagonal[i] = 1 / sigma2[i]
@@ -91,7 +94,11 @@ class Player:
                 prior += -(r[idx] - r[idx + 1]) / sigma2[idx]
             if idx > 0:
                 prior += -(r[idx] - r[idx - 1]) / sigma2[idx - 1]
-            term = day.log_likelihood_derivative() + prior
+            if self.draw_tendency > 0.0:
+                game_grad, _ = day.davidson_derivatives(self.draw_tendency)
+            else:
+                game_grad = day.log_likelihood_derivative()
+            term = game_grad + prior
             if idx == 0:
                 term += day.anchor_gradient()
             g.append(term)
