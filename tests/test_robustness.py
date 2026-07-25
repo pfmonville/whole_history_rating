@@ -196,3 +196,41 @@ def test_auto_iterate_converges_on_gradient_norm():
     assert converged is True
     assert iterations > 0
     assert w.max_gradient_norm() < 1e-2
+
+
+def test_uncertainty_integrated_three_outcome_does_not_overflow():
+    # Regression: the uncertainty-integrated win/draw/loss path exponentiates
+    # the half-gap ``h = d/2``, so an extreme rating gap (or a modest gap plus a
+    # huge sigma) could push ``math.exp(h)`` past the double range and raise
+    # ``OverflowError: math range error`` -- for a matchup the *point* path
+    # returns fine. An opt-in flag must not introduce a new failure mode, so the
+    # half-gap is clamped to a range where the split is already saturated to
+    # full double precision.
+    w = whole_history_rating.WHR()
+    w.create_game("a", "b", "D", 1, 0)
+    w.create_game("a", "b", "B", 1, 0)
+    w.iterate(20)
+    day_a = w.player_by_name("a").days[-1]
+    day_b = w.player_by_name("b").days[-1]
+    day_a.set_gamma(math.exp(709))  # largest representable gamma
+    day_b.set_gamma(5e-324)  # smallest positive subnormal
+    day_a.uncertainty = 0.4
+    day_b.uncertainty = 0.4
+
+    point = w.win_draw_loss_probabilities("a", "b")
+    integrated = w.win_draw_loss_probabilities("a", "b", account_for_uncertainty=True)
+
+    assert all(math.isfinite(p) and p >= 0.0 for p in integrated)
+    assert sum(integrated) == pytest.approx(1.0)
+    # a ~1453-nat gap is saturated: both paths agree that "a" wins, near-surely
+    assert point[0] == 1.0
+    assert integrated[0] == 1.0
+
+    # a plausible gap with an implausibly large sigma must also stay finite
+    day_a.set_gamma(math.exp(600.0))
+    day_b.set_gamma(math.exp(-600.0))
+    day_a.uncertainty = 5000.0
+    day_b.uncertainty = 5000.0
+    wide = w.win_draw_loss_probabilities("a", "b", account_for_uncertainty=True)
+    assert all(math.isfinite(p) and p >= 0.0 for p in wide)
+    assert sum(wide) == pytest.approx(1.0)

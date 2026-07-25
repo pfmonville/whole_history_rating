@@ -93,6 +93,25 @@ methods cannot drift apart on the parts that must agree:
 `probability_future_match`'s arithmetic is unchanged by the extraction; its
 results stay byte-identical.
 
+### Overflow clamp (found during implementation)
+
+Step 5 exponentiates the half-gap `h = d/2`. `math.exp` overflows just above
+`709.78`, and `e^h + e^-h + nu` needs headroom on top, so a large enough gap
+raised `OverflowError: math range error` on a matchup the *point* path returned
+fine — the same failure class as the 3.0.1 advantage-step fix. Reproduced with
+`s1 = exp(709)`, `s2 = 5e-324` (a ~1453-nat gap): point returned
+`(1.0, 6.35e-316, 0.0)`, integrated raised.
+
+An opt-in flag must not add a failure mode, so `h` is clamped to
+`±_MAX_HALF_GAP = 700`. At that magnitude the split is already `(1, 0, 0)` to
+full double precision (`h = 700` is ~486,000 elo), so the clamp changes no
+prediction that carries information, and it leaves the arithmetic bit-identical
+throughout the useful range — including the exact `nu == 0` agreement above.
+A clamp rather than a log-sum-exp rewrite specifically to preserve that exact
+agreement: the stable rewrite computes `e^d/(1+e^d)` instead of
+`1/(1+e^-d)` for negative gaps, which is mathematically equal but not
+bit-identical, and would have downgraded the cross-path test to approximate.
+
 ## Hedging direction — what is actually true
 
 The intuition "uncertainty moves mass toward the neutral split" is *not*
@@ -150,7 +169,25 @@ to notice it broke them:
 
 Cross-path equivalence:
 
-- At `nu == 0`, the integrated `(win, loss)` pair equals
-  `probability_future_match(..., account_for_uncertainty=True)`.
+- At `nu == 0`, the integrated win probability equals
+  `probability_future_match(..., account_for_uncertainty=True)`'s bit-for-bit.
+  The loss probability agrees only to float precision, because that method
+  returns the forced complement `1.0 - p1` while this one integrates the loss
+  independently — the asymmetry is the point, so the test asserts exactness on
+  the win and `abs=1e-15` on the loss rather than hiding it.
+
+Robustness (`tests/test_robustness.py`):
+
+- An extreme rating gap, and a plausible gap with an implausible sigma, both
+  return a finite normalised triple instead of raising `OverflowError`.
 
 Coverage stays at or above the `--cov-fail-under=95` gate.
+
+## Verification
+
+Beyond the suite, backward compatibility was checked directly rather than
+inferred: both predictors were dumped as exact float hex over a 4332-case grid
+(3 seeds x draws/no-draws x keys/no-keys x 6 name pairs including unknown
+players x 3 handicaps x 4 key combinations x flag on/off x 3 step counts) under
+this branch and under `HEAD`, and the outputs are **bit-identical**. Every line
+of the new code and helpers is covered.

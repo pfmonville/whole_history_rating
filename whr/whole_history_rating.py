@@ -23,6 +23,13 @@ _MAX_DRIFT_DAY_SPAN = 1_000_000
 # elo = 400/ln(10) * r.
 _ELO_PER_NAT = 400.0 / math.log(10)
 
+# Largest half-gap h = (r1 - r2)/2, in nats, that the uncertainty-integrated
+# Davidson predictor exponentiates. math.exp overflows just above 709.78, and
+# the sum e^h + e^-h + nu needs headroom on top; 700 leaves that while being
+# far beyond the point where the win/draw/loss split has already saturated to
+# (1, 0, 0) in double precision (h = 700 is ~486,000 elo).
+_MAX_HALF_GAP = 700.0
+
 # Trust-region cap on a single handicap/komi/draw-tendency Newton step, in
 # natural-log (log-gamma / log-nu) units. The scalar advantage updates take a
 # step of the form ``value *= exp(-grad / hess)``; a degenerate or
@@ -980,6 +987,52 @@ class WHR:
             raise AttributeError("bad advantage gamma")
         return gh, gk
 
+    @staticmethod
+    def _prediction_sigma(player1: Player | None, player2: Player | None) -> float:
+        """Standard deviation of the two players' rating *gap*, in natural
+        (``r``) units, for an uncertainty-integrated prediction.
+
+        Uses the independence approximation ``Var(r1 - r2) ~= Var(r1) +
+        Var(r2)`` (Coulom's, since WHR computes no cross-player covariance).
+        Unknown or dayless players contribute 0, and each per-day variance is
+        clamped at 0 because ``uncertainty`` is ``-1`` before ``iterate()``
+        runs. A return of 0.0 means "nothing to integrate over" and callers
+        short-circuit to the point estimate.
+
+        Shared by ``probability_future_match`` and
+        ``win_draw_loss_probabilities`` so the two predictors can never
+        disagree on the width of the Gaussian they hedge over.
+        """
+        var1 = player1.days[-1].uncertainty if (player1 and player1.days) else 0.0
+        var2 = player2.days[-1].uncertainty if (player2 and player2.days) else 0.0
+        return math.sqrt(max(var1, 0.0) + max(var2, 0.0))
+
+    @staticmethod
+    def _gaussian_quadrature(uncertainty_steps: int) -> list[tuple[float, float]]:
+        """The ``(x, weight)`` nodes of the unnormalised Gaussian quadrature
+        grid used by the uncertainty-integrated predictors: nodes at
+        ``x_i = 0.5 * i`` for ``i`` in ``-steps..steps`` (so the grid spans
+        +/-0.5 * uncertainty_steps standard deviations) with weights
+        ``exp(-x^2 / 2)``.
+
+        Returns a list rather than a generator so that an invalid
+        ``uncertainty_steps`` is rejected when the grid is requested, not
+        lazily when a caller first iterates it.
+
+        Weights are deliberately left unnormalised; callers divide by their
+        accumulated total, which is what makes a set of per-node outcome
+        probabilities summing to 1 average to exactly 1.
+
+        Raises:
+            ValueError: If ``uncertainty_steps`` is less than 1.
+        """
+        if uncertainty_steps < 1:
+            raise ValueError("uncertainty_steps must be >= 1")
+        return [
+            (0.5 * i, math.exp(-((0.5 * i) ** 2) / 2.0))
+            for i in range(-uncertainty_steps, uncertainty_steps + 1)
+        ]
+
     def probability_future_match(
         self,
         name1: str,
@@ -1078,14 +1131,8 @@ class WHR:
         if not account_for_uncertainty:
             return player1_proba, player2_proba
 
-        if uncertainty_steps < 1:
-            raise ValueError("uncertainty_steps must be >= 1")
-
-        var1 = player1.days[-1].uncertainty if (player1 and player1.days) else 0.0
-        var2 = player2.days[-1].uncertainty if (player2 and player2.days) else 0.0
-        var1 = max(var1, 0.0)  # uncertainty is -1 before iterate()
-        var2 = max(var2, 0.0)
-        sigma = math.sqrt(var1 + var2)
+        nodes = self._gaussian_quadrature(uncertainty_steps)
+        sigma = self._prediction_sigma(player1, player2)
         if sigma == 0.0:
             return player1_proba, player2_proba
 
@@ -1094,9 +1141,7 @@ class WHR:
         delta_r = math.log(p1c / (1.0 - p1c))  # logit of the point probability
         total_weight = 0.0
         integral = 0.0
-        for i in range(-uncertainty_steps, uncertainty_steps + 1):
-            x = 0.5 * i
-            weight = math.exp(-x * x / 2.0)
+        for x, weight in nodes:
             integral += weight / (1.0 + math.exp(-(delta_r + sigma * x)))
             total_weight += weight
         p1 = integral / total_weight
@@ -1109,6 +1154,8 @@ class WHR:
         handicap: float = 0,
         handicap_key: Any = None,
         komi_key: Any = None,
+        account_for_uncertainty: bool = False,
+        uncertainty_steps: int = 4,
     ) -> tuple[float, float, float]:
         """(P(name1 wins), P(draw), P(name2 wins)) for a hypothetical match,
         under the fitted Davidson model.
@@ -1138,6 +1185,45 @@ class WHR:
             komi_key (Any, optional): A komi category key whose
                 learned/pinned advantage gamma is folded in, as in
                 ``probability_future_match``.
+            account_for_uncertainty (bool, optional): When ``False`` (default,
+                backward-compatible), returns the point estimate computed from
+                the players' current ratings only. When ``True``, integrates
+                all three outcome probabilities over the Gaussian implied by
+                the players' rating variances -- the three-outcome counterpart
+                of ``probability_future_match``'s Coulom ``Predict``. See the
+                note on hedging direction below: the effect is a compression of
+                the win/loss odds, NOT a move toward an even three-way split.
+            uncertainty_steps (int, optional): Number of quadrature steps on
+                each side of the integration grid, as in
+                ``probability_future_match``; the grid spans +/-0.5 *
+                uncertainty_steps standard deviations (nodes at x_i = 0.5*i).
+                Ignored when ``account_for_uncertainty`` is ``False``. Defaults
+                to 4. Must be >= 1 when ``account_for_uncertainty`` is ``True``.
+
+        Dividing the Davidson split through by ``sqrt(s1 * s2)`` shows that all
+        three outcomes depend on the ratings only through the scalar gap
+        ``d = ln(s1) - ln(s2)``::
+
+            P(win) = e^(d/2) / Z,  P(draw) = nu / Z,  P(loss) = e^(-d/2) / Z
+            with Z = e^(d/2) + e^(-d/2) + nu
+
+        so ``account_for_uncertainty=True`` integrates that single scalar over
+        ``d ~ N(d_hat, sigma^2)`` with ``sigma^2 = Var(r1) + Var(r2)``, on the
+        same grid ``probability_future_match`` uses. Because every node
+        contributes a triple summing to 1, the weighted average sums to 1
+        identically -- normalisation is a property of the quadrature, not a
+        renormalisation step. At ``nu == 0`` the resulting ``(win, loss)`` pair
+        is exactly ``probability_future_match(..., account_for_uncertainty=True)``.
+
+        Note on hedging direction: uncertainty compresses the win/loss odds
+        ``P(win)/P(loss)`` toward 1 and never lowers the underdog's
+        probability, but it does NOT simply move mass toward the draw or toward
+        an even split. Davidson's draw curve ``nu/(2*cosh(d/2) + nu)`` is
+        concave near ``d == 0`` and convex in the tails, so spreading ``d``
+        *drains* the draw for a near-even matchup and *feeds* it for a lopsided
+        one. Consequently a barely-favoured player's win probability can rise
+        (the drained draw mass splits to both sides); only a clear favourite's
+        falls.
 
         Returns:
             tuple[float, float, float]: ``(P(name1 wins), P(draw), P(name2
@@ -1149,17 +1235,51 @@ class WHR:
             AttributeError: Raised if name1 and name2 are equal, or if a
                 supplied category key resolves to a non-finite/non-positive
                 advantage gamma.
+            ValueError: Raised if ``account_for_uncertainty`` is ``True`` and
+                ``uncertainty_steps`` is less than 1.
         """
-        _player1, _player2, bpd_gamma, _bpd_elo, wpd_gamma, _wpd_elo = (
+        player1, player2, bpd_gamma, _bpd_elo, wpd_gamma, _wpd_elo = (
             self._match_player_days(name1, name2)
         )
         gh, gk = self._resolve_advantage_gammas(handicap_key, komi_key)
         h_shift = 10 ** (handicap / 400.0)
         s1 = bpd_gamma * gh * h_shift
         s2 = wpd_gamma * gk
-        t = self.nu * math.sqrt(s1 * s2)
+        nu = self.nu
+        t = nu * math.sqrt(s1 * s2)
         z = s1 + s2 + t
-        return s1 / z, t / z, s2 / z
+        if not account_for_uncertainty:
+            return s1 / z, t / z, s2 / z
+
+        nodes = self._gaussian_quadrature(uncertainty_steps)
+        sigma = self._prediction_sigma(player1, player2)
+        if sigma == 0.0:
+            return s1 / z, t / z, s2 / z
+
+        # Integrate the split over the Gaussian on the rating gap d, working in
+        # the half-gap h = d/2 so both exponentials stay the same magnitude.
+        #
+        # h is clamped to +/-_MAX_HALF_GAP because an extreme gap (or a modest
+        # gap with a huge sigma) would otherwise overflow math.exp, raising
+        # where the point-estimate path returns fine. At the clamp the split is
+        # already (1, 0, 0) to full double precision, so this is invisible for
+        # every gap that carries information -- and leaves the arithmetic
+        # untouched in the entire useful range, including the exact agreement
+        # with ``probability_future_match`` at nu == 0.
+        d_hat = math.log(s1) - math.log(s2)
+        total_weight = 0.0
+        win = draw = loss = 0.0
+        for x, weight in nodes:
+            h = 0.5 * (d_hat + sigma * x)
+            h = max(-_MAX_HALF_GAP, min(_MAX_HALF_GAP, h))
+            e_win = math.exp(h)
+            e_loss = math.exp(-h)
+            node_z = e_win + e_loss + nu
+            win += weight * e_win / node_z
+            draw += weight * nu / node_z
+            loss += weight * e_loss / node_z
+            total_weight += weight
+        return win / total_weight, draw / total_weight, loss / total_weight
 
     def _nu_gradient_hessian(self) -> tuple[float, float]:
         """(gradient, Hessian) of the global draw tendency nu (Davidson), in
