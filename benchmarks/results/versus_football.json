@@ -1,0 +1,59 @@
+{
+  "dataset": "football_big5",
+  "test_season": "2022-23",
+  "n_test": 1826,
+  "draw_rate_overall": 0.251589715233619,
+  "models": {
+    "whr": {
+      "log_loss": 1.008869673827301,
+      "accuracy": 0.5153340635268346,
+      "n": 1826,
+      "params": {
+        "w2": 30.0
+      },
+      "valid_log_loss": 1.008845365365821,
+      "grid_size": 7,
+      "on_grid_edge": {
+        "w2": false
+      },
+      "flat_axes": []
+    },
+    "ttt": {
+      "log_loss": 1.022831899895824,
+      "accuracy": 0.52026286966046,
+      "n": 1826,
+      "params": {
+        "gamma": 0.03,
+        "p_draw": 0.3
+      },
+      "valid_log_loss": 1.0306902949815167,
+      "grid_size": 20,
+      "on_grid_edge": {
+        "gamma": false,
+        "p_draw": false
+      },
+      "flat_axes": []
+    },
+    "kickscore": {
+      "log_loss": 1.0134357434570254,
+      "accuracy": 0.5153340635268346,
+      "n": 1826,
+      "params": {
+        "wiener_var": 0.0001,
+        "margin": 0.3
+      },
+      "valid_log_loss": 1.0225453970771194,
+      "grid_size": 21,
+      "on_grid_edge": {
+        "wiener_var": false,
+        "margin": false
+      },
+      "flat_axes": []
+    },
+    "base_rate": {
+      "log_loss": 1.0630247108973352,
+      "accuracy": 0.45728368017524645,
+      "n": 1826
+    }
+  }
+}

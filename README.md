@@ -15,46 +15,65 @@ pip install whole-history-rating
 
 ## How well does it actually work?
 
-WHR is benchmarked on the real datasets used by two well-known dynamic rating
-systems — [KickScore](https://github.com/lucasmaystre/kickscore) (NBA, football)
-and [TrueSkill Through Time](https://github.com/glandfried/TrueSkillThroughTime)
-(ATP tennis) — and scored with the metric each of them reports. Everything below
-is reproducible from [`benchmarks/`](benchmarks/); the full write-up, method and
-caveats are in [`benchmarks/REPORT.md`](benchmarks/REPORT.md).
+WHR is benchmarked against the two reference implementations it is usually
+compared to — [KickScore](https://github.com/lucasmaystre/kickscore) and
+[TrueSkill Through Time](https://github.com/glandfried/TrueSkillThroughTime) —
+by *actually running them*, on the same data, under the same protocol, scored
+with the same metric. Everything below is reproducible from
+[`benchmarks/`](benchmarks/); the full write-up, method and caveats are in
+[`benchmarks/REPORT.md`](benchmarks/REPORT.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/bench_comparison_dark.png">
-  <img alt="Predictive log-loss of WHR versus reference rating systems on NBA, ATP tennis and European football. WHR is within 0.02 nats of FiveThirtyEight's tuned NBA models, reaches 67% accuracy on held-out ATP matches, and its Davidson draw model beats a draw-blind ablation on football." src="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/bench_comparison_light.png">
+  <img alt="Predictive log-loss of WHR, KickScore and TrueSkill Through Time on NBA 2018-19, ATP tennis 2014 and European football 2022-23, all three fitted and scored identically. The three systems land within one to two percent of each other on every sport: KickScore leads the NBA, TrueSkill Through Time leads the tennis, and WHR leads the three-outcome football benchmark. FiveThirtyEight's published NBA probabilities beat all three." src="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/bench_comparison_light.png">
 </picture>
 
-Every figure is fitted **only on games played before the test season**, and the
-`w2` hyper-parameter is chosen on a separate validation season — so nothing below
-has seen the data it is scored on.
+Each system is fitted **only on matches played before the test season**, and
+every one of its hyper-parameters — including the competitors' probability-scale
+knobs, not just their dynamics knobs — is tuned on a separate validation season.
+Grids were widened until no optimum sat on a grid edge, so no system is reported
+at a value the grid merely failed to reach.
 
-| Benchmark | Test set | WHR | Reference on the same games |
-|---|---|---|---|
-| **NBA** (FiveThirtyEight, 69,377 games since 1947) | 2018-19, n=1312 | **0.634** log-loss · 64.3% | 538 Elo 0.619 · 65.3% — 538 RAPTOR 0.615 · 65.6% |
-| **ATP tennis** (Sackmann, 48,335 matches, 1,948 players) | 2014, n=2816 | **0.616** log-loss · 67.0% | coin flip 0.693 · 50.0% |
-| **Football** (big-5 leagues, 18,085 matches, 25% draws) | 2022-23, n=1826 | **1.009** 3-way log-loss · 51.5% | draw-blind WHR 1.013 · 51.7% — H/D/A base rate 1.063 · 45.7% |
+| Benchmark | Test set | WHR | KickScore | TrueSkill Through Time |
+|---|---|---|---|---|
+| **NBA** (FiveThirtyEight) | 2018-19, n=1312 | 0.666 · 63.6% | **0.662** · 63.9% | 0.688 · 63.6% |
+| **ATP tennis** (Sackmann) | 2014, n=2816 | 0.614 · **67.0%** | 0.606 · 66.4% | **0.604** · 66.6% |
+| **Football** big-5, 3-way | 2022-23, n=1826 | **1.009** · 51.5% | 1.013 · 51.5% | 1.023 · 52.0% |
 
-Three things worth pulling out:
+Log-loss in nats, lower is better; accuracy after it. Four things worth pulling
+out, including the ones that do not flatter this library:
 
-- **It is competitive with purpose-built systems.** On the NBA it lands within
-  ~0.02 nats of FiveThirtyEight's Elo and RAPTOR — models tuned specifically for
-  basketball with margin-of-victory, rest and roster features — using nothing but
-  match results and a single global home-advantage parameter. (WHR is evaluated
-  *online*, i.e. re-fitted as results arrive, so the comparison is apples to
-  apples: 538's numbers are updated game by game too.)
-- **The advantages are learned, not assumed.** Given only wins and losses, WHR
-  estimated the NBA home-court edge at **+98 elo** (the accepted value is ≈+100)
-  and the football home edge at **+80 elo**. Removing home advantage makes the NBA
-  model *worse than the base rate* — which is exactly how much of basketball's
-  predictability it accounts for.
-- **Draws are modelled, not bolted on.** On football, WHR fitted a global draw
-  tendency of ν≈0.79 and beats an otherwise-identical model that just assumes a
-  constant draw rate. The gain is in *calibration* rather than top-1 accuracy — a
-  draw is rarely the single most likely outcome — which is precisely what the
-  Davidson model is supposed to buy.
+- **No system wins outright, and the spread is small.** WHR takes the football
+  benchmark, KickScore the NBA, TTT the tennis. WHR is never more than 1.6%
+  behind whichever system leads (0.6% on the NBA, 1.6% on tennis), and the full
+  best-to-worst spread stays under 4% on every sport. If you are choosing a
+  library, this benchmark is not the reason to pick one: API, dependencies and
+  speed will matter more than a hundredth of a nat.
+- **WHR is the strongest of the three at three-outcome prediction.** Its
+  [Davidson draw model](#draws) is fitted from the data (here ν≈0.79) rather
+  than approximated, and it beats KickScore's ternary `margin` and TTT's
+  `p_draw` on exactly the same matches. This is the one benchmark where the
+  modelling choice, not the tuning, decides the result.
+- **WHR trades calibration for ranking on two-outcome sports.** On tennis it has
+  the *best* accuracy of the three (67.0%) and the *worst* log-loss: it ranks
+  players at least as well but is overconfident about it. Passing
+  `account_for_uncertainty=True` to
+  [`probability_future_match`](#uncertainty) recovers a real part
+  of that gap (0.616 → 0.614 on tennis, 0.670 → 0.666 on the NBA) and is
+  recommended whenever you consume the probabilities rather than the ordering.
+  `win_draw_loss_probabilities` now [takes the same option](#draws), though the
+  football numbers in the table predate it and were scored without it.
+- **A domain-specific model still beats all three.** FiveThirtyEight's published
+  pre-game probabilities score 0.615 (RAPTOR) and 0.619 (Elo) on the identical
+  1,312 games, against 0.662–0.688 for the general-purpose systems. RAPTOR sees
+  rosters, injuries and travel; WHR, KickScore and TTT see only who beat whom,
+  and when. That gap is the value of domain features, not a defect of the
+  algorithms — but it is worth knowing before deploying any of them as a
+  forecaster.
+
+The advantages WHR reports are *learned, not assumed*: given only wins and
+losses it put the NBA home-court edge at **+98 elo** (the accepted value is
+≈+100) and the football home edge at **+80 elo**.
 
 ### The ratings are historically recognisable
 
@@ -75,13 +94,17 @@ match results alone:
   <img alt="WHR skill curves on ATP singles 2000-2015. Federer, Nadal and Djokovic are highlighted in colour against three grey context players. Federer rises to a mid-decade peak, Nadal climbs from 2005, and Djokovic overtakes the field from 2011 to reach the highest rating by 2015." src="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/tennis_history_light.png">
 </picture>
 
-> **Honest framing.** These are *comparable re-runs*, not bit-exact
-> reproductions of the reference papers: train/test splits, data vintages and
-> time discretisation differ, so the published numbers are reference points
-> rather than a controlled head-to-head. The football figures compare WHR against
-> its own ablation and a base rate, not against KickScore directly. Details,
-> limitations and the exact protocol are in
-> [`benchmarks/REPORT.md`](benchmarks/REPORT.md).
+> **What this is and is not.** KickScore and TrueSkill Through Time are run
+> locally from their own packages, so the three systems share a training prefix,
+> a validation season, a test season, a time unit and a metric — differences in
+> data vintage or train/test split cannot explain the gaps. What it is *not* is a
+> reproduction of the reference papers' own published numbers, which use
+> different splits and preprocessing. Three protocol decisions are judgement
+> calls worth reading before quoting these figures: cold-start players are
+> answered from each library's own prior, home advantage is expressed in each
+> library's own idiom, and each system gets a fixed convergence budget rather
+> than a matched wall-clock. All three, plus every hyper-parameter grid, are
+> documented in [`benchmarks/REPORT.md`](benchmarks/REPORT.md).
 
 ## Usage
 

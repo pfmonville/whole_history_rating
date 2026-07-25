@@ -1,0 +1,78 @@
+nba: 69377 games | train_v=39967 valid=1312 train_t=41279 test=1312
+    WHR {'w2': 100.0, 'predict_uncertainty': False} valid log-loss=0.6700  <- best so far
+    WHR {'w2': 100.0, 'predict_uncertainty': True} valid log-loss=0.6689  <- best so far
+    WHR {'w2': 300.0, 'predict_uncertainty': False} valid log-loss=0.6618  <- best so far
+    WHR {'w2': 300.0, 'predict_uncertainty': True} valid log-loss=0.6601  <- best so far
+    WHR {'w2': 1000.0, 'predict_uncertainty': False} valid log-loss=0.6577  <- best so far
+    WHR {'w2': 1000.0, 'predict_uncertainty': True} valid log-loss=0.6549  <- best so far
+    WHR {'w2': 3000.0, 'predict_uncertainty': False} valid log-loss=0.6662
+    WHR {'w2': 3000.0, 'predict_uncertainty': True} valid log-loss=0.6609
+  WHR: selected {'w2': 1000.0, 'predict_uncertainty': True} (valid 0.6549)
+  WHR: TEST log-loss=0.6660 acc=63.6%  edge={'w2': False} flat=[]
+    TTT {'gamma': 0.003, 'beta': 0.0625} valid log-loss=0.6897  <- best so far
+    TTT {'gamma': 0.003, 'beta': 0.125} valid log-loss=0.6922
+    TTT {'gamma': 0.003, 'beta': 0.25} valid log-loss=0.6868  <- best so far
+    TTT {'gamma': 0.003, 'beta': 0.5} valid log-loss=0.6853  <- best so far
+    TTT {'gamma': 0.003, 'beta': 1.0} valid log-loss=0.6914
+    TTT {'gamma': 0.003, 'beta': 2.0} valid log-loss=0.6981
+    TTT {'gamma': 0.01, 'beta': 0.0625} valid log-loss=0.6673  <- best so far
+    TTT {'gamma': 0.01, 'beta': 0.125} valid log-loss=0.6798
+    TTT {'gamma': 0.01, 'beta': 0.25} valid log-loss=0.6917
+    TTT {'gamma': 0.01, 'beta': 0.5} valid log-loss=0.6911
+    TTT {'gamma': 0.01, 'beta': 1.0} valid log-loss=0.6856
+    TTT {'gamma': 0.01, 'beta': 2.0} valid log-loss=0.6864
+    TTT {'gamma': 0.03, 'beta': 0.0625} valid log-loss=0.6877
+    TTT {'gamma': 0.03, 'beta': 0.125} valid log-loss=0.6667  <- best so far
+    TTT {'gamma': 0.03, 'beta': 0.25} valid log-loss=0.6713
+    TTT {'gamma': 0.03, 'beta': 0.5} valid log-loss=0.6859
+    TTT {'gamma': 0.03, 'beta': 1.0} valid log-loss=0.6928
+    TTT {'gamma': 0.03, 'beta': 2.0} valid log-loss=0.6886
+    TTT {'gamma': 0.1, 'beta': 0.0625} valid log-loss=0.8500
+    TTT {'gamma': 0.1, 'beta': 0.125} valid log-loss=0.7330
+    TTT {'gamma': 0.1, 'beta': 0.25} valid log-loss=0.6786
+    TTT {'gamma': 0.1, 'beta': 0.5} valid log-loss=0.6661  <- best so far
+    TTT {'gamma': 0.1, 'beta': 1.0} valid log-loss=0.6748
+    TTT {'gamma': 0.1, 'beta': 2.0} valid log-loss=0.6891
+    TTT {'gamma': 0.3, 'beta': 0.0625} valid log-loss=1.0600
+    TTT {'gamma': 0.3, 'beta': 0.125} valid log-loss=0.9355
+    TTT {'gamma': 0.3, 'beta': 0.25} valid log-loss=0.7943
+    TTT {'gamma': 0.3, 'beta': 0.5} valid log-loss=0.7033
+    TTT {'gamma': 0.3, 'beta': 1.0} valid log-loss=0.6698
+    TTT {'gamma': 0.3, 'beta': 2.0} valid log-loss=0.6680
+  TTT: selected {'gamma': 0.1, 'beta': 0.5} (valid 0.6661)
+  TTT: TEST log-loss=0.6882 acc=63.6%  edge={'gamma': False, 'beta': False} flat=[]
+    KickScore {'wiener_var': 0.0001, 'prior_var': 0.05} valid log-loss=0.6782  <- best so far
+    KickScore {'wiener_var': 0.0001, 'prior_var': 0.125} valid log-loss=0.6782
+    KickScore {'wiener_var': 0.0001, 'prior_var': 0.25} valid log-loss=0.6782
+    KickScore {'wiener_var': 0.0001, 'prior_var': 0.5} valid log-loss=0.6782
+    KickScore {'wiener_var': 0.0001, 'prior_var': 1.0} valid log-loss=0.6782
+    KickScore {'wiener_var': 0.0001, 'prior_var': 3.0} valid log-loss=0.6782
+    KickScore {'wiener_var': 0.001, 'prior_var': 0.05} valid log-loss=0.6714  <- best so far
+    KickScore {'wiener_var': 0.001, 'prior_var': 0.125} valid log-loss=0.6714
+    KickScore {'wiener_var': 0.001, 'prior_var': 0.25} valid log-loss=0.6714
+    KickScore {'wiener_var': 0.001, 'prior_var': 0.5} valid log-loss=0.6714
+    KickScore {'wiener_var': 0.001, 'prior_var': 1.0} valid log-loss=0.6714
+    KickScore {'wiener_var': 0.001, 'prior_var': 3.0} valid log-loss=0.6715
+    KickScore {'wiener_var': 0.01, 'prior_var': 0.05} valid log-loss=0.6547  <- best so far
+    KickScore {'wiener_var': 0.01, 'prior_var': 0.125} valid log-loss=0.6547
+    KickScore {'wiener_var': 0.01, 'prior_var': 0.25} valid log-loss=0.6547
+    KickScore {'wiener_var': 0.01, 'prior_var': 0.5} valid log-loss=0.6547
+    KickScore {'wiener_var': 0.01, 'prior_var': 1.0} valid log-loss=0.6547
+    KickScore {'wiener_var': 0.01, 'prior_var': 3.0} valid log-loss=0.6547
+    KickScore {'wiener_var': 0.1, 'prior_var': 0.05} valid log-loss=0.6664
+    KickScore {'wiener_var': 0.1, 'prior_var': 0.125} valid log-loss=0.6665
+    KickScore {'wiener_var': 0.1, 'prior_var': 0.25} valid log-loss=0.6665
+    KickScore {'wiener_var': 0.1, 'prior_var': 0.5} valid log-loss=0.6665
+    KickScore {'wiener_var': 0.1, 'prior_var': 1.0} valid log-loss=0.6665
+    KickScore {'wiener_var': 0.1, 'prior_var': 3.0} valid log-loss=0.6665
+    KickScore {'wiener_var': 1.0, 'prior_var': 0.05} valid log-loss=0.8297
+    KickScore {'wiener_var': 1.0, 'prior_var': 0.125} valid log-loss=0.8297
+    KickScore {'wiener_var': 1.0, 'prior_var': 0.25} valid log-loss=0.8297
+    KickScore {'wiener_var': 1.0, 'prior_var': 0.5} valid log-loss=0.8297
+    KickScore {'wiener_var': 1.0, 'prior_var': 1.0} valid log-loss=0.8298
+    KickScore {'wiener_var': 1.0, 'prior_var': 3.0} valid log-loss=0.8299
+  KickScore: selected {'wiener_var': 0.01, 'prior_var': 0.05} (valid 0.6547)
+  KickScore: TEST log-loss=0.6620 acc=63.9%  edge={'wiener_var': False, 'prior_var': False} flat=['prior_var']
+  fte_elo: TEST log-loss=0.6192 acc=65.3%
+  fte_raptor: TEST log-loss=0.6152 acc=65.6%
+wrote benchmarks/results/versus_nba.json
