@@ -39,10 +39,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   beyond where the split has already saturated to `(1, 0, 0)` in double
   precision, so it changes no useful prediction.
 
-  This closes the gap the head-to-head benchmark below identified. The committed
-  football results predate the feature and were therefore scored on bare point
-  estimates; re-running `benchmarks/versus.py` with a `predict_uncertainty` axis
-  on the football grid is now possible and has not been done.
+  This closes the gap the head-to-head benchmark below identified, and that
+  benchmark has been re-run to use it: `benchmarks/versus.py football` now sweeps
+  a `predict_uncertainty` axis like the two-outcome sports, and its validation
+  season selects it. The effect is small — **1.0089 → 1.0085** three-way
+  log-loss, against 0.0023 on tennis and 0.0039 on the NBA — which is consistent
+  with the compression behaviour described above: the hedge tightens the
+  win/loss odds instead of feeding the draw, and the concave/convex split means
+  close and lopsided fixtures pull in opposite directions. WHR's football lead
+  over KickScore moves from 0.45% to 0.49%, so it never depended on the missing
+  feature.
 - `benchmarks/versus.py`: a real head-to-head that **runs** KickScore and
   TrueSkill Through Time locally instead of quoting their papers. All three
   systems share a training prefix, validation season, test season, time unit and

@@ -529,19 +529,20 @@ FB_BIN_DAYS = 7
 CLS = {"W": 0, "D": 1, "L": 2}  # from the home team's perspective
 
 # WHR estimates its draw tendency (nu) from the data, so it needs no draw knob.
-# The competitors take theirs as a hyper-parameter, so they get it swept.
-# No ``predict_uncertainty`` axis here, so WHR's football number is scored on
-# bare point estimates and carries the same overconfidence penalty its
-# two-outcome numbers were able to shed.
-#
-# This used to be forced: ``win_draw_loss_probabilities`` had no
-# ``account_for_uncertainty`` parameter. It now does, so the axis COULD be swept
-# here -- it simply has not been, and the committed football results predate the
-# feature. Adding ``predict_uncertainty`` below and re-running football would
-# lift the handicap; note the three-outcome hedge compresses the win/loss odds
-# rather than shifting mass toward the draw, so the effect on a ternary log-loss
-# is not the obvious one and should be measured, not assumed.
-FB_WHR_GRID = _grid(w2=[1.0, 3.0, 10.0, 30.0, 100.0, 300.0, 1000.0])
+# The competitors take theirs as a hyper-parameter, so they get it swept -- and
+# now so does WHR. ``win_draw_loss_probabilities`` originally had no
+# ``account_for_uncertainty`` parameter, which left WHR's football number scored
+# on bare point estimates while both competitors folded in their posterior
+# variance; the parameter exists as of the entry above this benchmark in the
+# CHANGELOG, so the axis is swept here on the same footing as the two-outcome
+# sports. Worth measuring rather than assuming: the three-outcome hedge
+# compresses the win/loss odds instead of shifting mass toward the draw (the
+# Davidson draw curve is concave near an even gap and convex in the tails), so
+# its effect on a ternary log-loss is not the obvious one.
+FB_WHR_GRID = _grid(
+    w2=[1.0, 3.0, 10.0, 30.0, 100.0, 300.0, 1000.0],
+    predict_uncertainty=[False, True],
+)
 FB_KS_GRID = _grid(
     wiener_var=[1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0], margin=[0.1, 0.3, 0.6]
 )
@@ -585,7 +586,7 @@ def _three_way_score(rows):
     }
 
 
-def fb_rows_whr(train, test, *, w2):
+def fb_rows_whr(train, test, *, w2, predict_uncertainty=False):
     from whr import WHR
 
     whr = WHR({"w2": w2})
@@ -596,7 +597,11 @@ def fb_rows_whr(train, test, *, w2):
     rows = []
     for r in test:
         w, d, ls = whr.win_draw_loss_probabilities(
-            r["home"], r["away"], 0, handicap_key="home"
+            r["home"],
+            r["away"],
+            0,
+            handicap_key="home",
+            account_for_uncertainty=predict_uncertainty,
         )
         rows.append(((float(w), float(d), float(ls)), CLS[r["outcome"]]))
     return rows

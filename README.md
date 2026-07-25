@@ -61,8 +61,11 @@ out, including the ones that do not flatter this library:
   [`probability_future_match`](#uncertainty) recovers a real part
   of that gap (0.616 → 0.614 on tennis, 0.670 → 0.666 on the NBA) and is
   recommended whenever you consume the probabilities rather than the ordering.
-  `win_draw_loss_probabilities` now [takes the same option](#draws), though the
-  football numbers in the table predate it and were scored without it.
+  [`win_draw_loss_probabilities` takes the same option](#draws); every number in
+  the table above is scored with whichever setting its validation season chose,
+  which was `True` on all three sports. It buys much less on three outcomes
+  (1.0089 → 1.0085) because that hedge compresses the win/loss odds rather than
+  moving mass toward the draw.
 - **A domain-specific model still beats all three.** FiveThirtyEight's published
   pre-game probabilities score 0.615 (RAPTOR) and 0.619 (Elo) on the identical
   1,312 games, against 0.662–0.688 for the general-purpose systems. RAPTOR sees

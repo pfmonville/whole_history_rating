@@ -39,7 +39,7 @@ test season, same metric, same integer-day time unit.
 |---|---|---|---|---|---|
 | **NBA** 2018-19 | n=1312, 2-way | 0.666 / 63.6% | **0.662 / 63.9%** | 0.688 / 63.6% | KickScore, by 0.6% |
 | **Tennis (ATP)** 2014 | n=2816, 2-way | 0.614 / **67.0%** | 0.606 / 66.4% | **0.604 / 66.6%** | TTT, by 1.6% |
-| **Football** big-5 2022-23 | n=1826, 3-way | **1.009 / 51.5%** | 1.013 / 51.5% | 1.023 / 52.0% | **WHR**, by 0.4% |
+| **Football** big-5 2022-23 | n=1826, 3-way | **1.009 / 51.5%** | 1.013 / 51.5% | 1.023 / 52.0% | **WHR**, by 0.5% |
 
 Log-loss in nats (lower is better) / accuracy. Context on the same games: 538
 RAPTOR scores **0.615 / 65.6%** and 538 Elo **0.619 / 65.3%** on the NBA test
@@ -183,7 +183,7 @@ outcomes, trained on 2014-15…2021-22, tuned on 2021-22, scored on 2022-23:
 
 | Model | tuned params | 3-way log-loss | accuracy |
 |---|---|---|---|
-| **WHR (Davidson)** | `w2=30` | **1.0089** | 51.5% |
+| **WHR (Davidson)** | `w2=30`, `account_for_uncertainty=True` | **1.0085** | 51.5% |
 | KickScore (ternary) | `wiener_var=1e-4`, `margin=0.3` | 1.0134 | 51.5% |
 | TrueSkill Through Time | `gamma=0.03`, `p_draw=0.30` | 1.0228 | **52.0%** |
 | base rate (H/D/A frequencies) | — | 1.0630 | 45.7% |
@@ -195,24 +195,29 @@ of the pipeline.
 
 **Findings.**
 - **This is WHR's benchmark.** It leads both reference implementations on the
-  three-outcome metric, and it does so with the *fewest* tuned parameters (one
-  axis against their two). The margin is 0.4% over KickScore and 1.4% over TTT —
-  small, but consistent across three independent re-runs, and unlike the
+  three-outcome metric. The margin is 0.5% over KickScore and 1.4% over TTT —
+  small, but consistent across four independent re-runs, and unlike the
   two-outcome results it is not attributable to tuning depth.
-- **It wins despite a handicap.** When this run was scored,
-  `win_draw_loss_probabilities` had no `account_for_uncertainty` parameter, so
-  WHR's three-outcome predictions here are bare point estimates while both
-  competitors fold their posterior variance in. The one lever that improved WHR
-  on tennis and the NBA was unavailable on the sport it wins. That parameter has
-  since been added, but the numbers on this page predate it and have not been
-  re-run — so this handicap still applies to every football figure reported
-  here, and WHR's margin would if anything widen once it is lifted.
+- **The uncertainty hedge barely matters here, and that is the interesting
+  part.** `win_draw_loss_probabilities` originally had no
+  `account_for_uncertainty` parameter, so earlier versions of this table scored
+  WHR on bare point estimates while both competitors folded in their posterior
+  variance. The parameter now exists and this run sweeps it: the validation
+  season selects it, and it is worth **1.0089 → 1.0085**, roughly a tenth of
+  what the same flag bought on tennis (0.0023) and a twelfth of the NBA (0.0039).
+  The reason is structural rather than incidental: the three-outcome hedge
+  compresses the win/loss odds instead of moving mass toward the draw — the
+  Davidson draw curve is concave near an even gap and convex in the tails, so
+  integrating *drains* the draw for a close matchup and feeds it for a lopsided
+  one, and the two effects largely cancel across a league season. So WHR's
+  football lead was never an artefact of a missing feature: lifting the handicap
+  moved it from 0.45% to 0.49%.
 - WHR **estimated a global draw tendency ν ≈ 0.79** and a **home advantage of
   +80 elo** — both realistic for European football (home edge ≈ 0.3–0.4 goals).
 - Both WHR variants beat the base rate decisively (log-loss 1.063 → 1.01,
   accuracy 45.7% → ~52%).
 - **The Davidson model beats the "assume a constant draw rate" ablation on
-  log-loss** (1.0089 vs 1.0132). The gain is real but modest, and it is a
+  log-loss** (1.0085 vs 1.0132). The gain is real but modest, and it is a
   *calibration* gain, not an accuracy one: Davidson raises draw probability for
   evenly-matched sides, which sharpens the predicted distribution, but a draw is
   rarely the single most likely outcome (≈27% < home ≈45%), so top-1 accuracy

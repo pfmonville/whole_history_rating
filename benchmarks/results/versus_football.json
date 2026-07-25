@@ -5,14 +5,15 @@
   "draw_rate_overall": 0.251589715233619,
   "models": {
     "whr": {
-      "log_loss": 1.008869673827301,
+      "log_loss": 1.0085274524601913,
       "accuracy": 0.5153340635268346,
       "n": 1826,
       "params": {
-        "w2": 30.0
+        "w2": 30.0,
+        "predict_uncertainty": true
       },
-      "valid_log_loss": 1.008845365365821,
-      "grid_size": 7,
+      "valid_log_loss": 1.0086571633476096,
+      "grid_size": 14,
       "on_grid_edge": {
         "w2": false
       },
