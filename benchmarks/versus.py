@@ -530,11 +530,17 @@ CLS = {"W": 0, "D": 1, "L": 2}  # from the home team's perspective
 
 # WHR estimates its draw tendency (nu) from the data, so it needs no draw knob.
 # The competitors take theirs as a hyper-parameter, so they get it swept.
-# No ``predict_uncertainty`` axis here: ``win_draw_loss_probabilities`` has no
-# ``account_for_uncertainty`` parameter, unlike ``probability_future_match``, so
-# WHR's three-outcome predictions are necessarily point estimates. That is a gap
-# in the library, and it means WHR's football number carries the same
-# overconfidence penalty its two-outcome numbers were able to shed.
+# No ``predict_uncertainty`` axis here, so WHR's football number is scored on
+# bare point estimates and carries the same overconfidence penalty its
+# two-outcome numbers were able to shed.
+#
+# This used to be forced: ``win_draw_loss_probabilities`` had no
+# ``account_for_uncertainty`` parameter. It now does, so the axis COULD be swept
+# here -- it simply has not been, and the committed football results predate the
+# feature. Adding ``predict_uncertainty`` below and re-running football would
+# lift the handicap; note the three-outcome hedge compresses the win/loss odds
+# rather than shifting mass toward the draw, so the effect on a ternary log-loss
+# is not the obvious one and should be measured, not assumed.
 FB_WHR_GRID = _grid(w2=[1.0, 3.0, 10.0, 30.0, 100.0, 300.0, 1000.0])
 FB_KS_GRID = _grid(
     wiener_var=[1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0], margin=[0.1, 0.3, 0.6]

@@ -277,6 +277,183 @@ def test_win_draw_loss_no_draws_gives_zero_draw():
     assert p1 + p2 == pytest.approx(1.0)
 
 
+# --- uncertainty-integrated three-outcome prediction ------------------------
+#
+# Fixtures below are chosen to sit in specific (rating gap d, nu, sigma)
+# regimes, because the hedging direction genuinely differs between them; the
+# comment on each records the regime it pins.
+
+
+def _lopsided_with_draws():
+    """Clear favourite plus a healthy draw rate: d ~ +3.5 nats, nu ~ 3.0."""
+    w = WHR()
+    for day in range(1, 7):
+        w.create_game("fav", "dog", "B", day, 0)
+        w.create_game("fav", "dog", "B", day, 0)
+        w.create_game("fav", "dog", "D", day, 0)
+    w.iterate(60)
+    return w
+
+
+def _even_with_draws():
+    """Exactly even pair (colour-swapped wins), so d == 0: nu ~ 1.0."""
+    w = WHR()
+    for day in range(1, 5):
+        w.create_game("x", "y", "D", day, 0)
+        w.create_game("x", "y", "B", day, 0)
+        w.create_game("y", "x", "B", day, 0)
+    w.iterate(60)
+    return w
+
+
+def _marginal_favourite_with_draws():
+    """Barely-favoured player: d ~ +0.22 nats, nu ~ 0.9."""
+    w = WHR()
+    for day in range(1, 4):
+        for _ in range(5):
+            w.create_game("m", "n", "B", day, 0)
+        for _ in range(4):
+            w.create_game("m", "n", "W", day, 0)
+        for _ in range(4):
+            w.create_game("m", "n", "D", day, 0)
+    w.iterate(60)
+    return w
+
+
+def test_win_draw_loss_uncertainty_default_unchanged():
+    w = _lopsided_with_draws()
+    point = w.win_draw_loss_probabilities("fav", "dog")
+    assert (
+        w.win_draw_loss_probabilities("fav", "dog", account_for_uncertainty=False)
+        == point
+    )
+    # uncertainty_steps is inert while the flag is off, including invalid values
+    assert w.win_draw_loss_probabilities("fav", "dog", uncertainty_steps=0) == point
+
+
+def test_win_draw_loss_uncertainty_bad_steps_raises():
+    w = _lopsided_with_draws()
+    with pytest.raises(ValueError):
+        w.win_draw_loss_probabilities(
+            "fav", "dog", account_for_uncertainty=True, uncertainty_steps=0
+        )
+    with pytest.raises(ValueError):
+        w.win_draw_loss_probabilities(
+            "fav", "dog", account_for_uncertainty=True, uncertainty_steps=-3
+        )
+
+
+def test_win_draw_loss_uncertainty_sigma_zero_fallback():
+    # Unknown players: both variances are 0 (iterate() never ran), exercising
+    # the sigma == 0 short-circuit back to the point estimate.
+    w = WHR()
+    point = w.win_draw_loss_probabilities("ghost1", "ghost2")
+    assert (
+        w.win_draw_loss_probabilities("ghost1", "ghost2", account_for_uncertainty=True)
+        == point
+    )
+
+
+def test_win_draw_loss_uncertainty_still_sums_to_one():
+    # Normalisation is a property of the quadrature (each node contributes a
+    # triple summing to 1), so it must hold at every grid size.
+    w = _lopsided_with_draws()
+    for steps in (1, 2, 4, 9):
+        probs = w.win_draw_loss_probabilities(
+            "fav", "dog", account_for_uncertainty=True, uncertainty_steps=steps
+        )
+        assert sum(probs) == pytest.approx(1.0)
+        assert all(p >= 0.0 for p in probs)
+
+
+def test_win_draw_loss_uncertainty_hedges_clear_favourite():
+    w = _lopsided_with_draws()
+    p1, pd, p2 = w.win_draw_loss_probabilities("fav", "dog")
+    q1, qd, q2 = w.win_draw_loss_probabilities(
+        "fav", "dog", account_for_uncertainty=True
+    )
+    assert p1 > 0.5  # genuinely favoured to start with
+    assert q1 < p1  # favourite gives up mass
+    assert qd + q2 > pd + p2  # ...to the draw/underdog side
+    assert q2 > p2  # and the underdog specifically gains
+
+
+def test_win_draw_loss_uncertainty_compresses_win_loss_odds():
+    """Odds compression is the invariant that always holds, and the mechanism
+    that fixes log-loss: whatever the draw mass does, P(win)/P(loss) moves
+    toward 1."""
+    w = _lopsided_with_draws()
+    p1, _, p2 = w.win_draw_loss_probabilities("fav", "dog")
+    q1, _, q2 = w.win_draw_loss_probabilities(
+        "fav", "dog", account_for_uncertainty=True
+    )
+    assert 1.0 < q1 / q2 < p1 / p2
+
+    m = _marginal_favourite_with_draws()
+    r1, _, r2 = m.win_draw_loss_probabilities("m", "n")
+    s1, _, s2 = m.win_draw_loss_probabilities("m", "n", account_for_uncertainty=True)
+    assert 1.0 < s1 / s2 < r1 / r2
+
+
+def test_win_draw_loss_uncertainty_lowers_draw_for_even_matchup():
+    """Counterintuitive but correct: uncertainty does NOT push mass toward the
+    draw. Davidson's draw curve nu/(2*cosh(d/2)+nu) is concave near d == 0, so
+    spreading the rating gap *drains* the draw for an even matchup. Pinned so a
+    future change to the quadrature has to notice it broke this."""
+    w = _even_with_draws()
+    p1, pd, p2 = w.win_draw_loss_probabilities("x", "y")
+    q1, qd, q2 = w.win_draw_loss_probabilities("x", "y", account_for_uncertainty=True)
+    assert p1 == pytest.approx(p2)  # even pair: d == 0
+    assert qd < pd  # draw mass falls
+    assert q1 > p1 and q2 > p2  # it splits evenly to both sides
+    assert q1 == pytest.approx(q2)  # symmetry preserved by the symmetric grid
+
+
+def test_win_draw_loss_uncertainty_raises_win_for_marginal_favourite():
+    """The other counterintuitive case: for a *barely* favoured player the win
+    probability goes UP, because the draw mass leaking outward (see the even
+    matchup above) splits to both sides and outweighs the odds compression.
+    Only a clear favourite loses win probability."""
+    w = _marginal_favourite_with_draws()
+    p1, pd, p2 = w.win_draw_loss_probabilities("m", "n")
+    q1, qd, q2 = w.win_draw_loss_probabilities("m", "n", account_for_uncertainty=True)
+    assert 0.5 > p1 > p2  # favoured, but only just, with heavy draw mass
+    assert q1 > p1  # win probability RISES
+    assert qd < pd  # because the draw drains
+    assert q2 > p2  # underdog still gains more (odds compress)
+    assert q1 - p1 < q2 - p2
+
+
+def test_win_draw_loss_uncertainty_matches_two_outcome_path_at_nu_zero():
+    """With no draws fitted (nu == 0) Davidson collapses to Bradley-Terry, and
+    the rating gap d integrated here is exactly the logit integrated by
+    ``probability_future_match``, so the two uncertainty-aware paths agree.
+
+    The win probability agrees bit-for-bit. The loss probability agrees only to
+    float precision, and that gap is meaningful rather than sloppy:
+    ``probability_future_match`` returns the forced complement ``1.0 - p1``,
+    whereas this method integrates the loss on its own. Normalisation here is a
+    property of the quadrature, never imposed -- which is what keeps the
+    three-way split unbiased.
+    """
+    w = WHR()
+    for day in range(1, 5):
+        w.create_game("p", "q", "B", day, 0)
+        w.create_game("p", "q", "B", day, 0)
+        w.create_game("p", "q", "W", day, 0)
+    w.iterate(50)
+    assert w.nu == 0.0
+
+    q1, qd, q2 = w.win_draw_loss_probabilities("p", "q", account_for_uncertainty=True)
+    two_win, two_loss = w.probability_future_match(
+        "p", "q", account_for_uncertainty=True
+    )
+    assert qd == 0.0
+    assert q1 == two_win  # exact: same d, same grid, same weights
+    assert q2 == pytest.approx(two_loss, abs=1e-15)  # independent, not complemented
+    assert q1 + qd + q2 == pytest.approx(1.0)
+
+
 def test_no_draw_regression_locks_compatibility_invariant():
     """Final compatibility check for the whole draws feature: a base that
     never sees a "D" outcome must be completely untouched by phase 6.

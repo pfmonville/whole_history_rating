@@ -87,6 +87,33 @@ def test_readme_draws_example():
     assert max(range(3), key=lambda i: wdl[i]) == 1
 
 
+def test_readme_uncertainty_aware_three_outcome_example():
+    """The README's uncertainty-integrated win/draw/loss block, including its
+    claim that the hedge compresses the win/loss ODDS while the draw
+    probability falls and both decisive outcomes rise."""
+    whr = _running_example()
+    whr.create_game("shusaku", "shusai", "D", 4, 0)
+    whr.load_games(["shusaku shusai D 5"])
+    whr.auto_iterate()
+
+    point = whr.win_draw_loss_probabilities("shusaku", "shusai")
+    hedged = whr.win_draw_loss_probabilities(
+        "shusaku", "shusai", account_for_uncertainty=True
+    )
+    assert tuple(round(x, 4) for x in point) == (0.2146, 0.3999, 0.3855)
+    assert tuple(round(x, 4) for x in hedged) == (0.2209, 0.3918, 0.3872)
+    assert sum(hedged) == pytest.approx(1.0)
+
+    # the odds quoted in the README, and their compression toward 1.0
+    assert round(point[0] / point[2], 3) == 0.557
+    assert round(hedged[0] / hedged[2], 3) == 0.571
+    assert point[0] / point[2] < hedged[0] / hedged[2] < 1.0
+
+    # "the draw probability goes down, and both decisive outcomes go up"
+    assert hedged[1] < point[1]
+    assert hedged[0] > point[0] and hedged[2] > point[2]
+
+
 def test_readme_rating_difference():
     whr = WHR()
     for day in range(1, 11):

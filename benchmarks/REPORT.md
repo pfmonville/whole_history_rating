@@ -199,11 +199,14 @@ of the pipeline.
   axis against their two). The margin is 0.4% over KickScore and 1.4% over TTT —
   small, but consistent across three independent re-runs, and unlike the
   two-outcome results it is not attributable to tuning depth.
-- **It wins despite a handicap.** `win_draw_loss_probabilities` has no
-  `account_for_uncertainty` parameter, so WHR's three-outcome predictions here
-  are bare point estimates while both competitors fold their posterior variance
-  in. The one lever that improved WHR on tennis and the NBA was unavailable on
-  the sport it wins.
+- **It wins despite a handicap.** When this run was scored,
+  `win_draw_loss_probabilities` had no `account_for_uncertainty` parameter, so
+  WHR's three-outcome predictions here are bare point estimates while both
+  competitors fold their posterior variance in. The one lever that improved WHR
+  on tennis and the NBA was unavailable on the sport it wins. That parameter has
+  since been added, but the numbers on this page predate it and have not been
+  re-run — so this handicap still applies to every football figure reported
+  here, and WHR's margin would if anything widen once it is lifted.
 - WHR **estimated a global draw tendency ν ≈ 0.79** and a **home advantage of
   +80 elo** — both realistic for European football (home edge ≈ 0.3–0.4 goals).
 - Both WHR variants beat the base rate decisively (log-loss 1.063 → 1.01,
@@ -237,17 +240,23 @@ have a concrete consequence: on a two-outcome sport, use
 probability over the players' rating variances) whenever you consume the
 probabilities rather than the ordering. Swept as a hyper-parameter, the
 validation season chose it on both sports, worth 0.616 → 0.614 on tennis and
-0.670 → 0.666 on the NBA. It is not reachable for three-outcome predictions:
-`win_draw_loss_probabilities` has no such parameter, which is a genuine gap in
-the library rather than a modelling choice.
+0.670 → 0.666 on the NBA. It was not reachable for three-outcome predictions
+when these numbers were produced: `win_draw_loss_probabilities` had no such
+parameter, which was a genuine gap in the library rather than a modelling
+choice. **That gap has since been closed** — the method now takes the same
+`account_for_uncertainty` / `uncertainty_steps` arguments, integrating all three
+outcomes over the rating gap's Gaussian. Note the three-outcome hedge compresses
+the win/loss *odds* rather than moving mass toward the draw, so its effect on a
+football log-loss is not simply "more draws". The figures on this page were
+scored before it existed and have not been re-run with it.
 
 **Where WHR's modelling actually wins.** Football is the one benchmark decided by
 a modelling choice rather than by tuning. WHR fits a global draw tendency
 (ν≈0.79) from the data under the Davidson model, and beats both KickScore's
 ternary `margin` and TTT's `p_draw` band on identical matches. The margin is
 small (0.4%) but the direction is consistent, and unlike the two-outcome results
-it survives the fact that WHR's three-outcome predictions cannot be
-uncertainty-corrected.
+it survives the fact that WHR's three-outcome predictions were not
+uncertainty-corrected in this run.
 
 **Two things the exercise surfaced about the library:**
 

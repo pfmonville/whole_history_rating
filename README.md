@@ -61,7 +61,8 @@ out, including the ones that do not flatter this library:
   [`probability_future_match`](#uncertainty) recovers a real part
   of that gap (0.616 → 0.614 on tennis, 0.670 → 0.666 on the NBA) and is
   recommended whenever you consume the probabilities rather than the ordering.
-  Note the same option is not yet available for three-outcome predictions.
+  `win_draw_loss_probabilities` now [takes the same option](#draws), though the
+  football numbers in the table predate it and were scored without it.
 - **A domain-specific model still beats all three.** FiveThirtyEight's published
   pre-game probabilities score 0.615 (RAPTOR) and 0.619 (Elo) on the identical
   1,312 games, against 0.662–0.688 for the general-purpose systems. RAPTOR sees
@@ -408,6 +409,33 @@ p_win, p_draw, p_loss = whr.win_draw_loss_probabilities("shusaku", "shusai")
 
 With two of the five games drawn, the fitted `nu` makes a draw the single most
 likely outcome for this closely-matched pair.
+
+`win_draw_loss_probabilities` takes the same opt-in `account_for_uncertainty` /
+`uncertainty_steps` arguments as `probability_future_match`, integrating all
+three outcomes over the players' rating uncertainty:
+
+```python
+whr.win_draw_loss_probabilities("shusaku", "shusai")
+# (0.2146, 0.3999, 0.3855) -- point prediction (default, unchanged from before)
+whr.win_draw_loss_probabilities("shusaku", "shusai", account_for_uncertainty=True)
+# (0.2209, 0.3918, 0.3872) -- hedged; the three still sum to 1.0
+```
+
+**This hedges by compressing the win/loss odds, not by moving mass toward the
+draw.** Above, the win/loss odds go from `0.2146/0.3855 = 0.557` to
+`0.2209/0.3872 = 0.571`, i.e. toward an even `1.0` — but the *draw* probability
+goes **down**, and both decisive outcomes go up. That is not a quirk: Davidson's
+draw curve `nu/(2*cosh(d/2) + nu)` is concave near an even rating gap `d` and
+convex in the tails, so spreading `d` over its uncertainty drains the draw for a
+close matchup and feeds it for a lopsided one. A consequence worth knowing: a
+*barely* favoured player's win probability can rise under uncertainty, because
+the drained draw mass splits to both sides; only a clear favourite's falls. The
+underdog never loses probability, and the odds never move away from even.
+
+Normalisation is not enforced anywhere — each quadrature node contributes three
+probabilities summing to 1, so their weighted average does too. At `nu == 0` the
+integrated win/loss pair is exactly `probability_future_match(...,
+account_for_uncertainty=True)`.
 
 To pin `nu` to a known value instead of estimating it (e.g. to reproduce a
 fixed draw rate, or to disable draw modelling), use the `pinned_draw`

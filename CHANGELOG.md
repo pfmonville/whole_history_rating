@@ -7,9 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No library code changes — benchmarks and documentation only.
-
 ### Added
+- `win_draw_loss_probabilities(..., account_for_uncertainty=False,
+  uncertainty_steps=4)` — the three-outcome predictor now integrates over the
+  players' rating uncertainty, matching the flag `probability_future_match`
+  already had. Previously only the two-outcome path could hedge, which showed up
+  when benchmarking against KickScore and TrueSkill Through Time: both fold
+  their posterior variance into every prediction, and WHR's point estimates were
+  measurably overconfident (equal or better accuracy, worse log-loss). The
+  default `False` is byte-identical to previous releases.
+
+  Dividing Davidson's split by `sqrt(s1 * s2)` leaves all three outcomes
+  depending on the ratings only through the scalar gap `d = ln(s1) - ln(s2)`, so
+  this is Coulom's `Predict` on the same grid with the same `sigma`, applied to a
+  three-way split. Normalisation is therefore a property of the quadrature
+  rather than an imposed step (every node contributes a triple summing to 1), and
+  at `nu == 0` the integrated win/loss pair is exactly
+  `probability_future_match(..., account_for_uncertainty=True)`.
+
+  **The hedge compresses the win/loss odds; it does not move mass toward the
+  draw.** Davidson's draw curve is concave near an even gap and convex in the
+  tails, so integrating *drains* the draw for a close matchup and feeds it for a
+  lopsided one — and a barely-favoured player's win probability can therefore
+  rise. The underdog never loses probability and the odds never move away from
+  even. Documented in the README and pinned by tests.
+
+  The integrated path clamps the exponentiated half-gap, so that an extreme
+  rating gap (or a modest gap with a very large sigma) cannot raise
+  `OverflowError: math range error` where the point-estimate path returns
+  normally — an opt-in flag should not add a failure mode. The clamp sits far
+  beyond where the split has already saturated to `(1, 0, 0)` in double
+  precision, so it changes no useful prediction.
+
+  This closes the gap the head-to-head benchmark below identified. The committed
+  football results predate the feature and were therefore scored on bare point
+  estimates; re-running `benchmarks/versus.py` with a `predict_uncertainty` axis
+  on the football grid is now possible and has not been done.
 - `benchmarks/versus.py`: a real head-to-head that **runs** KickScore and
   TrueSkill Through Time locally instead of quoting their papers. All three
   systems share a training prefix, validation season, test season, time unit and
@@ -37,10 +70,9 @@ No library code changes — benchmarks and documentation only.
   while both competitors integrated their posterior variance, so
   `account_for_uncertainty` is now swept as a hyper-parameter.
 
-### Known gaps
-- `win_draw_loss_probabilities` has no `account_for_uncertainty` parameter,
-  unlike `probability_future_match`, so three-outcome predictions cannot hedge
-  for rating uncertainty.
+  The benchmark also surfaced a genuine gap — `win_draw_loss_probabilities`
+  could not hedge for rating uncertainty at all — which the first entry above
+  now closes.
 
 ## [3.1.0] - 2026-07-24
 
