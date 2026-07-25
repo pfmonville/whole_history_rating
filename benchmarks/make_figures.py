@@ -6,20 +6,30 @@ and a dark variant stepped from the same palette — so the README can serve the
 right one via ``<picture media="(prefers-color-scheme: dark)">``.
 
 Design rules applied (see the project's data-viz guidance):
-  * Forms: EMPHASIS for the model comparison (WHR in the accent hue, reference
-    systems recessive gray) — the subject is WHR, not eight equal categories;
-    MULTI-LINE for the ATP skill curves (the series *are* the subject);
-    SMALL MULTIPLES for NBA franchises (5 converging lines would be spaghetti).
-  * Marks: bars <= 24px with a 4px rounded data-end and a square baseline end,
-    2px surface gap between adjacent bars, 2px lines with round caps, >= 8px
-    end markers carrying a 2px surface ring, hairline solid recessive gridlines.
+  * Forms: DOT PLOT for the head-to-head (see below); MULTI-LINE for the ATP
+    skill curves (the series *are* the subject); SMALL MULTIPLES for NBA
+    franchises (5 converging lines would be spaghetti).
+  * Why dots and not bars for the comparison: every system scores between 0.60
+    and 0.69, so a zero-baseline bar chart spends all its width on the 0.0-0.6
+    stretch nobody is comparing and renders a 4% quality gap as six visually
+    identical bars. A dot encodes value by POSITION, which makes cropping the
+    axis honest — there is no bar length to misread proportionally — and the
+    differences legible. Panels keep independent scales on purpose: comparing
+    football's 3-way log-loss against the 2-way ones would be meaningless.
+  * Marks: >= 7px dots with a 1.2px surface ring, 2px lines with round caps,
+    hairline solid recessive leaders and gridlines.
   * Text never wears a series colour; identity comes from the coloured mark
-    beside the label. Values are direct-labelled at bar tips; the README
+    beside the label. Values are direct-labelled next to each dot; the README
     carries the same numbers as tables (the table-view twin).
-  * The categorical slots used here were validated with the palette validator
-    in both modes (adjacent CVD dE 9.1 light / 8.4 dark, normal-vision 19.6 /
-    19.3). Three light slots sit under 3:1 vs the surface, so the relief rule
-    applies: direct labels + the README tables.
+  * Colour separation in the comparison is carried by LIGHTNESS within one hue,
+    which is what keeps the three marks distinct under every CVD type. Note the
+    dot palette is deliberately not the shared THEMES pair: dark mode's
+    ``accent_soft`` was tuned to recede behind 24px bars and collapses into the
+    accent at dot size, so the dots step *lighter* than the accent instead.
+  * The line-chart slots were validated with the palette validator in both modes
+    (adjacent CVD dE 9.1 light / 8.4 dark, normal-vision 19.6 / 19.3). Three
+    light slots sit under 3:1 vs the surface, so the relief rule applies: direct
+    labels + the README tables.
 
 Run:  uv run --with pandas --with matplotlib python benchmarks/make_figures.py
 """
@@ -33,8 +43,6 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.patches import PathPatch  # noqa: E402
-from matplotlib.path import Path  # noqa: E402
 
 RESULTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
 DPI = 160
@@ -142,91 +150,52 @@ class Stack:
         return (self.cursor + offset_pt) / self.total
 
 
-def _px_per_data(ax) -> tuple[float, float]:
-    """Data units per pixel, for converting the px mark specs to data coords."""
-    inv = ax.transData.inverted()
-    x0, y0 = inv.transform((0.0, 0.0))
-    x1, y1 = inv.transform((1.0, 1.0))
-    return abs(x1 - x0), abs(y1 - y0)
-
-
-def _rounded_bar_h(ax, y_center, value, height, color, t, zorder=3, radius_px=4.0):
-    """Horizontal bar: square at the baseline (x=0), 4px-rounded data-end."""
-    dx, dy = _px_per_data(ax)
-    r_x = min(radius_px * dx, abs(value) * 0.5)
-    r_y = min(radius_px * dy, height * 0.5)
-    r = min(r_x / dx, r_y / dy) if dx and dy else 0.0
-    r_x, r_y = r * dx, r * dy  # keep the corner visually circular in pixels
-    sgn = 1.0 if value >= 0 else -1.0
-    x_end = value
-    x_r = x_end - sgn * r_x
-    y0, y1 = y_center - height / 2.0, y_center + height / 2.0
-    k = 0.5523  # circle-to-bezier constant
-    verts = [
-        (0.0, y0),
-        (x_r, y0),
-        (x_r + sgn * r_x * k, y0),
-        (x_end, y0 + r_y - r_y * k),
-        (x_end, y0 + r_y),
-        (x_end, y1 - r_y),
-        (x_end, y1 - r_y + r_y * k),
-        (x_r + sgn * r_x * k, y1),
-        (x_r, y1),
-        (0.0, y1),
-        (0.0, y0),
-    ]
-    codes = [
-        Path.MOVETO,
-        Path.LINETO,
-        Path.CURVE4,
-        Path.CURVE4,
-        Path.CURVE4,
-        Path.LINETO,
-        Path.CURVE4,
-        Path.CURVE4,
-        Path.CURVE4,
-        Path.LINETO,
-        Path.CLOSEPOLY,
-    ]
-    ax.add_patch(
-        PathPatch(Path(verts, codes), facecolor=color, edgecolor="none", zorder=zorder)
-    )
-
-
 # --------------------------------------------------------------------------- #
 # Figure 1 — model comparison (emphasis bars, one panel per benchmark)
 # --------------------------------------------------------------------------- #
 # role: "flagship" (accent) | "variant" (same hue, softer) | "context" (gray)
+# The head-to-head panels read `versus_*.json`: every model in a panel was
+# fitted on the same training prefix, tuned on the same validation season and
+# scored on the same test season, so the bars inside a panel are directly
+# comparable. Rows are sorted by log-loss at render time -- the ranking comes
+# out of the data, it is not authored here.
+CONSTANT_MODELS = {"coin_flip"}
+
 PANELS = [
     {
         "key": "nba",
-        "title": "NBA 2018-19  ·  69,377 games since 1947  ·  2-way log-loss",
-        "note": "vs FiveThirtyEight's own published pre-game probabilities",
+        "title": "NBA 2018-19  ·  1,312 games, trained on 41,279  ·  2-way log-loss",
+        "note": "WHR vs the reference implementations, plus FiveThirtyEight's "
+        "own published pre-game probabilities on the identical games",
         "rows": [
+            ("whr", "WHR", "flagship"),
+            ("kickscore", "KickScore", "variant"),
+            ("ttt", "TrueSkill Through Time", "variant"),
             ("fte_raptor", "538 RAPTOR", "context"),
             ("fte_elo", "538 Elo", "context"),
-            ("whr_home_online", "WHR + home, online", "flagship"),
-            ("whr_home_frozen", "WHR + home, frozen", "variant"),
-            ("whr_plain", "WHR, no home adv.", "variant"),
             ("base_rate", "home-rate baseline", "context"),
         ],
     },
     {
         "key": "tennis",
-        "title": "ATP tennis 2014  ·  48,335 matches, 1,948 players  ·  2-way log-loss",
-        "note": "TrueSkill-Through-Time-style setup",
+        "title": "ATP tennis 2014  ·  2,816 matches, trained on 44,405  ·  2-way log-loss",
+        "note": "the setup TrueSkill Through Time was published on",
         "rows": [
             ("whr", "WHR", "flagship"),
-            ("base_rate_0.5", "coin flip", "context"),
+            ("kickscore", "KickScore", "variant"),
+            ("ttt", "TrueSkill Through Time", "variant"),
+            ("coin_flip", "coin flip", "context"),
         ],
     },
     {
         "key": "football",
-        "title": "Football big-5 2022-23  ·  18,085 matches, 25% draws  ·  3-way log-loss",
-        "note": "Davidson draw model vs a draw-blind ablation",
+        "title": "Football big-5 2022-23  ·  1,826 matches, 25% draws  ·  3-way log-loss",
+        "note": "three-outcome prediction: WHR's Davidson draw model vs each "
+        "library's own draw handling",
         "rows": [
-            ("whr_davidson", "WHR Davidson + home", "flagship"),
-            ("whr_bt_constdraw", "WHR BT + const. draw", "variant"),
+            ("whr", "WHR (Davidson)", "flagship"),
+            ("kickscore", "KickScore (ternary)", "variant"),
+            ("ttt", "TrueSkill Through Time", "variant"),
             ("base_rate", "H/D/A base rate", "context"),
         ],
     },
@@ -234,7 +203,7 @@ PANELS = [
 
 
 def _load(name: str) -> dict:
-    with open(os.path.join(RESULTS, f"{name}_results.json")) as f:
+    with open(os.path.join(RESULTS, f"versus_{name}.json")) as f:
         return json.load(f)
 
 
@@ -258,7 +227,7 @@ def figure_comparison(theme: str) -> None:
     fig.text(
         0.014,
         stack.at(),
-        "WHR on real competition data — predictive log-loss (lower is better)",
+        "Head-to-head on real competition data — predictive log-loss (lower is better)",
         ha="left",
         va="top",
         fontsize=12.5,
@@ -267,17 +236,37 @@ def figure_comparison(theme: str) -> None:
     )
     stack.skip(26.0)
 
+    # Dot-plot-specific palette, deliberately not the shared THEMES values.
+    # ``accent_soft`` on dark is #184f95, a deep navy picked to recede behind
+    # 24px-tall bars; shrunk to an 8px dot on a near-black surface it collapses
+    # into the accent and the legend swatches become indistinguishable. Dots
+    # need the second shade to separate by going *lighter* than the accent, not
+    # darker. Separation here is carried by lightness, which is what keeps the
+    # three marks distinct under every CVD type as well.
     colour = {
-        "flagship": t["accent"],
-        "variant": t["accent_soft"],
-        "context": t["context"],
-    }
+        "light": {
+            "flagship": t["accent"],
+            "variant": "#86b6ef",
+            "context": t["context"],
+        },
+        "dark": {
+            "flagship": t["accent"],
+            "variant": "#a8cbf5",
+            "context": "#8a8880",
+        },
+    }[theme]
 
     for panel in PANELS:
         models = data[panel["key"]]["models"]
         rows = [r for r in panel["rows"] if r[0] in models]
+        rows.sort(key=lambda r: models[r[0]]["log_loss"])  # best first, from data
         vals = [models[k]["log_loss"] for k, _, _ in rows]
-        accs = [models[k]["accuracy"] for k, _, _ in rows]
+        # A constant-probability model has no accuracy worth printing: at exactly
+        # p = 0.5 every prediction is a tie, so the number that comes out (47.4%)
+        # is just which way argmax breaks ties, and reads as a bug.
+        accs = [
+            None if k in CONSTANT_MODELS else models[k]["accuracy"] for k, _, _ in rows
+        ]
 
         # panel header: title then note, both above the axes
         fig.text(
@@ -303,27 +292,52 @@ def figure_comparison(theme: str) -> None:
 
         y0, h = stack.band(len(rows) * ROW_PT)
         ax = fig.add_axes((left, y0, width, h))
-        ax.set_xlim(0, max(vals) * 1.34)
+        # Dots, not bars, and an axis cropped to the values. Every system here
+        # scores between 0.60 and 0.69, so a zero-baseline bar chart spends all
+        # its width on the 0.0-0.6 stretch nobody is comparing and renders a
+        # 12% quality gap as six visually identical bars. A dot encodes value by
+        # POSITION, so cropping the axis is honest -- there is no bar length to
+        # read proportionally -- and the differences become legible. The panels
+        # deliberately keep independent scales: comparing football's 3-way
+        # log-loss against the 2-way ones would be meaningless.
+        span = max(vals) - min(vals)
+        pad = max(span * 0.16, max(vals) * 0.006)
+        x_lo, x_hi = min(vals) - pad, max(vals) + pad
+        ax.set_xlim(x_lo, x_hi + span * 1.15 + pad)
         ax.set_ylim(-0.6, len(rows) - 0.4)
         ax.invert_yaxis()
-        # Every value is directly labelled at its tip, so the x-axis and its
-        # gridlines are redundant -- and dropping them also stops the reader
-        # comparing football's 3-way scale against the 2-way ones. The bars'
-        # single baseline (x = 0) is drawn as a hairline instead.
         ax.set_xticks([])
         ax.set_yticks(range(len(rows)))
         for side in ("top", "right", "bottom", "left"):
             ax.spines[side].set_visible(False)
         ax.tick_params(length=0)
-        ax.axvline(0, color=t["axis"], linewidth=1.0, zorder=1)
         fig.canvas.draw()  # axes rect is final -> px specs convert correctly
 
-        _, dy = _px_per_data(ax)
-        thickness = min(16.0 * dy, 0.58)  # <= 24px, 2px gap between neighbours
+        best_v = min(vals)
+        acc_x = x_hi + span * 0.34  # clear of the widest value label
         for i, (v, (_k, _lab, role)) in enumerate(zip(vals, rows, strict=True)):
-            _rounded_bar_h(ax, i, v, thickness, colour[role], t)
+            # a hairline from the panel's best score to this dot: the reader sees
+            # the deficit as a length without the axis pretending to start at 0
+            ax.plot(
+                [best_v, v],
+                [i, i],
+                color=t["grid"],
+                linewidth=1.0,
+                solid_capstyle="butt",
+                zorder=1,
+            )
+            ax.plot(
+                [v],
+                [i],
+                marker="o",
+                markersize=8.5 if role == "flagship" else 7.0,
+                color=colour[role],
+                markeredgecolor=t["surface"],
+                markeredgewidth=1.2,
+                zorder=3,
+            )
             ax.text(
-                v + max(vals) * 0.024,
+                v + pad * 0.7,
                 i,
                 f"{v:.3f}",
                 va="center",
@@ -332,15 +346,20 @@ def figure_comparison(theme: str) -> None:
                 color=t["ink"],
                 fontweight="bold" if role == "flagship" else "normal",
             )
-            ax.text(
-                v + max(vals) * 0.135,
-                i,
-                f"{accs[i] * 100:.1f}% acc",
-                va="center",
-                ha="left",
-                fontsize=7.6,
-                color=t["muted"],
-            )
+            if accs[i] is not None:
+                # fixed column, not offset from each dot: trailing the marker
+                # left the secondary numbers in a ragged staircase
+                ax.text(
+                    acc_x,
+                    i,
+                    f"{accs[i] * 100:.1f}% acc",
+                    va="center",
+                    ha="left",
+                    fontsize=7.6,
+                    color=t["muted"],
+                )
+        # mark the panel's best score, so "how far behind" has a visible origin
+        ax.axvline(best_v, color=t["axis"], linewidth=1.0, zorder=2)
 
         ax.set_yticklabels(
             [lab for _, lab, _ in rows], fontsize=9, color=t["ink_secondary"]
@@ -351,16 +370,18 @@ def figure_comparison(theme: str) -> None:
                 tick.set_fontweight("bold")
         stack.skip(GAP_PT)
 
+    # swatches mirror the marks: same colours, same round marker
     handles = [
-        plt.Line2D([], [], marker="s", linestyle="", markersize=7, color=t["accent"]),
-        plt.Line2D(
-            [], [], marker="s", linestyle="", markersize=7, color=t["accent_soft"]
-        ),
-        plt.Line2D([], [], marker="s", linestyle="", markersize=7, color=t["context"]),
+        plt.Line2D([], [], marker="o", linestyle="", markersize=7, color=colour[role])
+        for role in ("flagship", "variant", "context")
     ]
     leg = fig.legend(
         handles,
-        ["WHR (headline)", "WHR variant / ablation", "reference system or baseline"],
+        [
+            "WHR (this library)",
+            "reference implementation",
+            "published probs / baseline",
+        ],
         loc="lower left",
         bbox_to_anchor=(0.012, 0.004),
         ncol=3,

@@ -1,0 +1,59 @@
+{
+  "dataset": "atp_tennis",
+  "test_season": 2014,
+  "n_test": 2816,
+  "models": {
+    "whr": {
+      "log_loss": 0.6141020792364238,
+      "accuracy": 0.6697443181818182,
+      "n": 2816,
+      "params": {
+        "w2": 3.0,
+        "predict_uncertainty": true
+      },
+      "valid_log_loss": 0.6104259224433402,
+      "grid_size": 10,
+      "on_grid_edge": {
+        "w2": false
+      },
+      "flat_axes": []
+    },
+    "ttt": {
+      "log_loss": 0.6042912030245834,
+      "accuracy": 0.6658380681818182,
+      "n": 2816,
+      "params": {
+        "gamma": 0.3,
+        "beta": 32.0
+      },
+      "valid_log_loss": 0.6014698780758033,
+      "grid_size": 48,
+      "on_grid_edge": {
+        "gamma": false,
+        "beta": false
+      },
+      "flat_axes": []
+    },
+    "kickscore": {
+      "log_loss": 0.6056635202734209,
+      "accuracy": 0.6637073863636364,
+      "n": 2816,
+      "params": {
+        "wiener_var": 1e-05,
+        "prior_var": 0.125
+      },
+      "valid_log_loss": 0.6029408170095063,
+      "grid_size": 42,
+      "on_grid_edge": {
+        "wiener_var": false,
+        "prior_var": false
+      },
+      "flat_axes": []
+    },
+    "coin_flip": {
+      "log_loss": 0.6931471805599052,
+      "accuracy": 0.4737215909090909,
+      "n": 2816
+    }
+  }
+}

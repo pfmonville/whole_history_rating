@@ -1,0 +1,72 @@
+{
+  "dataset": "nba",
+  "test_season": 2019,
+  "n_test": 1312,
+  "bin_days": 14,
+  "models": {
+    "whr": {
+      "log_loss": 0.6659827546422669,
+      "accuracy": 0.6364329268292683,
+      "n": 1312,
+      "params": {
+        "w2": 1000.0,
+        "predict_uncertainty": true
+      },
+      "valid_log_loss": 0.6548828966511687,
+      "grid_size": 8,
+      "on_grid_edge": {
+        "w2": false
+      },
+      "flat_axes": []
+    },
+    "ttt": {
+      "log_loss": 0.6882392213638757,
+      "accuracy": 0.6364329268292683,
+      "n": 1312,
+      "params": {
+        "gamma": 0.1,
+        "beta": 0.5
+      },
+      "valid_log_loss": 0.6661009184585982,
+      "grid_size": 30,
+      "on_grid_edge": {
+        "gamma": false,
+        "beta": false
+      },
+      "flat_axes": []
+    },
+    "kickscore": {
+      "log_loss": 0.6619763027790228,
+      "accuracy": 0.6394817073170732,
+      "n": 1312,
+      "params": {
+        "wiener_var": 0.01,
+        "prior_var": 0.05
+      },
+      "valid_log_loss": 0.6546941341669518,
+      "grid_size": 30,
+      "on_grid_edge": {
+        "wiener_var": false,
+        "prior_var": false
+      },
+      "flat_axes": [
+        "prior_var"
+      ]
+    },
+    "fte_elo": {
+      "log_loss": 0.6191566139425054,
+      "accuracy": 0.6532012195121951,
+      "n": 1312
+    },
+    "fte_raptor": {
+      "log_loss": 0.6152437499264416,
+      "accuracy": 0.65625,
+      "n": 1312
+    },
+    "base_rate": {
+      "log_loss": 0.6776615591266049,
+      "accuracy": 0.5907012195121951,
+      "n": 1312
+    }
+  }
+}

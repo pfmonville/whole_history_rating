@@ -5,6 +5,43 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+No library code changes — benchmarks and documentation only.
+
+### Added
+- `benchmarks/versus.py`: a real head-to-head that **runs** KickScore and
+  TrueSkill Through Time locally instead of quoting their papers. All three
+  systems share a training prefix, validation season, test season, time unit and
+  metric, and every system's hyper-parameters — including the competitors'
+  probability-*scale* knobs — are tuned on the validation season. Each result
+  records `on_grid_edge` / `flat_axes` so a grid that constrained an optimum is
+  visible rather than silent.
+
+### Changed
+- The README benchmark section now reports the head-to-head instead of comparing
+  WHR against baselines and its own ablations. The honest summary: **WHR leads
+  the three-outcome football benchmark and trails KickScore on the NBA (0.6%)
+  and TrueSkill Through Time on tennis (1.6%)**, with FiveThirtyEight's
+  domain-specific NBA probabilities ahead of all three. Earlier framing implied
+  a comparison against KickScore and TTT that had not actually been run.
+- The comparison figure is a dot plot with a cropped axis; as zero-baseline bars,
+  a 4% quality gap rendered as six visually identical bars.
+
+### Fixed
+- Three protocol biases in the benchmark harness, two of which had understated
+  WHR's competitors and one WHR itself: KickScore cold starts returned a
+  hard-coded `0.5` instead of its own prior (~4.5% of tennis test matches);
+  hyper-parameter grids were too narrow, capping TrueSkill Through Time's `beta`
+  at 2.0 when its optimum is 32; and WHR was scored on bare point estimates
+  while both competitors integrated their posterior variance, so
+  `account_for_uncertainty` is now swept as a hyper-parameter.
+
+### Known gaps
+- `win_draw_loss_probabilities` has no `account_for_uncertainty` parameter,
+  unlike `probability_future_match`, so three-outcome predictions cannot hedge
+  for rating uncertainty.
+
 ## [3.1.0] - 2026-07-24
 
 ### Changed

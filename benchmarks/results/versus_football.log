@@ -1,0 +1,56 @@
+football: 18085 matches, draw rate 0.252 | train_v=12681 valid=1826 train_t=14507 test=1826
+    WHR {'w2': 1.0} valid 3way-log-loss=1.0108  <- best so far
+    WHR {'w2': 3.0} valid 3way-log-loss=1.0102  <- best so far
+    WHR {'w2': 10.0} valid 3way-log-loss=1.0091  <- best so far
+    WHR {'w2': 30.0} valid 3way-log-loss=1.0088  <- best so far
+    WHR {'w2': 100.0} valid 3way-log-loss=1.0109
+    WHR {'w2': 300.0} valid 3way-log-loss=1.0154
+    WHR {'w2': 1000.0} valid 3way-log-loss=1.0249
+  WHR: selected {'w2': 30.0} (valid 1.0088)
+  WHR: TEST 3way-log-loss=1.0089 acc=51.5%  edge={'w2': False} flat=[]
+    TTT {'gamma': 0.01, 'p_draw': 0.2} valid 3way-log-loss=1.0469  <- best so far
+    TTT {'gamma': 0.01, 'p_draw': 0.25} valid 3way-log-loss=1.0326  <- best so far
+    TTT {'gamma': 0.01, 'p_draw': 0.3} valid 3way-log-loss=1.0317  <- best so far
+    TTT {'gamma': 0.01, 'p_draw': 0.35} valid 3way-log-loss=1.0413
+    TTT {'gamma': 0.01, 'p_draw': 0.4} valid 3way-log-loss=1.0600
+    TTT {'gamma': 0.03, 'p_draw': 0.2} valid 3way-log-loss=1.0460
+    TTT {'gamma': 0.03, 'p_draw': 0.25} valid 3way-log-loss=1.0317  <- best so far
+    TTT {'gamma': 0.03, 'p_draw': 0.3} valid 3way-log-loss=1.0307  <- best so far
+    TTT {'gamma': 0.03, 'p_draw': 0.35} valid 3way-log-loss=1.0403
+    TTT {'gamma': 0.03, 'p_draw': 0.4} valid 3way-log-loss=1.0590
+    TTT {'gamma': 0.1, 'p_draw': 0.2} valid 3way-log-loss=1.0530
+    TTT {'gamma': 0.1, 'p_draw': 0.25} valid 3way-log-loss=1.0392
+    TTT {'gamma': 0.1, 'p_draw': 0.3} valid 3way-log-loss=1.0389
+    TTT {'gamma': 0.1, 'p_draw': 0.35} valid 3way-log-loss=1.0491
+    TTT {'gamma': 0.1, 'p_draw': 0.4} valid 3way-log-loss=1.0684
+    TTT {'gamma': 0.3, 'p_draw': 0.2} valid 3way-log-loss=1.0763
+    TTT {'gamma': 0.3, 'p_draw': 0.25} valid 3way-log-loss=1.0642
+    TTT {'gamma': 0.3, 'p_draw': 0.3} valid 3way-log-loss=1.0657
+    TTT {'gamma': 0.3, 'p_draw': 0.35} valid 3way-log-loss=1.0779
+    TTT {'gamma': 0.3, 'p_draw': 0.4} valid 3way-log-loss=1.0995
+  TTT: selected {'gamma': 0.03, 'p_draw': 0.3} (valid 1.0307)
+  TTT: TEST 3way-log-loss=1.0228 acc=52.0%  edge={'gamma': False, 'p_draw': False} flat=[]
+    KickScore {'wiener_var': 1e-06, 'margin': 0.1} valid 3way-log-loss=1.1925  <- best so far
+    KickScore {'wiener_var': 1e-06, 'margin': 0.3} valid 3way-log-loss=1.0242  <- best so far
+    KickScore {'wiener_var': 1e-06, 'margin': 0.6} valid 3way-log-loss=1.0521
+    KickScore {'wiener_var': 1e-05, 'margin': 0.1} valid 3way-log-loss=1.1923
+    KickScore {'wiener_var': 1e-05, 'margin': 0.3} valid 3way-log-loss=1.0238  <- best so far
+    KickScore {'wiener_var': 1e-05, 'margin': 0.6} valid 3way-log-loss=1.0513
+    KickScore {'wiener_var': 0.0001, 'margin': 0.1} valid 3way-log-loss=1.1921
+    KickScore {'wiener_var': 0.0001, 'margin': 0.3} valid 3way-log-loss=1.0225  <- best so far
+    KickScore {'wiener_var': 0.0001, 'margin': 0.6} valid 3way-log-loss=1.0479
+    KickScore {'wiener_var': 0.001, 'margin': 0.1} valid 3way-log-loss=1.2007
+    KickScore {'wiener_var': 0.001, 'margin': 0.3} valid 3way-log-loss=1.0279
+    KickScore {'wiener_var': 0.001, 'margin': 0.6} valid 3way-log-loss=1.0470
+    KickScore {'wiener_var': 0.01, 'margin': 0.1} valid 3way-log-loss=1.2419
+    KickScore {'wiener_var': 0.01, 'margin': 0.3} valid 3way-log-loss=1.0575
+    KickScore {'wiener_var': 0.01, 'margin': 0.6} valid 3way-log-loss=1.0543
+    KickScore {'wiener_var': 0.1, 'margin': 0.1} valid 3way-log-loss=1.3579
+    KickScore {'wiener_var': 0.1, 'margin': 0.3} valid 3way-log-loss=1.1555
+    KickScore {'wiener_var': 0.1, 'margin': 0.6} valid 3way-log-loss=1.1186
+    KickScore {'wiener_var': 1.0, 'margin': 0.1} valid 3way-log-loss=1.5821
+    KickScore {'wiener_var': 1.0, 'margin': 0.3} valid 3way-log-loss=1.3570
+    KickScore {'wiener_var': 1.0, 'margin': 0.6} valid 3way-log-loss=1.2769
+  KickScore: selected {'wiener_var': 0.0001, 'margin': 0.3} (valid 1.0225)
+  KickScore: TEST 3way-log-loss=1.0134 acc=51.5%  edge={'wiener_var': False, 'margin': False} flat=[]
+wrote benchmarks/results/versus_football.json
