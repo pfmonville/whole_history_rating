@@ -3,7 +3,7 @@ import pickle
 
 import pytest
 
-from whr import playerday
+from whr import HandicapBaselineWarning, playerday
 from whr.game import Game
 from whr.player import Player
 from whr.whole_history_rating import WHR
@@ -149,10 +149,15 @@ def test_baseline_handicap_zero_not_moved():
 
 
 def test_estimate_handicap_zero_lets_it_move():
+    """`a` is always black here, so the freed baseline is not identifiable and
+    the movement this test asserts IS the confound: it warns, and the level it
+    absorbs is the level that leaks into the ratings. See
+    tests/test_baseline_identifiability.py for the consequence."""
     w = WHR(config={"estimate_handicap_zero": True})
     for d in range(1, 41):
         w.create_game("a", "b", "B" if d % 3 else "W", d, 0)
-    w.iterate(50)
+    with pytest.warns(HandicapBaselineWarning):
+        w.iterate(50)
     # unpinned and mixed results -> generally moves off 1.0
     assert w.handicap_gamma[0] != 1.0
 

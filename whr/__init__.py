@@ -12,7 +12,12 @@ from importlib.metadata import PackageNotFoundError, version
 from whr.game import Game
 from whr.player import Player
 from whr.playerday import PlayerDay
-from whr.utils import NoDrawsWarning, UnstableRatingException
+from whr.utils import (
+    HandicapBaselineWarning,
+    NoDrawsWarning,
+    UncomputedUncertaintyWarning,
+    UnstableRatingException,
+)
 from whr.whole_history_rating import WHR, Base
 
 try:
@@ -24,9 +29,11 @@ __all__ = [
     "WHR",
     "Base",
     "Game",
+    "HandicapBaselineWarning",
     "NoDrawsWarning",
     "Player",
     "PlayerDay",
+    "UncomputedUncertaintyWarning",
     "UnstableRatingException",
     "__version__",
 ]

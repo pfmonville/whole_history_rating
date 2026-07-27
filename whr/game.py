@@ -13,7 +13,7 @@ class Game:
         black: P.Player,
         white: P.Player,
         winner: str,
-        time_step: int,
+        time_step: int | float,
         handicap: float = 0,
         extras: dict[str, Any] | None = None,
         handicap_gamma: dict[Any, float] | None = None,

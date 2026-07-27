@@ -5,6 +5,80 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-07-25
+
+A usability audit of the whole public surface, looking for the same class of
+problem the 3.3.0 draw work fixed: config that does not apply, API asymmetries,
+and degenerate cases that return a misleading value instead of saying so.
+
+### Added
+- **`HandicapBaselineWarning`** and **`one_sided_game_share()`** —
+  `estimate_handicap_zero=True` frees the `handicap` key `0` baseline, which adds
+  a global black-advantage parameter. That parameter is only identifiable if
+  colour assignment varies independently of who is playing. When a competitor
+  sits on one side of the board, the free baseline trades off against their
+  strength: differences between handicap keys stay correct while the overall
+  level **leaks into the ratings**. Measured on a base built so two players are
+  exactly equal, the option reported them **90 elo apart** and made
+  `probability_future_match` without a `handicap_key` return `0.63` instead of
+  `0.50`; with colours alternating the same data is unaffected.
+
+  The first `iterate()` now warns once when the option is on and more than half
+  the games involve a player who plays ≥95% of them on one side.
+  `one_sided_game_share()` exposes the statistic. It is a heuristic — a quiet run
+  is not a proof of identifiability — and it is deliberately silent on a
+  home-and-away league schedule, the common sports shape.
+- **`UncomputedUncertaintyWarning`** — `ratings_for_player` returns the raw `-1`
+  uncertainty sentinel before `iterate()` has computed anything, while
+  `rating_difference` / `rating_covariance` / `rating_change` raise a `ValueError`
+  in that same state. The sentinel still comes back, so an un-rated base stays
+  inspectable, but it now warns once per instance so a `-1` cannot be mistaken
+  for a standard deviation.
+
+### Fixed
+- **`remove_drift()` raised a bare `TypeError` on any non-integer day**,
+  including whole floats like `1.0`
+  (`can't multiply sequence by non-int of type 'float'`). Fractional days are
+  meaningful to the model and were accepted by `create_game`, so this was a
+  crash on valid input. The drift smoothing now runs on whole-day bins — the
+  kernel already averages over ±`drift_kernel_radius` days, so sub-day
+  resolution could never survive it anyway.
+- **`load_games` rejected fractional days** that `create_game` accepted, with
+  `invalid literal for int() with base 10`. It now parses them, and reports a
+  non-numeric day by naming `time_step` instead.
+- **`time_step` is validated at `create_game`**, where the mistake is, rather
+  than as a cryptic failure from inside the maths. Non-numbers and NaN/infinity
+  are rejected; a `bool` is rejected too, having silently meant day 0 or 1. An
+  integral float is narrowed to `int`, so `1.0` and `1` are the *same* playing
+  day rather than two.
+- `load_games` error messages: a repeated separator now says so instead of
+  failing with `invalid literal for int() with base 10: 'B'` (the blank field
+  shifts every field after it), the field-count error states what was expected,
+  and a line with surrounding whitespace is accepted rather than rejected.
+
+### Documentation
+- The README's "make ratings look like real elo" recipe shifts a *copy* and is
+  safe, but it did not warn against the in-place variant. Assigning
+  `day.elo += OFFSET` also leaves predictions unchanged, yet the offset is not a
+  fixed point of the fit: the first-day anchor pulls it back, so a later
+  `iterate()` erodes it silently (1500 → ~100 over 500 iterations). Now
+  documented, with the erosion pinned by a test.
+- `create_game` documents what a day value is and what is accepted;
+  `ratings_for_player` documents the `-1` sentinel and its divergence from the
+  raising siblings; `estimate_handicap_zero` carries the identifiability hazard
+  rather than only the words "identifiability confound".
+
+### Verified unchanged
+Audited and found sound, for the record: `save_base`/`load_base` preserves `nu`,
+draw declarations, handicap/komi gammas, ratings, uncertainties and predictions;
+self-play is rejected on both the create and predict paths; `uncased` normalises
+across `create_game`, `load_games`, `player_by_name`, predictions and orderings;
+empty and single-game bases return sensible values and unknown players raise
+clearly; `fit_w2` does not mutate its instance; `pinned_handicap` / `pinned_komi`
+pin exactly; `drift_kernel_radius` takes effect; and the `remove_drift` day-span
+guard already named the value, the threshold and the fix. The three sports
+benchmarks are bit-identical.
+
 ## [3.3.0] - 2026-07-25
 
 ### Added

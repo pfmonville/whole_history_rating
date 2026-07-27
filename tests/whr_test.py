@@ -5,7 +5,7 @@ import warnings
 
 import pytest
 
-from whr import whole_history_rating
+from whr import HandicapBaselineWarning, whole_history_rating
 
 
 def setup_game_with_elo(white_elo, black_elo, handicap):
@@ -624,11 +624,16 @@ def test_save_base_with_unpicklable_config_warns_and_falls_back(tmp_path):
             "pinned_handicap": {2: 300.0},
             "pinned_komi": {6.5: 10.0},
             "estimate_handicap_zero": True,
+            "draw_rate": 0.2,
             "bad": lambda x: x,
         }
     )
     whr.create_game("a", "b", "B", 1, 2)
-    whr.iterate(3)
+    # `a` is always black, so freeing the handicap-0 baseline is unidentifiable
+    # here and warns; beside the point for this test, which is about the
+    # save_base allowlist.
+    with pytest.warns(HandicapBaselineWarning):
+        whr.iterate(3)
     path = str(tmp_path / "state.pkl")
     with pytest.warns(UserWarning):
         whr.save_base(path)
@@ -648,6 +653,9 @@ def test_save_base_with_unpicklable_config_warns_and_falls_back(tmp_path):
     assert loaded.config["pinned_handicap"] == {2: 300.0}
     assert loaded.config["pinned_komi"] == {6.5: 10.0}
     assert loaded.config["estimate_handicap_zero"] is True
+    # draw_rate must survive too, or a reloaded base loses the draw declaration
+    # and silently resumes re-fitting nu
+    assert loaded.config["draw_rate"] == 0.2
 
 
 def test_auto_iterate_returns_not_stable_on_timeout():

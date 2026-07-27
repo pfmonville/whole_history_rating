@@ -252,3 +252,24 @@ def test_readme_draw_state_table_behaves_as_documented():
     # setting both spellings at once is rejected
     with pytest.raises(ValueError):
         WHR(config={"draw_rate": 0.25, "pinned_draw": 0.79})
+
+
+def test_readme_inplace_offset_erodes_under_further_iteration():
+    """The README's recipe shifts a copy; this pins why it says not to write the
+    offset back into the model. Predictions stay invariant either way, but the
+    first-day anchor pulls an in-place offset back toward 0, so it is not stable
+    across a later iterate()."""
+    whr = _running_example()
+    before = whr.probability_future_match("shusaku", "shusai", 0)
+    for player in whr.players.values():
+        for day in player.days:
+            day.elo = day.elo + 1500
+    right_after = whr.player_by_name("shusaku").days[-1].elo
+    assert right_after > 1400
+    whr.iterate(500)
+    eroded = whr.player_by_name("shusaku").days[-1].elo
+    assert eroded < right_after / 2, "the offset should have decayed substantially"
+    # ...while the prediction the offset was never supposed to affect is intact
+    assert whr.probability_future_match("shusaku", "shusai", 0) == pytest.approx(
+        before, abs=1e-3
+    )

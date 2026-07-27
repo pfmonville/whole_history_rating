@@ -9,8 +9,8 @@ from whr import player as P
 
 
 class PlayerDay:
-    def __init__(self, player: P.Player, day: int):
-        self.day = day
+    def __init__(self, player: P.Player, day: int | float):
+        self.day: int | float = day
         self.player = player
         self.won_games: list[G.Game] = []
         self.lost_games: list[G.Game] = []

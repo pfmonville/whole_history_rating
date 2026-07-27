@@ -12,7 +12,11 @@ import numpy as np
 
 from whr.game import Game
 from whr.player import Player
-from whr.utils import NoDrawsWarning
+from whr.utils import (
+    HandicapBaselineWarning,
+    NoDrawsWarning,
+    UncomputedUncertaintyWarning,
+)
 
 # _compute_drift allocates arrays sized to the CALENDAR SPAN of day values
 # (max_day - min_day), not to the number of games. If `time_step` is an epoch
@@ -43,6 +47,38 @@ _MAX_HALF_GAP = 700.0
 _MAX_ADVANTAGE_LOG_STEP = 10.0
 
 
+def _validated_time_step(time_step: Any) -> int | float:
+    """Check a ``time_step`` early, and normalise an integral float to ``int``.
+
+    Fractional day values are meaningful to the model -- a day is just an index
+    and the Wiener prior uses ``|delta| * w2`` -- so they are allowed. But they
+    used to be accepted silently while ``load_games`` could not express them and
+    ``remove_drift`` crashed on them; both now handle them, and the checks here
+    turn the remaining nonsense into an error at the point of entry rather than a
+    cryptic ``TypeError`` from inside the maths.
+
+    ``1.0`` is narrowed to ``1`` so that a float and an int spelling of the same
+    day are the *same* playing day rather than two, which is what a caller
+    building days from arithmetic almost always means.
+    """
+    if isinstance(time_step, bool):
+        raise TypeError(
+            f"time_step must be a number, got a bool ({time_step!r}). "
+            "A bool would silently be read as day 0 or 1."
+        )
+    if not isinstance(time_step, (int, float)):
+        raise TypeError(
+            f"time_step must be an int or a float, got "
+            f"{type(time_step).__name__} ({time_step!r}). It is a day index "
+            "counted from an origin of your choosing."
+        )
+    if not math.isfinite(time_step):
+        raise ValueError(f"time_step must be finite, got {time_step!r}")
+    if isinstance(time_step, float) and time_step.is_integer():
+        return int(time_step)
+    return time_step
+
+
 class WHR:
     def __init__(self, config: dict[str, Any] | None = None):
         # Copy the caller's dict so we never mutate it and instances never
@@ -60,6 +96,8 @@ class WHR:
         self.config.setdefault("draw_rate", None)
         self._has_draws = False
         self._warned_no_draws = False
+        self._warned_baseline = False
+        self._warned_uncomputed_uncertainty = False
         self.nu = self._resolve_pinned_draw()
         self.games: list[Game] = []
         self.players: dict[str, Player] = {}
@@ -306,7 +344,7 @@ class WHR:
 
     def _game_descriptions(
         self,
-    ) -> list[tuple[str, str, str, int, float, dict[str, Any]]]:
+    ) -> list[tuple[str, str, str, int | float, float, dict[str, Any]]]:
         """Replayable (black, white, winner, day, handicap, extras) tuples.
 
         ``extras`` is copied so replaying into a fresh WHR cannot mutate this
@@ -592,7 +630,7 @@ class WHR:
             "confidence_interval_95": (difference - 1.96 * se, difference + 1.96 * se),
         }
 
-    def rating_covariance(self, name: str) -> tuple[list[int], np.ndarray]:
+    def rating_covariance(self, name: str) -> tuple[list[int | float], np.ndarray]:
         """Full within-player covariance of a player's day ratings, in elo^2.
 
         Returns (days, matrix) where matrix[i][j] = Cov(elo on days[i], elo on
@@ -660,7 +698,7 @@ class WHR:
 
     def ratings_for_player(
         self, name, current: bool = False
-    ) -> list[tuple[int, float, float]] | tuple[float, float]:
+    ) -> list[tuple[int | float, float, float]] | tuple[float, float]:
         """Retrieves all ratings for each day played by the specified player.
 
         Args:
@@ -676,6 +714,7 @@ class WHR:
         player = self._existing_player(name)
         if player is None or len(player.days) == 0:
             raise ValueError(f"No ratings available for unknown player {name!r}")
+        self._warn_if_uncertainty_uncomputed(player)
         if current:
             return (
                 round(player.days[-1].elo),
@@ -683,12 +722,35 @@ class WHR:
             )
         return [(d.day, round(d.elo), round(d.uncertainty, 2)) for d in player.days]
 
+    def _warn_if_uncertainty_uncomputed(self, player: Player) -> None:
+        """Flag the ``-1`` uncertainty sentinel being read as if it were a value.
+
+        ``rating_difference`` and friends raise in this state; this method has
+        always returned the raw sentinel instead, so an un-rated base stays
+        inspectable. The warning keeps that behaviour while making the ``-1``
+        impossible to mistake for a standard deviation. Once per instance.
+        """
+        if self._warned_uncomputed_uncertainty:
+            return
+        if not any(day.uncertainty < 0 for day in player.days):
+            return
+        self._warned_uncomputed_uncertainty = True
+        warnings.warn(
+            f"ratings_for_player({player.name!r}) is reporting the uncertainty "
+            "sentinel -1, which means uncertainties have not been computed -- it "
+            "is not a standard deviation. Call iterate() or auto_iterate() "
+            "first. (rating_difference/rating_covariance raise a ValueError in "
+            "this same state.)",
+            UncomputedUncertaintyWarning,
+            stacklevel=3,
+        )
+
     def _setup_game(
         self,
         black: str,
         white: str,
         winner: str,
-        time_step: int,
+        time_step: int | float,
         handicap: float,
         extras: dict[str, Any] | None = None,
     ) -> Game:
@@ -720,7 +782,7 @@ class WHR:
         black: str,
         white: str,
         winner: str,
-        time_step: int,
+        time_step: int | float,
         handicap: float,
         komi: Any = None,
         extras: dict[str, Any] | None = None,
@@ -750,6 +812,13 @@ class WHR:
 
         Returns:
             Game: The newly added game.
+
+        Raises:
+            TypeError: If ``time_step`` is not a real number (a ``bool`` is
+                rejected too: ``True`` silently meant day 1).
+            ValueError: If ``time_step`` is NaN or infinite.
+            AttributeError: If ``black`` and ``white`` are the same player, or
+                if ``winner`` is not one of "B", "W", "D".
         """
         extras = dict(extras) if extras else {}
         if komi is not None:
@@ -757,6 +826,7 @@ class WHR:
         if self.config["uncased"]:
             black = black.lower()
             white = white.lower()
+        time_step = _validated_time_step(time_step)
         game = self._setup_game(black, white, winner, time_step, handicap, extras)
         self._ensure_advantage_keys(game.handicap, game.extras.get("komi"))
         return self._add_game(game)
@@ -859,6 +929,73 @@ class WHR:
             return pinned
         return 0.0
 
+    _ONE_SIDED_SHARE = 0.05  # a player playing <5% or >95% of games as one colour
+    _IMBALANCED_GAME_SHARE = 0.5  # ...and such players carrying most of the games
+
+    def one_sided_game_share(self) -> float:
+        """Share of games involving a player who almost never changes colour.
+
+        The statistic behind :class:`~whr.utils.HandicapBaselineWarning`. A player
+        is "one-sided" when at most ``5%`` of their games are on one side of the
+        board. The fraction returned is games with at least one such player,
+        over all games -- so a league where every team plays home and away
+        scores ~0, while a base where one competitor is always "black" scores 1.
+        """
+        if not self.games:
+            return 0.0
+        black_count: dict[str, int] = {}
+        total_count: dict[str, int] = {}
+        for game in self.games:
+            for name, is_black in (
+                (game.black_player.name, True),
+                (game.white_player.name, False),
+            ):
+                total_count[name] = total_count.get(name, 0) + 1
+                black_count[name] = black_count.get(name, 0) + (1 if is_black else 0)
+        one_sided = {
+            name
+            for name, total in total_count.items()
+            if not (
+                self._ONE_SIDED_SHARE
+                <= black_count[name] / total
+                <= 1.0 - self._ONE_SIDED_SHARE
+            )
+        }
+        if not one_sided:
+            return 0.0
+        affected = sum(
+            1
+            for game in self.games
+            if game.black_player.name in one_sided
+            or game.white_player.name in one_sided
+        )
+        return affected / len(self.games)
+
+    def _warn_if_baseline_unidentified(self) -> None:
+        """Flag ``estimate_handicap_zero`` on data that cannot identify the
+        freed baseline. Fires at most once per instance, at the start of a fit.
+        """
+        if self._warned_baseline or not self.config["estimate_handicap_zero"]:
+            return
+        share = self.one_sided_game_share()
+        if share <= self._IMBALANCED_GAME_SHARE:
+            return
+        self._warned_baseline = True
+        warnings.warn(
+            f"estimate_handicap_zero=True frees the handicap key 0 baseline, but "
+            f"{share:.0%} of games involve a player who almost always takes the "
+            "same colour, so that baseline is not separately identifiable from "
+            "player strength. Differences between handicap keys stay correct "
+            "while the overall level leaks into the ratings: equal players can "
+            "be reported tens of elo apart, and probability_future_match without "
+            "a handicap_key is wrong by the same amount. Leave "
+            "estimate_handicap_zero at False (the default), or anchor the scale "
+            "with pinned_handicap. Inspect the statistic via "
+            "one_sided_game_share().",
+            HandicapBaselineWarning,
+            stacklevel=3,
+        )
+
     def _warn_if_draws_undeclared(self) -> None:
         """Flag a three-outcome prediction whose draw probability is 0 by default
         rather than by decision. Fires at most once per instance so a scoring
@@ -902,7 +1039,13 @@ class WHR:
 
         Args:
             count (int): The number of iterations to perform.
+
+        Warns:
+            HandicapBaselineWarning: Once per instance, if
+                ``estimate_handicap_zero`` is on while colour assignment is too
+                one-sided to identify the freed baseline. See the warning class.
         """
+        self._warn_if_baseline_unidentified()
         for _ in range(count):
             self._run_one_iteration()
         for player in self.players.values():
@@ -969,8 +1112,13 @@ class WHR:
         radius = self.config["drift_kernel_radius"]
         if not isinstance(radius, int) or radius < 1:
             raise ValueError(f"drift_kernel_radius must be an int >= 1, got {radius!r}")
-        days = [g.day for g in self.games]
-        min_day, max_day = min(days), max(days)
+        # The smoothing runs on a dense integer grid, so fractional days are
+        # floored into whole-day bins. That is a non-issue in practice: the
+        # kernel already averages over +/- `radius` days (100 by default), so
+        # sub-day resolution cannot survive it -- and before this, a single
+        # non-integer day made the whole method raise a bare TypeError.
+        bins = [math.floor(g.day) for g in self.games]
+        min_day, max_day = min(bins), max(bins)
         span = max_day - min_day
         if span > _MAX_DRIFT_DAY_SPAN:
             raise ValueError(
@@ -986,7 +1134,7 @@ class WHR:
         for g in self.games:
             if g.bpd is None or g.wpd is None:
                 continue
-            j = g.day - min_day + radius
+            j = math.floor(g.day) - min_day + radius
             total_elo[j] += g.bpd.elo + g.wpd.elo
             game_count[j] += 1.0
 
@@ -1017,7 +1165,7 @@ class WHR:
                 drift[min_day + i] = 0.0
         return drift
 
-    def remove_drift(self) -> dict[int, float]:
+    def remove_drift(self) -> dict[int | float, float]:
         """Cancel global rating drift over time (Coulom's RemoveDrift).
 
         Call after iterate()/auto_iterate() — and call it last, since a
@@ -1043,10 +1191,12 @@ class WHR:
         """
         drift = self._compute_drift()
         factor = math.log(10) / 400.0
-        applied: dict[int, float] = {}
+        applied: dict[int | float, float] = {}
         for player in self.players.values():
             for pd in player.days:
-                correction_elo = -drift.get(pd.day, 0.0)
+                # drift is keyed by whole-day bin (see _compute_drift), so a
+                # fractional day reads the correction for the day it falls in
+                correction_elo = -drift.get(math.floor(pd.day), 0.0)
                 pd.r += correction_elo * factor
                 applied[pd.day] = correction_elo
         return applied
@@ -1481,9 +1631,23 @@ class WHR:
             ValueError: If any game string does not comply with the expected format or if parsing fails.
         """
         for line in games:
-            parts = [part.strip() for part in line.split(separator)]
+            # strip the line before splitting, so a stray leading/trailing space
+            # is not read as an extra (empty) field
+            parts = [part.strip() for part in line.strip().split(separator)]
             if len(parts) < 4 or len(parts) > 6:
-                raise ValueError(f"Invalid game format: '{line}'")
+                raise ValueError(
+                    f"Invalid game format: '{line}' -- expected 4 to 6 "
+                    f"{separator!r}-separated fields "
+                    "(black white winner time_step [handicap] [extras]), "
+                    f"got {len(parts)}"
+                )
+            if any(part == "" for part in parts):
+                raise ValueError(
+                    f"Empty field in: '{line}' -- a repeated {separator!r} "
+                    "separator leaves a blank field and shifts every field "
+                    "after it. Collapse the repeat, or pass a separator that "
+                    "does not occur inside your names."
+                )
 
             black, white, winner, time_step, *rest = parts
             handicap = 0
@@ -1519,9 +1683,21 @@ class WHR:
             if self.config["uncased"]:
                 black, white = black.lower(), white.lower()
 
-            self.create_game(
-                black, white, winner, int(time_step), handicap, extras=extras
-            )
+            # `create_game` accepts fractional days, so the parser must too --
+            # it used to reject them with a bare int() error while the
+            # programmatic path let them through.
+            day: int | float
+            try:
+                day = int(time_step)
+            except ValueError:
+                try:
+                    day = float(time_step)
+                except ValueError:
+                    raise ValueError(
+                        f"Invalid time_step {time_step!r} in: '{line}' -- must "
+                        "be a number (a day index counted from an origin)"
+                    ) from None
+            self.create_game(black, white, winner, day, handicap, extras=extras)
 
     def save_base(self, path: str) -> None:
         """Saves the current state of the base to a specified path.

@@ -135,6 +135,7 @@ whr.create_game("shusaku", "shusai", "W", 3, 0)
 ```
 
 - `handicap` is a **category key**, not a fixed elo bonus — its advantage is learned from the data (or pinned). See "Handicap and komi" below; use `0` for an even game. (This changed in 3.0.0 — in 2.x it was a raw elo constant.)
+- The day is a **day index counted from an origin you choose**, and it defines a player's *playing days*: two games with the same value share one rated day. Fractional values are allowed (the time prior uses `|Δdays| · w2`), and an integral float is narrowed to `int`, so `1.0` and `1` are the same day rather than two. Non-numbers, booleans and NaN/infinity are rejected at this call. Keep the span compact — see the note under "Removing Rating Drift" about epoch timestamps.
 - `"D"` records a draw — see "Draws".
 - `komi` is **opt-in** (as of 3.1.0): the default `None` models no komi at all. Pass a value to model a white-side (komi) advantage for that game, whose category is learned like the handicap:
 
@@ -217,10 +218,21 @@ elo values are **rounded to integers** and the uncertainty to two decimals.
 > shifted = [(day, elo + OFFSET, unc) for day, elo, unc in whr.ratings_for_player("shusaku")]
 > ```
 >
+> Shift a **copy**, as above, rather than writing back into the model. Assigning
+> `day.elo = day.elo + OFFSET` also leaves predictions unchanged, but the offset
+> is not a fixed point of the fit: the first-day anchor pulls ratings back toward
+> 0, so a later `iterate()` erodes it silently — an added 1500 decays to roughly
+> 100 over 500 further iterations. If you do shift in place, do it last, after
+> your final `iterate()`.
+>
 > If the spread itself is too narrow, lower `initial_prior_wins` (see "Optional
 > Configuration") so weakly-connected players are pulled less toward the centre.
 
-Querying an unknown player raises a `ValueError`.
+Querying an unknown player raises a `ValueError`. Before `iterate()` has run,
+uncertainties are the sentinel **`-1`** — not a standard deviation, but "not
+computed yet"; reading them emits an `UncomputedUncertaintyWarning` once per
+instance. (`rating_difference`, `rating_covariance` and `rating_change` raise a
+`ValueError` in that same state rather than returning a sentinel.)
 
 To get the underlying `Player` object itself (for direct access to its `days`,
 each day's `elo` / `gamma()`, etc.), use `player_by_name()`. Note it *creates*
@@ -614,6 +626,23 @@ This step is opt-in: it does not run automatically and does not change what `ite
 Every game carries a `handicap` key (the `handicap` argument to `create_game`/`load_games`) and an optional `komi` key (the `komi` argument — **opt-in since 3.1.0**: `None`/absent means the game has no komi and none is estimated). Handicap boosts **black**; komi boosts **white**. Rather than a fixed elo constant, each distinct key is a Bradley-Terry *category*: its advantage, in elo, is a parameter co-estimated alongside the player ratings on every iteration (a faithful port of Coulom's `NewtonKomiHandicap`), and is readable at any time from `whr.handicap_gamma` / `whr.komi_gamma` — dicts mapping each key to its estimated gamma (convert to elo with `400 * log10(gamma)`).
 
 The `handicap` key `0` (no handicap) is a pinned no-advantage baseline (gamma `1.0`, i.e. `0` elo) by default and is never moved by estimation — this resolves an identifiability confound between the black/white baseline and the komi advantage. Set `estimate_handicap_zero=True` if you want it estimated instead.
+
+> **`estimate_handicap_zero=True` can fabricate rating gaps.** Freeing key `0`
+> adds a global black-advantage parameter, and that parameter is only
+> identifiable if colour assignment varies independently of who is playing. When
+> a competitor sits on one side of the board — one player always "black" — the
+> free baseline trades off against their strength. The *differences* between
+> handicap keys stay correct, but the overall level leaks into the ratings: in a
+> base built so that two players are exactly equal, turning this on reported them
+> **90 elo apart** and made `probability_future_match` without a `handicap_key`
+> return `0.63` instead of `0.50`. With colours alternating, the same data is
+> unaffected.
+>
+> Since 3.4.0 the first `iterate()` emits a `HandicapBaselineWarning` when this
+> option is on and more than half the games involve a player who almost never
+> changes colour; `one_sided_game_share()` returns the statistic. The check is a
+> heuristic, so a quiet run is not a proof — prefer leaving the default, or
+> anchor the scale with `pinned_handicap`.
 
 To pin a handicap or komi value you already know (rather than estimating it), use `pinned_handicap` / `pinned_komi`:
 
