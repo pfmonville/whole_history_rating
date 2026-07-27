@@ -213,6 +213,7 @@ def test_readme_documented_config_defaults():
     assert config["pinned_komi"] == {}
     assert config["estimate_handicap_zero"] is False
     assert config["pinned_draw"] is None
+    assert config["draw_rate"] is None
 
 
 def test_readme_display_offset_leaves_predictions_unchanged():
@@ -225,3 +226,29 @@ def test_readme_display_offset_leaves_predictions_unchanged():
             day.elo = day.elo + 1500
     after = whr.probability_future_match("shusaku", "shusai", 0)
     assert after == pytest.approx(before, rel=1e-12)
+
+
+def test_readme_draw_rate_conversion_outputs():
+    """The README's "Does your domain have draws at all?" snippet prints two
+    concrete numbers; pin them so the documented output cannot rot."""
+    assert WHR(config={"draw_rate": 0.25}).draw_tendency == 0.6666666666666666
+    assert WHR.draw_rate_from_nu(0.79) == 0.2831541218637993
+    # the prose's football figures: nu ~= 0.79 -> 28.3% between equals
+    assert round(WHR.draw_rate_from_nu(0.7932) * 100, 1) == 28.4
+    assert round(WHR.draw_rate_from_nu(0.79) * 100, 1) == 28.3
+
+
+def test_readme_draw_state_table_behaves_as_documented():
+    """The three rows of the README's draw-declaration table."""
+    # row 2: declared no-draws -> nu stays 0 even with draws in the data
+    w = WHR(config={"draw_rate": 0.0})
+    w.create_game("a", "b", "D", 1, 0)
+    assert w.draw_tendency == 0.0
+    # row 3: a declared rate is never re-fitted
+    w = WHR(config={"pinned_draw": 0.79})
+    w.create_game("a", "b", "D", 1, 0)
+    w.iterate(20)
+    assert w.draw_tendency == 0.79
+    # setting both spellings at once is rejected
+    with pytest.raises(ValueError):
+        WHR(config={"draw_rate": 0.25, "pinned_draw": 0.79})

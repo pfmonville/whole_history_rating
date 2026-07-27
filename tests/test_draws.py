@@ -3,6 +3,7 @@ import random
 
 import pytest
 
+from whr import NoDrawsWarning
 from whr.player import Player
 from whr.whole_history_rating import WHR
 
@@ -268,11 +269,15 @@ def test_win_draw_loss_sums_to_one_and_reflects_nu():
 
 
 def test_win_draw_loss_no_draws_gives_zero_draw():
+    """No draws and no declared draw tendency: the split still reduces cleanly,
+    and the caller is warned that the 0.0 is a default rather than a decision
+    (see tests/test_draw_intent.py)."""
     w = WHR()
     for d in range(1, 6):
         w.create_game("a", "b", "B", d, 0)
     w.iterate(20)
-    p1, pd, p2 = w.win_draw_loss_probabilities("a", "b")
+    with pytest.warns(NoDrawsWarning):
+        p1, pd, p2 = w.win_draw_loss_probabilities("a", "b")
     assert pd == pytest.approx(0.0)
     assert p1 + p2 == pytest.approx(1.0)
 
@@ -345,8 +350,9 @@ def test_win_draw_loss_uncertainty_bad_steps_raises():
 
 def test_win_draw_loss_uncertainty_sigma_zero_fallback():
     # Unknown players: both variances are 0 (iterate() never ran), exercising
-    # the sigma == 0 short-circuit back to the point estimate.
-    w = WHR()
+    # the sigma == 0 short-circuit back to the point estimate. Draws are beside
+    # the point here, so the intent is declared to keep the test to one subject.
+    w = WHR({"pinned_draw": 0.0})
     point = w.win_draw_loss_probabilities("ghost1", "ghost2")
     assert (
         w.win_draw_loss_probabilities("ghost1", "ghost2", account_for_uncertainty=True)
@@ -436,7 +442,7 @@ def test_win_draw_loss_uncertainty_matches_two_outcome_path_at_nu_zero():
     property of the quadrature, never imposed -- which is what keeps the
     three-way split unbiased.
     """
-    w = WHR()
+    w = WHR({"pinned_draw": 0.0})  # nu == 0 by declaration, the subject here
     for day in range(1, 5):
         w.create_game("p", "q", "B", day, 0)
         w.create_game("p", "q", "B", day, 0)

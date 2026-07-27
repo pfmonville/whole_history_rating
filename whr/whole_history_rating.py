@@ -12,6 +12,7 @@ import numpy as np
 
 from whr.game import Game
 from whr.player import Player
+from whr.utils import NoDrawsWarning
 
 # _compute_drift allocates arrays sized to the CALENDAR SPAN of day values
 # (max_day - min_day), not to the number of games. If `time_step` is an epoch
@@ -56,8 +57,10 @@ class WHR:
         self.config.setdefault("pinned_komi", {})
         self.config.setdefault("estimate_handicap_zero", False)
         self.config.setdefault("pinned_draw", None)
+        self.config.setdefault("draw_rate", None)
         self._has_draws = False
-        self.nu = 0.0
+        self._warned_no_draws = False
+        self.nu = self._resolve_pinned_draw()
         self.games: list[Game] = []
         self.players: dict[str, Player] = {}
         self.handicap_gamma: dict[Any, float] = {}
@@ -767,13 +770,128 @@ class WHR:
             )
         if game.winner == "D":
             self._has_draws = True
-            pinned_draw = self.config["pinned_draw"]
-            if pinned_draw is not None:
-                self.nu = pinned_draw
-            elif self.nu == 0.0:
+            # A declared draw tendency is already in self.nu (resolved in
+            # __init__) and must not be re-applied here; all this branch owes
+            # the fit is a non-zero starting point, since nu is updated
+            # multiplicatively in log-space and would stay pinned at 0.
+            if not self.draws_declared and self.nu == 0.0:
                 self.nu = 1.0
         self.games.append(game)
         return game
+
+    @staticmethod
+    def nu_from_draw_rate(draw_rate: float) -> float:
+        """Davidson's draw tendency ``nu`` implied by a target draw rate.
+
+        Between two players of *equal* strength ``s``, Davidson's split gives
+        ``T = nu * s`` and ``Z = (2 + nu) * s``, so ``P(draw) = nu / (2 + nu)``.
+        Inverting: ``nu = 2p / (1 - p)``.
+
+        The even-matchup qualifier matters. Draws are likeliest between equals,
+        so over a real fixture list -- where most pairings are lopsided -- the
+        observed rate comes out *below* what this returns. European big-five
+        football fits ``nu = 0.79``, i.e. a 28% even-matchup rate, against 25%
+        draws observed overall. Treat this as a starting point for
+        ``draw_rate=``, not as a substitute for fitting ``nu`` on real draws.
+
+        Args:
+            draw_rate (float): Target draw probability between equals, in
+                ``[0, 1)``.
+
+        Returns:
+            float: The corresponding ``nu`` (``0.0`` for a rate of 0).
+
+        Raises:
+            ValueError: If ``draw_rate`` is not a finite value in ``[0, 1)``.
+        """
+        if not math.isfinite(draw_rate) or not 0.0 <= draw_rate < 1.0:
+            raise ValueError(
+                f"draw_rate must be a finite value in [0, 1), got {draw_rate!r}. "
+                "A rate of 1 would need an infinite draw tendency."
+            )
+        return 2.0 * draw_rate / (1.0 - draw_rate)
+
+    @staticmethod
+    def draw_rate_from_nu(nu: float) -> float:
+        """The even-matchup draw rate implied by a draw tendency ``nu``.
+
+        The inverse of :meth:`nu_from_draw_rate`: ``P(draw) = nu / (2 + nu)``.
+        Useful for reading a fitted ``draw_tendency`` back in a unit that can be
+        compared against an observed draw percentage.
+
+        Args:
+            nu (float): A non-negative draw tendency.
+
+        Returns:
+            float: The implied draw probability between equal players.
+
+        Raises:
+            ValueError: If ``nu`` is negative or not finite.
+        """
+        if not math.isfinite(nu) or nu < 0.0:
+            raise ValueError(f"nu must be finite and non-negative, got {nu!r}")
+        return nu / (2.0 + nu)
+
+    def _resolve_pinned_draw(self) -> float:
+        """The draw tendency the caller declared, or 0.0 if they declared none.
+
+        ``pinned_draw`` and ``draw_rate`` are two spellings of one decision, so
+        setting both is an error rather than a precedence puzzle. Resolved once
+        in ``__init__`` -- it used to be applied inside ``create_game``'s draw
+        branch, which silently ignored it on data containing no draws, i.e. in
+        exactly the case a caller reaches for it.
+        """
+        pinned, rate = self.config["pinned_draw"], self.config["draw_rate"]
+        if pinned is not None and rate is not None:
+            raise ValueError(
+                "config sets both pinned_draw and draw_rate; they are two ways "
+                "to state the same thing. Use draw_rate to express a draw "
+                "percentage, or pinned_draw to set Davidson's nu directly."
+            )
+        if rate is not None:
+            return self.nu_from_draw_rate(float(rate))
+        if pinned is not None:
+            pinned = float(pinned)
+            if not math.isfinite(pinned) or pinned < 0.0:
+                raise ValueError(
+                    f"pinned_draw must be finite and non-negative, got {pinned!r}"
+                )
+            return pinned
+        return 0.0
+
+    def _warn_if_draws_undeclared(self) -> None:
+        """Flag a three-outcome prediction whose draw probability is 0 by default
+        rather than by decision. Fires at most once per instance so a scoring
+        loop over a whole season stays quiet after the first match.
+        """
+        if self._has_draws or self.draws_declared or self._warned_no_draws:
+            return
+        self._warned_no_draws = True
+        warnings.warn(
+            "win_draw_loss_probabilities was called but no draw has been "
+            "recorded and no draw tendency was declared, so P(draw) is exactly "
+            "0.0. That is correct for a domain that cannot draw and wrong for "
+            "one that simply has not drawn yet -- and a P(draw) of 0 makes "
+            "log-loss infinite if a draw does occur. Declare the intent: "
+            "WHR({'pinned_draw': 0.0}) for no draws (or just use "
+            "probability_future_match), or WHR({'draw_rate': 0.25}) to assume a "
+            "draw rate until real draws are available to fit.",
+            NoDrawsWarning,
+            stacklevel=3,
+        )
+
+    @property
+    def draws_declared(self) -> bool:
+        """Whether the caller stated an intent about draws, either way.
+
+        ``True`` when ``pinned_draw`` or ``draw_rate`` is set -- including to
+        ``0``, which declares "this domain has no draws" and is an answer, not
+        the absence of one.
+        """
+        return (
+            self.config["pinned_draw"] is not None
+            or self.config["draw_rate"] is not None
+        )
 
     @property
     def draw_tendency(self) -> float:
@@ -805,7 +923,7 @@ class WHR:
             if len(p.days) > 0:
                 norm = max(norm, p.gradient_infinity_norm())
         norm = max(norm, self._handicap_komi_gradient_norm())
-        if self._has_draws and self.config["pinned_draw"] is None:
+        if self._has_draws and not self.draws_declared:
             nu_gradient, _nu_hessian = self._nu_gradient_hessian()
             norm = max(norm, abs(nu_gradient))
         return norm
@@ -1237,7 +1355,16 @@ class WHR:
                 advantage gamma.
             ValueError: Raised if ``account_for_uncertainty`` is ``True`` and
                 ``uncertainty_steps`` is less than 1.
+
+        Warns:
+            NoDrawsWarning: Once per instance, if no draw was ever recorded and
+                no draw tendency was declared via ``pinned_draw`` /
+                ``draw_rate``. The returned draw probability is then exactly
+                ``0.0``, which is right for a domain that cannot draw and wrong
+                for one that simply has not drawn yet -- and the library cannot
+                tell which. Declare it either way to silence this.
         """
+        self._warn_if_draws_undeclared()
         player1, player2, bpd_gamma, _bpd_elo, wpd_gamma, _wpd_elo = (
             self._match_player_days(name1, name2)
         )
@@ -1323,8 +1450,9 @@ class WHR:
 
     def _newton_draw(self) -> None:
         """One Newton step on the global draw tendency nu (Davidson), in log-nu
-        space. Skipped when there are no draws or nu is pinned."""
-        if not self._has_draws or self.config["pinned_draw"] is not None:
+        space. Skipped when there are no draws, or when the caller declared the
+        draw tendency via ``pinned_draw`` / ``draw_rate``."""
+        if not self._has_draws or self.draws_declared:
             return
         gradient, hessian = self._nu_gradient_hessian()
         hessian -= self.config["hessian_damping"]
@@ -1442,13 +1570,15 @@ class WHR:
                     "pinned_komi",
                     "estimate_handicap_zero",
                     "pinned_draw",
+                    "draw_rate",
                 ]
             }
             warnings.warn(
                 "Some elements in config cannot be pickled; only 'w2', "
                 "'uncased', 'initial_prior_wins', 'hessian_damping', "
                 "'drift_kernel_radius', 'pinned_handicap', 'pinned_komi', "
-                "'estimate_handicap_zero' and 'pinned_draw' will be saved.",
+                "'estimate_handicap_zero', 'pinned_draw' and 'draw_rate' will "
+                "be saved.",
                 stacklevel=2,
             )
         with open(path, "wb") as f:

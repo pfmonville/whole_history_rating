@@ -5,6 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`draw_rate` config key** — declare the draw tendency as a draw *percentage*
+  rather than as Davidson's `nu`, which is the unit callers actually have:
+  `WHR({"draw_rate": 0.25})`. Setting both `draw_rate` and `pinned_draw` raises
+  `ValueError`; they are two spellings of one decision. Two static helpers
+  expose the conversion in both directions, `WHR.nu_from_draw_rate(p)` and
+  `WHR.draw_rate_from_nu(nu)`, implementing `nu = 2p / (1 - p)`.
+
+  The identity is exact **between players of equal strength**, where
+  `P(draw) = nu / (2 + nu)`. Draws are likeliest between equals, so over a real
+  fixture list the observed rate lands below the requested one — big-five
+  football fits `nu = 0.79`, i.e. 28.3% between equals against 25.2% observed
+  overall. Documented as a prior to run on until real draws are available to
+  fit, not as a substitute for fitting.
+- **`NoDrawsWarning`** (exported from `whr`) — `win_draw_loss_probabilities`
+  warns **once per instance** when no draw was ever recorded *and* no draw
+  tendency was declared. In that case `P(draw)` is exactly `0.0`, which is
+  correct for a domain that cannot draw and a confident false claim for one that
+  merely has not drawn yet; the library cannot tell those apart, and a `P(draw)`
+  of 0 makes log-loss infinite the moment a draw occurs. The message names both
+  resolutions. A `UserWarning` subclass, so broad filters still catch it while
+  `simplefilter("ignore", NoDrawsWarning)` targets just this one. Warning rather
+  than raising keeps existing callers working; once per instance keeps a
+  season-long scoring loop quiet.
+- **`draws_declared`** property — whether an intent was stated either way,
+  including `pinned_draw=0.0` / `draw_rate=0.0`, which declare "no draws" and
+  are answers rather than the absence of one.
+
+### Fixed
+- **`pinned_draw` was silently ignored on data containing no draws** — it was
+  applied inside `create_game`'s draw branch, so it did nothing in exactly the
+  situation a caller reaches for it: knowing draws are possible while having
+  observed none yet. It is now resolved once in `__init__` and honoured before
+  any game exists. `pinned_draw` and `draw_rate` are also now validated
+  (finite, non-negative; `draw_rate` in `[0, 1)`) instead of being accepted and
+  producing nonsense.
+- `draw_rate` is included in the config keys preserved by `save_base`'s
+  unpicklable-config fallback, so a reloaded base does not lose the declaration
+  and silently start re-fitting `nu`.
+
 ## [3.2.0] - 2026-07-25
 
 ### Added

@@ -440,25 +440,59 @@ probabilities summing to 1, so their weighted average does too. At `nu == 0` the
 integrated win/loss pair is exactly `probability_future_match(...,
 account_for_uncertainty=True)`.
 
-To pin `nu` to a known value instead of estimating it (e.g. to reproduce a
-fixed draw rate, or to disable draw modelling), use the `pinned_draw`
-config key:
+#### Does your domain have draws at all?
+
+`nu` is estimated from the draws it sees. If your data contains **no draws**,
+`nu` stays `0`, `P(draw)` is exactly `0.0`, and the win/loss pair reduces to
+plain Bradley-Terry. That is the right answer for tennis or basketball, and the
+wrong one two weeks into a football season — and the library cannot tell the two
+apart. It matters, because a `P(draw)` of exactly `0` makes log-loss infinite the
+moment a draw does occur.
+
+So say which you mean. There are three states:
+
+| Config | Meaning | `nu` |
+|---|---|---|
+| nothing set (default) | estimate the draw tendency from the data | fitted from observed draws |
+| `draw_rate=0.0` or `pinned_draw=0.0` | this domain cannot draw | `0`, `P(draw)` is legitimately `0` |
+| `draw_rate=0.25` or `pinned_draw=0.79` | draws happen at about this rate | fixed, never re-fitted |
+
+Calling `win_draw_loss_probabilities` with **no draws observed and nothing
+declared** emits a `NoDrawsWarning` once per instance, naming both fixes. It is a
+`UserWarning` subclass, so `warnings.simplefilter("ignore", NoDrawsWarning)`
+targets just this one.
+
+`draw_rate` is usually the friendlier of the two, because it is expressed in the
+unit you actually have — a draw percentage — rather than in Davidson's `nu`:
 
 ```python
-whr = WHR(config={"pinned_draw": 0.8})
+from whr import WHR
+
+whr = WHR(config={"draw_rate": 0.25})   # a quarter of even matchups draw
+print(whr.draw_tendency)                # 0.6666666666666666
+print(WHR.draw_rate_from_nu(0.79))      # 0.2831541218637993 — a fitted nu, read back as a rate
 ```
 
-Two caveats:
+The conversion is `nu = 2p / (1 − p)`, exact **between players of equal
+strength** (there, `P(draw) = nu / (2 + nu)`). Draws are likeliest between
+equals, so across a real fixture list — where most pairings are lopsided — the
+observed rate lands *below* the number you asked for. Big-five European football
+fits `nu ≈ 0.79`, i.e. 28.3% between equals, against 25.2% draws observed
+overall.
+Treat `draw_rate` as a sensible prior to run on until you have real draws to fit,
+not as a substitute for fitting.
+
+Two further caveats:
 
 - **When draws are present, the handicap/komi advantages (see "Handicap
   and komi" below) are estimated from decisive games only** — draws are
   skipped by that accumulator rather than mis-counted as a win for either
   side.
-- **Pinning `pinned_draw` to `0.0` disables draw modelling even if draws
-  are present in the data** — every draw is then treated as a plain
-  Bradley-Terry half-win/half-loss instead of contributing to a learned
-  draw tendency. To actually model draws, pin a positive value or leave
-  `pinned_draw` unset (the default, `None`) so `nu` is estimated.
+- **Pinning to `0.0` disables draw modelling even if draws are present in the
+  data** — every draw is then treated as a plain Bradley-Terry
+  half-win/half-loss instead of contributing to a learned draw tendency. To
+  actually model draws, pin a positive value or leave both keys unset so `nu`
+  is estimated.
 
 ### Enhanced Batch Loading of Games
 
@@ -550,6 +584,12 @@ Set `estimate_handicap_zero` to let the `handicap` key `0` (no handicap) be esti
 
 ```python
 whr = WHR({'estimate_handicap_zero': True})
+```
+
+Declare whether your domain has draws, via `draw_rate` (a draw percentage between equal players) or `pinned_draw` (Davidson's `nu` directly). Both default to `None`, meaning `nu` is estimated from whatever draws the data contains. Setting both is a `ValueError` — they are two spellings of the same decision. Set either to `0` to state that the domain cannot draw. See ["Does your domain have draws at all?"](#does-your-domain-have-draws-at-all) for why the declaration matters and what happens if you skip it.
+
+```python
+whr = WHR({'draw_rate': 0.25})     # or {'pinned_draw': 0.79}
 ```
 
 ### Removing Rating Drift
