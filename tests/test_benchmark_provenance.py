@@ -9,7 +9,6 @@ from pathlib import Path
 from benchmarks.download_data import download_plan
 from benchmarks.provenance import build_provenance
 
-
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "benchmarks" / "results"
 
@@ -57,6 +56,51 @@ def test_build_provenance_records_source_runtime_packages_and_dataset(tmp_path):
     ]
     assert provenance["random_seed"] is None
     assert provenance["generated_at"].endswith("Z")
+
+
+def test_generated_results_do_not_mark_source_as_dirty(tmp_path):
+    repo = tmp_path / "repo"
+    results = repo / "benchmarks" / "results"
+    data = repo / "benchmarks" / "data"
+    results.mkdir(parents=True)
+    data.mkdir(parents=True)
+    dataset = data / "matches.csv"
+    dataset.write_text("winner,loser\nalice,bob\n", encoding="utf-8")
+    result = results / "result.json"
+    result.write_text("{}\n", encoding="utf-8")
+    source = repo / "source.py"
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+
+    for command in (
+        ("init",),
+        ("config", "user.email", "benchmark@example.test"),
+        ("config", "user.name", "Benchmark Test"),
+        ("add", "."),
+        ("commit", "-m", "initial"),
+    ):
+        subprocess.run(
+            ["git", *command],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    result.write_text('{"updated": true}\n', encoding="utf-8")
+    provenance = build_provenance(
+        dataset_source="https://example.test/matches.csv",
+        dataset_files=[dataset],
+        repo_root=repo,
+    )
+    assert provenance["source"]["dirty"] is False
+
+    source.write_text("VALUE = 2\n", encoding="utf-8")
+    provenance = build_provenance(
+        dataset_source="https://example.test/matches.csv",
+        dataset_files=[dataset],
+        repo_root=repo,
+    )
+    assert provenance["source"]["dirty"] is True
 
 
 def test_committed_result_files_have_provenance():
