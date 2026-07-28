@@ -51,9 +51,13 @@ class Game:
             if self.handicap_gamma is None
             else self.handicap_gamma.get(self.handicap, 1.0)
         )
+        # ``self.extras`` is empty for every game that passes no komi, which is
+        # all of them outside Go. Testing that first skips two dict lookups in
+        # the hottest function in the fit, without caching anything that could go
+        # stale if a caller mutates ``extras``.
         gk = (
             1.0
-            if self.komi_gamma is None
+            if self.komi_gamma is None or not self.extras
             else self.komi_gamma.get(self.extras.get("komi"), 1.0)
         )
         # Resolve the opponent first: a player who isn't in this game must raise

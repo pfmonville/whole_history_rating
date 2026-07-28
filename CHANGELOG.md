@@ -5,6 +5,150 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+A maths audit (every analytic derivative checked against finite differences of
+the log-likelihood it claims to differentiate) plus a second usability pass.
+
+### Fixed — the maths
+- **Handicap and komi advantages were not maximum-likelihood estimates when draws
+  were present.** The accumulator skipped drawn games, so at convergence the
+  advantage gradient stayed visibly non-zero (~0.2–0.6) while every player
+  gradient reached 1e-15. The estimate was short of the joint optimum by **83 elo
+  at a 25% draw rate** and 117 elo at 40%. Advantages are now accumulated under
+  Davidson, exactly as the player-day derivatives already were: with
+  `S = γ_black·γ_handicap`, `O = γ_white·γ_komi`, `T = ν√(SO)`, `Z = S+O+T`, the
+  handicap enters through `S` *and* through `T` (which carries `√S`), giving
+  `N = S + T/2`, `N' = S + T/4`, a per-game gradient `weight − N/Z` with weight
+  1 / 0.5 / 0 for a black win / draw / white win, and a Hessian
+  `−S·O/Z² − T(S+O)/(4Z²)`. The gradient now vanishes to 1e-9, and the fitted
+  values match an independently computed joint optimum exactly.
+
+  Every correction term carries a factor `T`, so at `ν = 0` they are **exactly**
+  zero and draw-free data is bit-identical — pinned by a test. Football ratings
+  and its fitted home advantage change; tennis and NBA do not.
+- **A player with exactly two rated days got a first-day uncertainty ~25× too
+  small** (17 elo reported against a true 90). The covariance backward pass
+  guarded on `sub_diag.size >= 2` when reading index `n − 2`, which only needs one
+  entry; `n ≥ 3` was unaffected, which is why it went unnoticed.
+- **`update_uncertainty` read a stale game-term cache**, for the very reason
+  `gradient_infinity_norm` clears it first. The effect on uncertainties was
+  negligible (under a thousandth of an elo) but `log_likelihood()` inherited it,
+  so that value was not the one implied by the current state. The README's
+  documented `log_likelihood()` output changes accordingly
+  (`0.3301006161791349` → `0.33010610615918456`), and is now a verified fixed
+  point.
+
+Verified correct and left alone: the player gradient (5e-09 against finite
+differences across Bradley-Terry, Davidson, handicap and all combined), the
+Hessian diagonal and sub-diagonal, the tridiagonal Newton solve (2.7e-17 against
+a dense solve), the `nu` gradient, the first-day anchor, `sigma2 = |Δdays| · w2`
+in nat units, and the elo/gamma/r conversions. Coulom's banded inverse does not
+degrade on long histories either: 2e-15 at 800 rated days, condition number flat.
+
+### Added
+- **`display_offset` and `display_uncertainty`** — the elo display scale is now
+  the library's business. `display_offset` is a constant added to every displayed
+  elo by `ratings_for_player`, `get_ordered_ratings` and
+  `print_ordered_ratings`, and by **nothing else**: predictions, differences,
+  covariances and changes consume differences, which an offset cannot affect.
+  Because nothing is written back into the model, it cannot erode — unlike
+  assigning `day.elo += 1500`, where the first-day anchor decays the offset to
+  roughly 100 over 500 further iterations.
+
+  `display_offset_for(target, player=None, day=None)` derives the offset from an
+  anchoring rule (the field mean on a day, or a named player) instead of guessing
+  a constant, and returns it without applying it. `display_uncertainty="elo"`
+  reports the uncertainty column as an elo standard error rather than as the
+  stored variance in natural log units — the default `0.26` means **±88.6 elo**,
+  a factor of ~340 apart in a column of elo values.
+- **`StaleFitWarning` and `games_since_last_fit`** — `create_game` / `load_games`
+  only record; nothing is re-estimated until `iterate()`. Reading in between
+  returned the previous fit silently, and adding results to a day a player
+  already had moved a rating by **464 elo** once re-fitted, with the stale value
+  and its uncertainty both looking plausible and `max_gradient_norm()` sitting at
+  2e-3. Every rating and prediction surface now warns once per stale episode. A
+  never-fitted base stays quiet: nothing is out of date there.
+- **`DisconnectedPlayersWarning` and `connected_components()`** — players linked
+  by no chain of games sit on independently anchored scales, so comparing them is
+  unfounded rather than merely uncertain: an undefeated player from one pool was
+  reported as beating an evenly-matched player from another with probability
+  **0.99**, on no shared game. Cross-group predictions now warn, and
+  `connected_components()` lists the groups (largest first).
+
+### Changed
+- **`auto_iterate`'s default `batch_size` is 50, up from 10.** Convergence
+  checking is not free: `max_gradient_norm()` costs about 0.44 of an iteration
+  and, more to the point, clears every game-term cache, so the first iteration
+  after each check has to repopulate it. Reaching a `1e-4` target on ATP
+  2000–2006 took 165 s at 5, 132 s at 10, 115 s at 25, **109 s at 50**, then
+  130 s at 100 — the same iteration count, 21% less wall clock than the old
+  default, with the loss coming back at 100 where overshooting the target by up
+  to `batch_size - 1` wasted iterations dominates. Lower it if you need a
+  `time_limit` honoured promptly.
+
+  A run that stops on precision now overshoots by up to 49 iterations instead of
+  9, i.e. lands marginally *more* converged, so a few documented outputs shift in
+  their last digits: `rating_difference` in the README reads 1056.95 (was
+  1054.66) and the three-outcome example 0.2142/0.4/0.3859 (was
+  0.2146/0.3999/0.3855).
+
+### Performance
+- **Fits are about twice as fast** on day-granular histories, with results
+  unchanged: a real ATP 2000–2013 fit (44,405 games, 1,842 players) went from
+  **186.4 s to 85.4 s** (2.18×), and its held-out log-loss is 0.614102 against a
+  previously committed 0.6141. Two causes, both found by profiling rather than
+  guessing:
+
+  - The per-day Bradley-Terry terms called `np.sum` **1,056,459 times** in a
+    30-iteration fit — on lists of *one to three* elements. A numpy call costs
+    ~2.5 µs regardless of size, so at a typical player-day it was 10–16× slower
+    than a plain Python loop. Those paths now loop in Python below a
+    64-game-per-day threshold and keep numpy above it, where it wins again. The
+    opponents' gammas are also cached flat instead of being re-extracted from the
+    legacy `[a, b, c, d]` term rows, whose other three entries are never read.
+    `won_game_terms` / `lost_game_terms` keep their shape and are now derived
+    from that cache.
+  - `_accumulate_handicap_komi` rebuilt the per-game key and outcome arrays on
+    every iteration although only the player gammas change — about 20% of a
+    fit's wall clock. The invariant layout is cached and invalidated when a game
+    is added, and the advantage gammas are now gathered per *key* (a handful)
+    and fanned out with one numpy take instead of per game (thousands).
+
+  A test forces each threshold branch and requires the two paths to agree, so the
+  cut-over cannot change a result.
+- `opponents_adjusted_gamma`, the single hottest function in a fit, skips its two
+  komi dict lookups when a game carries no `extras` at all — which is every game
+  outside Go.
+- The benchmark harness stops doing redundant work and stops under-converging
+  WHR. `predict_uncertainty` changes only how a fitted model is *queried* —
+  `auto_iterate` never sees it — so half of every WHR grid was refitting an
+  identical model; a one-entry cache now reuses it (measured: 26.1 s then 0.01 s
+  for the two variants of one `w2`, with the two losses correctly differing). The
+  runners also inherit the new `batch_size` default instead of pinning 10, and
+  converge to the library default `precision=1e-3` rather than the looser 5e-3
+  they had been using — which was costing WHR 0.00057 nats on tennis
+  (0.614102 against 0.613530), a handicap of the harness's own making.
+
+### Documentation
+- `auto_iterate(precision=…)` bounds the **gradient**, not the ratings, and the
+  default `1e-3` is where held-out quality bottoms out. Measured on ATP
+  2000–2013 → 2014: the loss is 0.616521 at `1e-2`, **0.613530 at `1e-3`**, and
+  then flat (0.613592 at `1e-4`, 0.613603 at `1e-6`) while the cost rises 1.9× to
+  3.5×. Tightening buys *stability of the rating values* — the spread across two
+  insertion orders falls from 0.25 elo at the default to 0.006 at `1e-5` — not
+  accuracy. Convergence speed is also dataset-shaped rather than size-shaped: the
+  NBA base reaches `1e-3` in 230 iterations, needs 5,430 for `1e-4`, and cannot
+  reach `1e-5` inside 900 s, all while its loss is flat to five decimals.
+  Measured tables in the README.
+
+  (An earlier draft of that table quoted ~13 elo of order-dependence at the
+  default. That came from a synthetic four-player base and does not describe real
+  data, where the figure is 0.25 elo.)
+- Advantage keys are dictionary keys: `komi=6.5` and `komi="6.5"` are two
+  categories and each gets its own estimate, while `0`, `0.0` and `False`
+  collapse to one. A misspelled `extras={"komi": …}` key silently models no komi.
+
 ## [3.4.0] - 2026-07-25
 
 A usability audit of the whole public surface, looking for the same class of

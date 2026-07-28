@@ -113,32 +113,37 @@ def _reference_accumulate_handicap_komi(w: WHR):
     h_wins: dict = {}
     k_games: dict = {}
     k_wins: dict = {}
+    # Written in the DIRECT Davidson form -- S, O, T, Z and N = S + T/2,
+    # N' = S + T/4 -- rather than in the implementation's factorised terms, so
+    # this stays an independent check of the algebra and not a transcription of
+    # it. The consumers compute `grad = wins - gamma * h_grad` and
+    # `hess = -gamma * h_hess`, so the per-key terms are the true
+    # gradient/Hessian pieces divided by that key's gamma.
     for g in w.games:
         if g.bpd is None or g.wpd is None:
-            continue
-        if g.winner == "D":
             continue
         h = g.handicap
         k = g.extras["komi"]
         gh = w.handicap_gamma[h]
         gk = w.komi_gamma[k]
-        gb = g.bpd.gamma()
-        gw = g.wpd.gamma()
-        c_komi = gw
-        d_komi = gb * gh
-        c_handicap = gb
-        d_handicap = gw * gk
-        div = 1.0 / (d_komi + d_handicap)
-        h_grad[h] = h_grad.get(h, 0.0) + c_handicap * div
-        h_hess[h] = h_hess.get(h, 0.0) + c_handicap * d_handicap * div * div
-        k_grad[k] = k_grad.get(k, 0.0) + c_komi * div
-        k_hess[k] = k_hess.get(k, 0.0) + c_komi * d_komi * div * div
+        s = g.bpd.gamma() * gh  # black's effective strength
+        o = g.wpd.gamma() * gk  # white's effective strength
+        t = w.nu * math.sqrt(s * o)  # Davidson draw mass
+        z = s + o + t
+        n_h, np_h = s + t / 2.0, s + t / 4.0
+        n_k, np_k = o + t / 2.0, o + t / 4.0
+        h_grad[h] = h_grad.get(h, 0.0) + (n_h / z) / gh
+        h_hess[h] = h_hess.get(h, 0.0) + (np_h / z - (n_h / z) ** 2) / gh
+        k_grad[k] = k_grad.get(k, 0.0) + (n_k / z) / gk
+        k_hess[k] = k_hess.get(k, 0.0) + (np_k / z - (n_k / z) ** 2) / gk
         h_games[h] = h_games.get(h, 0) + 1
         k_games[k] = k_games.get(k, 0) + 1
-        if g.winner == "B":
-            h_wins[h] = h_wins.get(h, 0) + 1
-        else:
-            k_wins[k] = k_wins.get(k, 0) + 1
+        # a draw is half a win for each side
+        bw = 1.0 if g.winner == "B" else (0.5 if g.winner == "D" else 0.0)
+        if bw:
+            h_wins[h] = h_wins.get(h, 0.0) + bw
+        if 1.0 - bw:
+            k_wins[k] = k_wins.get(k, 0.0) + (1.0 - bw)
     return h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins
 
 
@@ -236,24 +241,25 @@ def test_accumulate_handicap_komi_and_nu_gradient_empty_and_degenerate_cases():
     gradient, hessian = empty._nu_gradient_hessian()
     assert (gradient, hessian) == (0.0, 0.0)
 
-    # Only draws: no decisive games for handicap/komi accumulation, but
-    # _nu_gradient_hessian still has games to accumulate over.
+    # Only draws. These used to accumulate nothing at all, because draws were
+    # skipped; they now contribute under Davidson. With equal gammas and nu = 1
+    # the terms are analytic: S = O = 1, T = 1, Z = 3, N = 1.5, so each game
+    # gives N/Z = 0.5 and a half-win to each side -- and the resulting Newton
+    # gradient `wins - gamma * grad` is exactly 0, i.e. all-draw data is already
+    # stationary at "no advantage", which is the correct answer.
     only_draws = WHR()
     for d in range(1, 4):
         only_draws.create_game("p", "q", "D", d, 0)
+    assert only_draws.nu == 1.0
     h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins = (
         only_draws._accumulate_handicap_komi()
     )
-    assert (h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins) == (
-        {},
-        {},
-        {},
-        {},
-        {},
-        {},
-        {},
-        {},
-    )
+    assert h_grad == pytest.approx({0: 1.5})
+    assert h_wins == pytest.approx({0: 1.5})
+    assert h_games == {0: 3}
+    assert h_wins[0] - only_draws.handicap_gamma[0] * h_grad[0] == pytest.approx(0.0)
+    # komi is opt-in and none was passed, so nothing is estimated for it
+    assert (k_grad, k_hess, k_games, k_wins) == ({}, {}, {}, {})
     gradient_ref, hessian_ref = _reference_nu_gradient_hessian(only_draws)
     gradient, hessian = only_draws._nu_gradient_hessian()
     assert gradient == pytest.approx(gradient_ref, rel=1e-9, abs=1e-9)

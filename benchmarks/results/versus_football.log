@@ -1,20 +1,20 @@
 football: 18085 matches, draw rate 0.252 | train_v=12681 valid=1826 train_t=14507 test=1826
-    WHR {'w2': 1.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0108  <- best so far
-    WHR {'w2': 1.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0107  <- best so far
-    WHR {'w2': 3.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0102  <- best so far
-    WHR {'w2': 3.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0101  <- best so far
-    WHR {'w2': 10.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0091  <- best so far
-    WHR {'w2': 10.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0090  <- best so far
-    WHR {'w2': 30.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0088  <- best so far
-    WHR {'w2': 30.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0087  <- best so far
-    WHR {'w2': 100.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0109
-    WHR {'w2': 100.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0105
-    WHR {'w2': 300.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0154
-    WHR {'w2': 300.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0146
-    WHR {'w2': 1000.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0249
-    WHR {'w2': 1000.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0229
-  WHR: selected {'w2': 30.0, 'predict_uncertainty': True} (valid 1.0087)
-  WHR: TEST 3way-log-loss=1.0085 acc=51.5%  edge={'w2': False} flat=[]
+    WHR {'w2': 1.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0105  <- best so far
+    WHR {'w2': 1.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0104  <- best so far
+    WHR {'w2': 3.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0099  <- best so far
+    WHR {'w2': 3.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0098  <- best so far
+    WHR {'w2': 10.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0088  <- best so far
+    WHR {'w2': 10.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0086  <- best so far
+    WHR {'w2': 30.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0085  <- best so far
+    WHR {'w2': 30.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0083  <- best so far
+    WHR {'w2': 100.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0100
+    WHR {'w2': 100.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0096
+    WHR {'w2': 300.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0143
+    WHR {'w2': 300.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0135
+    WHR {'w2': 1000.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0241
+    WHR {'w2': 1000.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0221
+  WHR: selected {'w2': 30.0, 'predict_uncertainty': True} (valid 1.0083)
+  WHR: TEST 3way-log-loss=1.0085 acc=51.4%  edge={'w2': False} flat=[]
     TTT {'gamma': 0.01, 'p_draw': 0.2} valid 3way-log-loss=1.0469  <- best so far
     TTT {'gamma': 0.01, 'p_draw': 0.25} valid 3way-log-loss=1.0326  <- best so far
     TTT {'gamma': 0.01, 'p_draw': 0.3} valid 3way-log-loss=1.0317  <- best so far

@@ -13,8 +13,10 @@ from whr.game import Game
 from whr.player import Player
 from whr.playerday import PlayerDay
 from whr.utils import (
+    DisconnectedPlayersWarning,
     HandicapBaselineWarning,
     NoDrawsWarning,
+    StaleFitWarning,
     UncomputedUncertaintyWarning,
     UnstableRatingException,
 )
@@ -28,11 +30,13 @@ except PackageNotFoundError:  # running from a source checkout without an instal
 __all__ = [
     "WHR",
     "Base",
+    "DisconnectedPlayersWarning",
     "Game",
     "HandicapBaselineWarning",
     "NoDrawsWarning",
     "Player",
     "PlayerDay",
+    "StaleFitWarning",
     "UncomputedUncertaintyWarning",
     "UnstableRatingException",
     "__version__",

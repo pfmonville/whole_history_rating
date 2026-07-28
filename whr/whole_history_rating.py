@@ -13,8 +13,10 @@ import numpy as np
 from whr.game import Game
 from whr.player import Player
 from whr.utils import (
+    DisconnectedPlayersWarning,
     HandicapBaselineWarning,
     NoDrawsWarning,
+    StaleFitWarning,
     UncomputedUncertaintyWarning,
 )
 
@@ -94,10 +96,24 @@ class WHR:
         self.config.setdefault("estimate_handicap_zero", False)
         self.config.setdefault("pinned_draw", None)
         self.config.setdefault("draw_rate", None)
+        self.config.setdefault("display_offset", 0.0)
+        self.config.setdefault("display_uncertainty", "variance")
+        if self.config["display_uncertainty"] not in ("variance", "elo"):
+            raise ValueError(
+                "display_uncertainty must be 'variance' (nat^2, the default and "
+                "the historical behaviour) or 'elo' (a standard error in elo), "
+                f"got {self.config['display_uncertainty']!r}"
+            )
         self._has_draws = False
         self._warned_no_draws = False
         self._warned_baseline = False
         self._warned_uncomputed_uncertainty = False
+        self._warned_stale_fit = False
+        self._games_since_fit = 0
+        self._ever_fitted = False
+        self._components: list[frozenset[str]] | None = None
+        self._adv_layout: tuple[Any, ...] | None = None
+        self._component_of: dict[str, int] = {}
         self.nu = self._resolve_pinned_draw()
         self.games: list[Game] = []
         self.players: dict[str, Player] = {}
@@ -126,6 +142,50 @@ class WHR:
         if komi is not None and komi not in self.komi_gamma:
             self.komi_gamma[komi] = 1.0
 
+    def _advantage_layout(self) -> tuple[Any, ...] | None:
+        """Per-game data for the advantage accumulation that does not change
+        between iterations, built once and cached.
+
+        Returns ``(rated_games, hi, ki, h_index_of, k_index_of, black_weight,
+        white_weight)``, or ``None`` when no game has playing days yet. ``hi`` /
+        ``ki`` map each game to a contiguous key index for ``np.bincount``, in
+        first-seen order (matching the insertion order the original
+        dict-accumulation loop produced). Invalidated by ``_add_game``.
+        """
+        if self._adv_layout is not None:
+            return self._adv_layout
+        rated = [g for g in self.games if g.bpd is not None and g.wpd is not None]
+        if not rated:
+            return None
+        h_index_of: dict[Any, int] = {}
+        k_index_of: dict[Any, int] = {}
+        hi = np.empty(len(rated), dtype=np.int64)
+        ki = np.empty(len(rated), dtype=np.int64)
+        black_weight = np.empty(len(rated), dtype=np.float64)
+        white_weight = np.empty(len(rated), dtype=np.float64)
+        for i, g in enumerate(rated):
+            hi[i] = h_index_of.setdefault(g.handicap, len(h_index_of))
+            # komi is opt-in: a game with no komi contributes gamma 1.0 to the
+            # math but its ``None`` key is never scattered into the per-key
+            # results, so nothing is estimated for it.
+            ki[i] = k_index_of.setdefault(g.extras.get("komi"), len(k_index_of))
+            if g.winner == "D":
+                black_weight[i] = white_weight[i] = 0.5
+            elif g.winner == "B":
+                black_weight[i], white_weight[i] = 1.0, 0.0
+            else:
+                black_weight[i], white_weight[i] = 0.0, 1.0
+        self._adv_layout = (
+            rated,
+            hi,
+            ki,
+            h_index_of,
+            k_index_of,
+            black_weight,
+            white_weight,
+        )
+        return self._adv_layout
+
     def _accumulate_handicap_komi(
         self,
     ) -> tuple[
@@ -134,9 +194,9 @@ class WHR:
         dict[Any, float],
         dict[Any, float],
         dict[Any, int],
+        dict[Any, float],
         dict[Any, int],
-        dict[Any, int],
-        dict[Any, int],
+        dict[Any, float],
     ]:
         """Accumulates the per-key Newton gradient/Hessian terms (and raw
         game/win counts) for the handicap and komi advantage gammas, from the
@@ -146,72 +206,86 @@ class WHR:
         Returns:
             (h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins)
         """
-        # A draw credits neither a handicap (black) win nor a komi (white)
-        # win, and the plain Bradley-Terry gradient/Hessian denominator
-        # accumulated below does not apply to it. Skipping draws here means
-        # handicap/komi advantages are estimated from DECISIVE games only
-        # when draws are present -- a deliberate simplification; full
-        # Davidson-aware handicap/komi estimation is out of scope for this
-        # phase.
+        # Draws are included, under Davidson exactly as the player-day
+        # derivatives handle them. Earlier releases skipped them here, so with
+        # draws present the advantages were fitted from DECISIVE games only and
+        # the result was NOT a maximum of the likelihood: the gradient below
+        # stayed visibly non-zero at convergence, and at a football-like 25%
+        # draw rate the estimate came out ~80 elo short of the joint optimum.
         #
-        # This first pass (gathering each decisive game's raw handicap/komi
-        # keys and gammas into plain lists) stays a Python loop because
-        # self.games is a list of Game objects, not already-batched arrays;
-        # only the per-key ACCUMULATION below is vectorized with numpy.
-        handicaps: list[Any] = []
-        komis: list[Any] = []
-        gb_vals: list[float] = []
-        gw_vals: list[float] = []
-        black_win: list[bool] = []
-        for g in self.games:
-            if g.bpd is None or g.wpd is None:
-                continue
-            if g.winner == "D":
-                continue
-            handicaps.append(g.handicap)
-            # komi is opt-in: a game with no komi contributes gamma 1.0 to the
-            # math (below) but its ``None`` komi key is never scattered into the
-            # per-key results, so it is never estimated.
-            komis.append(g.extras.get("komi"))
-            gb_vals.append(g.bpd.gamma())
-            gw_vals.append(g.wpd.gamma())
-            black_win.append(g.winner == "B")
-
+        # With S = gamma_black * gamma_handicap, O = gamma_white * gamma_komi,
+        # T = nu * sqrt(S*O) and Z = S + O + T, the handicap enters through
+        # S (and through T, which carries sqrt(S)), so
+        #   d log(S)/d log(gamma_h) = 1  and  d log(T)/d log(gamma_h) = 1/2,
+        # giving N = S + T/2 and N' = S + T/4, hence per game
+        #   grad = weight - N/Z         with weight 1 / 0.5 / 0 for a black win
+        #                               / draw / white win,
+        #   hess = (N/Z)^2 - N'/Z  =  -S*O/Z^2 - T*(S+O)/(4*Z^2).
+        # Komi is the mirror image (swap S and O; the Hessian is symmetric in
+        # them, so both advantages share it). Both extra terms carry a factor T,
+        # so at nu == 0 they vanish *exactly* and the arithmetic below reduces
+        # term-by-term to the previous Bradley-Terry expressions -- draw-free
+        # data (e.g. the tennis and NBA benchmarks) is bit-identical.
+        #
+        # This first pass (gathering each game's raw handicap/komi keys and
+        # gammas into plain lists) stays a Python loop because self.games is a
+        # list of Game objects, not already-batched arrays; only the per-key
+        # ACCUMULATION below is vectorized with numpy.
+        # Everything except the player gammas is fixed for a given game list --
+        # the keys, the outcome weights and the bincount index arrays -- so the
+        # layout is built once and reused across iterations. Rebuilding it every
+        # iteration was ~20% of a fit's wall clock.
         h_grad: dict[Any, float] = {}
         h_hess: dict[Any, float] = {}
         k_grad: dict[Any, float] = {}
         k_hess: dict[Any, float] = {}
         h_games: dict[Any, int] = {}
-        h_wins: dict[Any, int] = {}
+        h_wins: dict[Any, float] = {}
         k_games: dict[Any, int] = {}
-        k_wins: dict[Any, int] = {}
-        if not handicaps:
+        k_wins: dict[Any, float] = {}
+        layout = self._advantage_layout()
+        if layout is None:
             return h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins
-
-        # Map each game's handicap/komi key to a contiguous integer index
-        # (in first-seen order, matching the insertion order the old
-        # dict-accumulation loop produced) so np.bincount can accumulate
-        # per key.
-        h_index_of: dict[Any, int] = {}
-        k_index_of: dict[Any, int] = {}
-        hi = np.empty(len(handicaps), dtype=np.int64)
-        ki = np.empty(len(komis), dtype=np.int64)
-        for i, (h, k) in enumerate(zip(handicaps, komis, strict=True)):
-            hi[i] = h_index_of.setdefault(h, len(h_index_of))
-            ki[i] = k_index_of.setdefault(k, len(k_index_of))
+        (
+            rated,
+            hi,
+            ki,
+            h_index_of,
+            k_index_of,
+            black_weight_arr,
+            white_weight_arr,
+        ) = layout
         nh = len(h_index_of)
         nk = len(k_index_of)
 
-        gb = np.array(gb_vals, dtype=np.float64)
-        gw = np.array(gw_vals, dtype=np.float64)
-        gh = np.array([self.handicap_gamma[h] for h in handicaps], dtype=np.float64)
-        gk = np.array([self.komi_gamma.get(k, 1.0) for k in komis], dtype=np.float64)
-        black_win_arr = np.array(black_win, dtype=np.float64)
+        n = len(rated)
+        gb = np.fromiter((g.bpd.gamma() for g in rated), dtype=np.float64, count=n)
+        gw = np.fromiter((g.wpd.gamma() for g in rated), dtype=np.float64, count=n)
+        # Gather the advantage gammas per KEY and fan them out with the cached
+        # index arrays: there are a handful of keys against thousands of games,
+        # so this replaces a per-game Python loop with one numpy take.
+        gh = np.fromiter(
+            (self.handicap_gamma[k] for k in h_index_of),
+            dtype=np.float64,
+            count=nh,
+        )[hi]
+        gk = np.fromiter(
+            (self.komi_gamma.get(k, 1.0) for k in k_index_of),
+            dtype=np.float64,
+            count=nk,
+        )[ki]
 
         c_komi = gw
         d_komi = gb * gh
         c_handicap = gb
         d_handicap = gw * gk
+        # Davidson draw mass. At nu == 0 this is exactly 0.0, so every term it
+        # touches below collapses to the Bradley-Terry form.
+        t_draw = (
+            self.nu * np.sqrt(d_komi * d_handicap)
+            if self.nu > 0.0
+            else np.zeros_like(gb)
+        )
         # Guard the vectorized division: these gammas are read directly (no
         # opponents_adjusted_gamma positivity guard upstream), so a 0
         # denominator is theoretically reachable if a gamma underflows to 0.0
@@ -219,40 +293,55 @@ class WHR:
         # loud, deterministic FloatingPointError then, rather than emitting
         # numpy's silent inf + divide-by-zero RuntimeWarning.
         with np.errstate(divide="raise", invalid="raise"):
-            div = 1.0 / (d_komi + d_handicap)
+            div = 1.0 / (d_komi + d_handicap + t_draw)
             h_grad_g = c_handicap * div
             h_hess_g = c_handicap * d_handicap * div**2
             k_grad_g = c_komi * div
             k_hess_g = c_komi * d_komi * div**2
+            # Davidson corrections; identically zero at nu == 0
+            draw_grad_g = 0.5 * t_draw * div
+            draw_hess_g = 0.25 * t_draw * (d_komi + d_handicap) * div**2
 
         h_grad_arr = np.bincount(hi, weights=h_grad_g, minlength=nh)
         h_hess_arr = np.bincount(hi, weights=h_hess_g, minlength=nh)
         h_games_arr = np.bincount(hi, minlength=nh)
-        h_wins_arr = np.bincount(hi, weights=black_win_arr, minlength=nh)
+        h_wins_arr = np.bincount(hi, weights=black_weight_arr, minlength=nh)
+        h_dgrad_arr = np.bincount(hi, weights=draw_grad_g, minlength=nh)
+        h_dhess_arr = np.bincount(hi, weights=draw_hess_g, minlength=nh)
 
         k_grad_arr = np.bincount(ki, weights=k_grad_g, minlength=nk)
         k_hess_arr = np.bincount(ki, weights=k_hess_g, minlength=nk)
         k_games_arr = np.bincount(ki, minlength=nk)
-        k_wins_arr = np.bincount(ki, weights=1.0 - black_win_arr, minlength=nk)
+        k_wins_arr = np.bincount(ki, weights=white_weight_arr, minlength=nk)
+        k_dgrad_arr = np.bincount(ki, weights=draw_grad_g, minlength=nk)
+        k_dhess_arr = np.bincount(ki, weights=draw_hess_g, minlength=nk)
 
+        # The Davidson corrections are folded in pre-divided by the key's own
+        # gamma, so the consumers' existing `wins - gamma * grad` / `-gamma *
+        # hess` arithmetic absorbs them unchanged. At nu == 0 both corrections
+        # are exactly 0.0, so this adds 0.0 and the result is bit-identical to
+        # the Bradley-Terry-only code path.
         for key, idx in h_index_of.items():
-            h_grad[key] = float(h_grad_arr[idx])
-            h_hess[key] = float(h_hess_arr[idx])
+            gamma_h = self.handicap_gamma.get(key, 1.0)
+            h_grad[key] = float(h_grad_arr[idx] + h_dgrad_arr[idx] / gamma_h)
+            h_hess[key] = float(h_hess_arr[idx] + h_dhess_arr[idx] / gamma_h)
             h_games[key] = int(h_games_arr[idx])
-            # h_wins_arr is a bincount of 0/1 win-count weights, so each entry
-            # is an exact integer count well under 2^53; round()+int() recovers
-            # it exactly (guarding only against float bincount rounding dust).
-            wins = int(round(h_wins_arr[idx]))
+            # A draw contributes 0.5 to each side, so this is a *weighted* win
+            # total rather than a count: it is what makes the eligibility guard
+            # ("0 < wins < games") treat a key seen only in draws as informative
+            # yet still reject an all-decisive-wins key, whose MLE is infinite.
+            wins = float(h_wins_arr[idx])
             if wins:
                 h_wins[key] = wins
         for key, idx in k_index_of.items():
             if key is None:
                 continue  # the no-komi sentinel: never estimated
-            k_grad[key] = float(k_grad_arr[idx])
-            k_hess[key] = float(k_hess_arr[idx])
+            gamma_k = self.komi_gamma.get(key, 1.0)
+            k_grad[key] = float(k_grad_arr[idx] + k_dgrad_arr[idx] / gamma_k)
+            k_hess[key] = float(k_hess_arr[idx] + k_dhess_arr[idx] / gamma_k)
             k_games[key] = int(k_games_arr[idx])
-            # Exact integer bincount, as for h_wins_arr above.
-            wins = int(round(k_wins_arr[idx]))
+            # Weighted, as for h_wins above.
+            wins = float(k_wins_arr[idx])
             if wins:
                 k_wins[key] = wins
         return h_grad, h_hess, k_grad, k_hess, h_games, h_wins, k_games, k_wins
@@ -263,7 +352,7 @@ class WHR:
         pinned: set[Any],
         grad_terms: dict[Any, float],
         games: dict[Any, int],
-        wins: dict[Any, int],
+        wins: dict[Any, float],
     ) -> Iterator[tuple[Any, float, float]]:
         """Yield ``(key, gamma, grad)`` for every non-pinned advantage key that
         a Newton step would actually update: those seen in a game with a
@@ -279,7 +368,7 @@ class WHR:
             if key in pinned:
                 continue
             n_games = games.get(key, 0)
-            n_wins = wins.get(key, 0)
+            n_wins = wins.get(key, 0.0)
             if n_games > 0 and 0 < n_wins < n_games:
                 gamma = table[key]
                 grad = n_wins - gamma * grad_terms.get(key, 0.0)
@@ -501,14 +590,16 @@ class WHR:
         Args:
             current (bool, optional): If True, displays only the latest elo rating. If False, displays all elo ratings for each day played.
         """
+        self._warn_if_stale()
+        shift = self.display_offset
         players = [x for x in self.players.values() if len(x.days) > 0]
         players.sort(key=lambda x: x.days[-1].gamma())
         for p in players:
             if len(p.days) > 0:
                 if current:
-                    print(f"{p.name} => {p.days[-1].elo}")
+                    print(f"{p.name} => {p.days[-1].elo + shift}")
                 else:
-                    print(f"{p.name} => {[x.elo for x in p.days]}")
+                    print(f"{p.name} => {[x.elo + shift for x in p.days]}")
 
     def get_ordered_ratings(
         self, current: bool = False, compact: bool = False
@@ -527,19 +618,21 @@ class WHR:
         Returns:
             The elo ratings for each player, ordered. The exact shape depends on ``current`` and ``compact``: a plain list of elos, a list of ``(name, elo)`` tuples, a list of per-day elo lists, or a list of ``(name, per-day elos)`` tuples.
         """
+        self._warn_if_stale()
+        shift = self.display_offset
         result: list[Any] = []
         players = [x for x in self.players.values() if len(x.days) > 0]
         players.sort(key=lambda x: x.days[-1].gamma())
         for p in players:
             if len(p.days) > 0:
                 if current and compact:
-                    result.append(p.days[-1].elo)
+                    result.append(p.days[-1].elo + shift)
                 elif current:
-                    result.append((p.name, p.days[-1].elo))
+                    result.append((p.name, p.days[-1].elo + shift))
                 elif compact:
-                    result.append([x.elo for x in p.days])
+                    result.append([x.elo + shift for x in p.days])
                 else:
-                    result.append((p.name, [x.elo for x in p.days]))
+                    result.append((p.name, [x.elo + shift for x in p.days]))
         return result
 
     def log_likelihood(self) -> float:
@@ -578,7 +671,7 @@ class WHR:
         return self.players.get(name)
 
     @staticmethod
-    def _player_day(player: Player, day: int | None) -> Any:
+    def _player_day(player: Player, day: int | float | None) -> Any:
         """The player's given rated day, or its last rated day if ``day`` is
         None. Raises ValueError if ``day`` is given but not a rated day."""
         if day is None:
@@ -711,16 +804,208 @@ class WHR:
         Raises:
             ValueError: If the player is unknown or has no rated day.
         """
+        self._warn_if_stale()
         player = self._existing_player(name)
         if player is None or len(player.days) == 0:
             raise ValueError(f"No ratings available for unknown player {name!r}")
         self._warn_if_uncertainty_uncomputed(player)
+        shift = self.display_offset
+        show = self._displayed_uncertainty
         if current:
             return (
-                round(player.days[-1].elo),
-                round(player.days[-1].uncertainty, 2),
+                round(player.days[-1].elo + shift),
+                round(show(player.days[-1].uncertainty), 2),
             )
-        return [(d.day, round(d.elo), round(d.uncertainty, 2)) for d in player.days]
+        return [
+            (d.day, round(d.elo + shift), round(show(d.uncertainty), 2))
+            for d in player.days
+        ]
+
+    def _displayed_uncertainty(self, variance: float) -> float:
+        """The stored variance, or its elo standard error, per ``display_uncertainty``.
+
+        The stored value is a variance in natural log-gamma units: the ``0.26``
+        this method returns by default is not "+/- 0.26 elo" but a variance whose
+        elo standard error is ``sqrt(0.26) * 400/ln(10)`` = 88.6 elo. That is a
+        genuine trap next to a column of elo values, so ``display_uncertainty="elo"``
+        converts it. The default stays ``"variance"`` for backward compatibility.
+        The ``-1`` sentinel for "not computed yet" is passed through unchanged.
+        """
+        if variance < 0.0 or self.config["display_uncertainty"] == "variance":
+            return variance
+        return math.sqrt(variance) * _ELO_PER_NAT
+
+    @property
+    def display_offset(self) -> float:
+        """Constant added to every *displayed* elo, and to nothing else.
+
+        WHR estimates relative strength: the first day of each player is anchored
+        toward 0 elo, so an average player sits near 0 and weaker ones go
+        negative. Only differences are meaningful, which is why a constant offset
+        changes no prediction -- and why a goratings-style scale is purely a
+        presentation choice.
+
+        Applied at *read* time by ``ratings_for_player``, ``get_ordered_ratings``
+        and ``print_ordered_ratings``. It is deliberately never applied by
+        ``probability_future_match``, ``win_draw_loss_probabilities``,
+        ``rating_difference``, ``rating_covariance`` or ``rating_change``: those
+        consume differences, which the offset cannot affect.
+
+        Because nothing is written back into the model, the offset cannot erode.
+        Assigning ``day.elo += 1500`` by hand does erode: the first-day anchor
+        pulls it back, so a later ``iterate()`` decays an added 1500 to roughly
+        100 over 500 iterations. Use this instead.
+
+        See :meth:`display_offset_for` to derive a value from an anchoring rule
+        rather than guessing one.
+        """
+        return float(self.config["display_offset"])
+
+    def display_offset_for(
+        self,
+        target: float,
+        player: str | None = None,
+        day: int | float | None = None,
+    ) -> float:
+        """The ``display_offset`` that puts a chosen reference at ``target`` elo.
+
+        A fixed ``+1500`` is arbitrary: ratings drift across eras, so the same
+        constant means different things in 1950 and in 2020. Real rating scales
+        anchor something instead. This computes the offset without applying it,
+        so the caller can inspect it before assigning it to
+        ``config["display_offset"]``.
+
+        Args:
+            target (float): The elo the reference should read as (e.g. 1500).
+            player (str | None, optional): Anchor this player's rating. Their
+                rating on ``day``, or their last rated day if ``day`` is None.
+                When None, the *mean* rating over the anchored day is used.
+            day (int | float | None, optional): The day to anchor on. Defaults to
+                the last day on which anything was rated.
+
+        Returns:
+            float: The offset to store in ``config["display_offset"]``.
+
+        Raises:
+            ValueError: If there is nothing rated to anchor on, if ``player`` is
+                unknown, or if ``player`` has no rating on ``day``.
+        """
+        rated = [(d, p) for p in self.players.values() for d in p.days]
+        if not rated:
+            raise ValueError(
+                "no rated player-days to anchor on; call iterate() on a base "
+                "with games first"
+            )
+        if player is not None:
+            existing = self._existing_player(player)
+            if existing is None or not existing.days:
+                raise ValueError(f"No ratings available for player {player!r}")
+            pday = self._player_day(existing, day)
+            return target - pday.elo
+        anchor_day = day if day is not None else max(d.day for d, _ in rated)
+        on_day = [d.elo for d, _ in rated if d.day == anchor_day]
+        if not on_day:
+            raise ValueError(f"no player was rated on day {anchor_day!r}")
+        return target - sum(on_day) / len(on_day)
+
+    @property
+    def games_since_last_fit(self) -> int:
+        """Games recorded since the last ``iterate()`` / ``auto_iterate()``.
+
+        Non-zero means every rating and prediction read from this instance
+        predates those games. See :class:`~whr.utils.StaleFitWarning`.
+        """
+        return self._games_since_fit
+
+    def connected_components(self) -> list[frozenset[str]]:
+        """Groups of players linked by a chain of games, largest first.
+
+        WHR estimates *relative* strength, so each group is anchored toward 0 elo
+        independently and ratings are only comparable **within** a group. Two
+        groups that never meet -- separate leagues, disjoint eras, a
+        multi-federation pool -- carry numbers that look comparable and are not.
+
+        Returns one frozenset of player names per group (empty if no games).
+        Result is cached and invalidated whenever a game is added.
+        """
+        if self._components is not None:
+            return self._components
+        parent: dict[str, str] = {}
+
+        def find(x: str) -> str:
+            parent.setdefault(x, x)
+            root = x
+            while parent[root] != root:
+                root = parent[root]
+            while parent[x] != root:  # path compression
+                parent[x], x = root, parent[x]
+            return root
+
+        for game in self.games:
+            a, b = game.black_player.name, game.white_player.name
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[ra] = rb
+        groups: dict[str, set[str]] = {}
+        for name in parent:
+            groups.setdefault(find(name), set()).add(name)
+        self._components = sorted(
+            (frozenset(g) for g in groups.values()),
+            key=lambda g: (-len(g), min(g)),
+        )
+        self._component_of = {
+            name: i for i, group in enumerate(self._components) for name in group
+        }
+        return self._components
+
+    def _warn_if_disconnected(self, name1: str, name2: str) -> None:
+        """Flag a comparison spanning two groups that never played each other.
+
+        Only fires when both players are known and rated: an unknown player is
+        already documented as an even reference, and warning about it would be
+        noise on every cold-start prediction.
+        """
+        if self.config["uncased"]:
+            name1, name2 = name1.lower(), name2.lower()
+        self.connected_components()
+        a = self._component_of.get(name1)
+        b = self._component_of.get(name2)
+        if a is None or b is None or a == b:
+            return
+        warnings.warn(
+            f"{name1!r} and {name2!r} are in different connected components: no "
+            "chain of games links them, so their ratings sit on independently "
+            "anchored scales and this comparison has no evidence behind it. "
+            "Rate each pool separately, or add games that link them. "
+            "connected_components() lists the groups.",
+            DisconnectedPlayersWarning,
+            stacklevel=3,
+        )
+
+    def _warn_if_stale(self) -> None:
+        """Flag a read that predates games added since the last fit. Fires once
+        per stale episode (the flag resets whenever a new game arrives)."""
+        # Only meaningful once a fit has happened: on a never-fitted base every
+        # value is still at its initial state and the caller is plainly driving
+        # things by hand (the uncertainty sentinel covers that case instead).
+        if (
+            not self._ever_fitted
+            or self._games_since_fit == 0
+            or self._warned_stale_fit
+        ):
+            return
+        self._warned_stale_fit = True
+        warnings.warn(
+            f"{self._games_since_fit} game(s) have been added since the last "
+            "iterate()/auto_iterate(), so this value reflects the previous fit, "
+            "not the current games. Adding results to a day a player already had "
+            "has been measured to move a rating by 464 elo once re-fitted, while "
+            "the stale read and its uncertainty looked perfectly plausible -- and "
+            "max_gradient_norm() can stay small throughout. Call iterate() or "
+            "auto_iterate(); games_since_last_fit reports the count.",
+            StaleFitWarning,
+            stacklevel=3,
+        )
 
     def _warn_if_uncertainty_uncomputed(self, player: Player) -> None:
         """Flag the ``-1`` uncertainty sentinel being read as if it were a value.
@@ -847,6 +1132,14 @@ class WHR:
             if not self.draws_declared and self.nu == 0.0:
                 self.nu = 1.0
         self.games.append(game)
+        # Nothing is re-estimated here, so every read until the next fit is out
+        # of date; both the staleness counter and the cached component map have
+        # to know that.
+        self._games_since_fit += 1
+        self._warned_stale_fit = False
+        self._components = None
+        self._component_of = {}
+        self._adv_layout = None
         return game
 
     @staticmethod
@@ -1050,6 +1343,9 @@ class WHR:
             self._run_one_iteration()
         for player in self.players.values():
             player.update_uncertainty()
+        self._games_since_fit = 0
+        self._warned_stale_fit = False
+        self._ever_fitted = True
 
     def max_gradient_norm(self) -> float:
         """Largest gradient infinity-norm across all players, non-pinned
@@ -1075,15 +1371,24 @@ class WHR:
         self,
         time_limit: int | None = None,
         precision: float = 1e-3,
-        batch_size: int = 10,
+        batch_size: int = 50,
     ) -> tuple[int, bool]:
         """Iterate until the gradient infinity-norm drops below ``precision``.
 
         Args:
             time_limit: max seconds before giving up. None means no timeout.
             precision: convergence tolerance on the max absolute gradient
-                component (natural-rating units).
-            batch_size: iterations per convergence/timeout check.
+                component (natural-rating units). The default is where held-out
+                quality bottoms out; see the README. Tighter targets buy
+                stability of the rating *values*, not accuracy.
+            batch_size: iterations per convergence/timeout check. Checking is not
+                free -- ``max_gradient_norm`` costs about 0.44 of an iteration
+                and, more importantly, clears every game-term cache, so the first
+                iteration after each check has to repopulate it. Measured on ATP
+                2000-2006 to a 1e-4 target: 165 s at 5, 132 s at 10, 115 s at 25,
+                **109 s at 50**, then 130 s at 100, where overshooting the target
+                by up to ``batch_size - 1`` wasted iterations starts to dominate.
+                Lower it if you need the timeout honoured promptly.
 
         Returns:
             (iterations performed, whether convergence was reached).
@@ -1371,6 +1676,8 @@ class WHR:
             ValueError: Raised if ``account_for_uncertainty`` is ``True`` and
                 ``uncertainty_steps`` is less than 1.
         """
+        self._warn_if_stale()
+        self._warn_if_disconnected(name1, name2)
         player1, player2, bpd_gamma, bpd_elo, wpd_gamma, wpd_elo = (
             self._match_player_days(name1, name2)
         )
@@ -1515,6 +1822,8 @@ class WHR:
                 tell which. Declare it either way to silence this.
         """
         self._warn_if_draws_undeclared()
+        self._warn_if_stale()
+        self._warn_if_disconnected(name1, name2)
         player1, player2, bpd_gamma, _bpd_elo, wpd_gamma, _wpd_elo = (
             self._match_player_days(name1, name2)
         )
@@ -1747,14 +2056,16 @@ class WHR:
                     "estimate_handicap_zero",
                     "pinned_draw",
                     "draw_rate",
+                    "display_offset",
+                    "display_uncertainty",
                 ]
             }
             warnings.warn(
                 "Some elements in config cannot be pickled; only 'w2', "
                 "'uncased', 'initial_prior_wins', 'hessian_damping', "
                 "'drift_kernel_radius', 'pinned_handicap', 'pinned_komi', "
-                "'estimate_handicap_zero', 'pinned_draw' and 'draw_rate' will "
-                "be saved.",
+                "'estimate_handicap_zero', 'pinned_draw', 'draw_rate', "
+                "'display_offset' and 'display_uncertainty' will be saved.",
                 stacklevel=2,
             )
         with open(path, "wb") as f:

@@ -16,7 +16,7 @@ player strengths follow a Gaussian random walk in time. So the question is not
 the reference implementations on their own data". The answer is **it is
 competitive but does not dominate**: it leads the three-outcome football
 benchmark, trails KickScore on the NBA by 0.6% and TrueSkill Through Time on
-tennis by 1.6%, and all three are beaten on the NBA by a domain-specific model
+tennis by 1.5%, and all three are beaten on the NBA by a domain-specific model
 that sees rosters and injuries.
 
 > **Reproducibility.** Every number below is produced by the scripts in this
@@ -38,8 +38,8 @@ test season, same metric, same integer-day time unit.
 | Benchmark | Test set | **WHR** | KickScore | TrueSkill Through Time | Leader |
 |---|---|---|---|---|---|
 | **NBA** 2018-19 | n=1312, 2-way | 0.666 / 63.6% | **0.662 / 63.9%** | 0.688 / 63.6% | KickScore, by 0.6% |
-| **Tennis (ATP)** 2014 | n=2816, 2-way | 0.614 / **67.0%** | 0.606 / 66.4% | **0.604 / 66.6%** | TTT, by 1.6% |
-| **Football** big-5 2022-23 | n=1826, 3-way | **1.009 / 51.5%** | 1.013 / 51.5% | 1.023 / 52.0% | **WHR**, by 0.5% |
+| **Tennis (ATP)** 2014 | n=2816, 2-way | 0.614 / **67.1%** | 0.606 / 66.4% | **0.604 / 66.6%** | TTT, by 1.5% |
+| **Football** big-5 2022-23 | n=1826, 3-way | **1.008 / 51.4%** | 1.013 / 51.5% | 1.023 / 52.0% | **WHR**, by 0.5% |
 
 Log-loss in nats (lower is better) / accuracy. Context on the same games: 538
 RAPTOR scores **0.615 / 65.6%** and 538 Elo **0.619 / 65.3%** on the NBA test
@@ -141,12 +141,12 @@ tuned on 2013, scored on 2014:
 |---|---|---|---|
 | TrueSkill Through Time | `gamma=0.3`, `beta=32` | **0.6043** | 66.6% |
 | KickScore | `wiener_var=1e-5`, `prior_var=0.125` | 0.6057 | 66.4% |
-| WHR | `w2=3`, `account_for_uncertainty=True` | 0.6141 | **67.0%** |
+| WHR | `w2=3`, `account_for_uncertainty=True` | 0.6135 | **67.1%** |
 | coin flip (0.5) | — | 0.6931 | — |
 
 **Findings.**
-- **WHR is third on log-loss and first on accuracy.** It calls 67.0% of held-out
-  2014 matches correctly — more than either competitor — while scoring 0.6141
+- **WHR is third on log-loss and first on accuracy.** It calls 67.1% of held-out
+  2014 matches correctly — more than either competitor — while scoring 0.6135
   against TTT's 0.6043. The ordering it produces is the best of the three; the
   probabilities it attaches to that ordering are the worst.
 - **TTT wins here, on its own sport, and only after its grid was opened up.** Its
@@ -155,8 +155,8 @@ tuned on 2013, scored on 2014:
   frozen the competitors' scale parameters at their defaults would have reported
   WHR as the tennis winner, and would have been wrong.
 - `account_for_uncertainty=True` was selected by the validation season and is
-  worth 0.6164 → 0.6141. It closes about a fifth of the gap to TTT; the rest is
-  not a calibration artefact.
+  worth 0.6119 → 0.6094 there. It closes part of the gap to TTT; the rest is not
+  a calibration artefact.
 - The fit spans ~1,950 players over 15 years and converges cleanly
   (gradient ∞-norm ≈ 5·10⁻³), demonstrating WHR at a realistic scale.
 - Accuracy is not reported for the coin flip: at exactly p = 0.5 every prediction
@@ -183,7 +183,7 @@ outcomes, trained on 2014-15…2021-22, tuned on 2021-22, scored on 2022-23:
 
 | Model | tuned params | 3-way log-loss | accuracy |
 |---|---|---|---|
-| **WHR (Davidson)** | `w2=30`, `account_for_uncertainty=True` | **1.0085** | 51.5% |
+| **WHR (Davidson)** | `w2=30`, `account_for_uncertainty=True` | **1.0085** | 51.4% |
 | KickScore (ternary) | `wiener_var=1e-4`, `margin=0.3` | 1.0134 | 51.5% |
 | TrueSkill Through Time | `gamma=0.03`, `p_draw=0.30` | 1.0228 | **52.0%** |
 | base rate (H/D/A frequencies) | — | 1.0630 | 45.7% |
@@ -213,7 +213,18 @@ of the pipeline.
   football lead was never an artefact of a missing feature: lifting the handicap
   moved it from 0.45% to 0.49%.
 - WHR **estimated a global draw tendency ν ≈ 0.79** and a **home advantage of
-  +80 elo** — both realistic for European football (home edge ≈ 0.3–0.4 goals).
+  +79 elo** — both realistic for European football (home edge ≈ 0.3–0.4 goals).
+- **Making the advantage estimator Davidson-aware did not move the prediction.**
+  Earlier releases fitted handicap/komi from decisive games only, which was not a
+  maximum of the likelihood at all (§4). Fixing it leaves this benchmark's 3-way
+  log-loss unchanged at 1.0085 and costs 0.1 accuracy point, and moves the fitted
+  home advantage by about 1 elo (80.3 → 79.4). That is much smaller than the
+  83-elo bias the fix removes on a synthetic base at the same 25% draw rate — and
+  the difference is structural, not luck: the synthetic case had a strong handicap
+  and two competing handicap keys, whereas here every match carries the same
+  `"home"` key and every team plays both home and away, which identifies the
+  advantage independently of the ratings. The fix is still the correct estimator;
+  its practical effect just depends on how confounded the data is.
 - Both WHR variants beat the base rate decisively (log-loss 1.063 → 1.01,
   accuracy 45.7% → ~52%).
 - **The Davidson model beats the "assume a constant draw rate" ablation on
@@ -308,9 +319,13 @@ know where.
    KickScore/TTT. These are not identical parameterisations, and no single choice
    would be neutral.
 3. **Convergence budget** is fixed per library (WHR `auto_iterate` to a gradient
-   precision, KickScore `max_iter=100`, TTT `convergence(epsilon=1e-3)`), not
-   matched on wall-clock. A speed comparison would need a different design; this
-   benchmark measures predictive quality only.
+   precision of `1e-3`, KickScore `max_iter=100`, TTT
+   `convergence(epsilon=1e-3)`), not matched on wall-clock. A speed comparison
+   would need a different design; this benchmark measures predictive quality
+   only. Earlier runs used a looser `5e-3` for WHR, which cost it 0.00057 nats on
+   tennis (0.614102 against 0.613530) — a handicap of this harness's own making,
+   now removed. `1e-3` is where WHR's held-out quality bottoms out; tighter
+   targets change the rating *values* without improving prediction.
 
 Beyond the protocol:
 

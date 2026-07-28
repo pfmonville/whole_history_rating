@@ -5,14 +5,14 @@
   "bin_days": 14,
   "models": {
     "whr": {
-      "log_loss": 0.6659827546422669,
+      "log_loss": 0.665980331840368,
       "accuracy": 0.6364329268292683,
       "n": 1312,
       "params": {
         "w2": 1000.0,
         "predict_uncertainty": true
       },
-      "valid_log_loss": 0.6548828966511687,
+      "valid_log_loss": 0.6548714976944945,
       "grid_size": 8,
       "on_grid_edge": {
         "w2": false

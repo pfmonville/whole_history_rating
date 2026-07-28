@@ -44,6 +44,7 @@ import math
 import os
 import sys
 from datetime import date
+from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
@@ -91,12 +92,35 @@ def _grid_edges(best, grid, losses=None):
 
 
 def _grid(**axes):
-    """Cartesian product of named hyper-parameter axes -> list of kwarg dicts."""
+    """Cartesian product of named hyper-parameter axes -> list of kwarg dicts.
+
+    The FIRST axis varies slowest, so consecutive grid points share it. That is
+    what makes ``_cached_fit`` below effective: ``w2`` is always declared first
+    and ``predict_uncertainty`` last, so the two predict_uncertainty variants of
+    one ``w2`` are adjacent and the fit between them is reused.
+    """
     keys = list(axes)
     combos = [{}]
     for key in keys:
         combos = [{**c, key: v} for c in combos for v in axes[key]]
     return combos
+
+
+# One-entry fit cache. WHR's ``predict_uncertainty`` axis changes only how a
+# fitted model is *queried* -- ``auto_iterate`` never sees it -- so half of every
+# WHR grid was refitting identical models. Holding just the last fit is enough
+# (see ``_grid`` on ordering) and keeps memory to a single model.
+_LAST_FIT: dict[str, Any] = {}
+
+
+def _cached_fit(kind: str, train: list, w2: float, build):
+    """The fitted model for ``(kind, train, w2)``, refitting only when it changes."""
+    key = (kind, id(train), w2)
+    if _LAST_FIT.get("key") != key:
+        # keep `train` referenced so its id cannot be reused by another object
+        _LAST_FIT.clear()
+        _LAST_FIT.update(key=key, train=train, model=build())
+    return _LAST_FIT["model"]
 
 
 # Tennis grids. WHR has one knob (its scale is pinned by the elo convention);
@@ -191,12 +215,16 @@ def oriented(recs):
 # The three systems, each fitted on `train` and asked to predict `test`
 # --------------------------------------------------------------------------- #
 def run_whr(train, test, *, w2, predict_uncertainty=False):
-    from whr import WHR
+    def build():
+        from whr import WHR
 
-    whr = WHR({"w2": w2})
-    for r in train:
-        whr.create_game(r["winner"], r["loser"], "B", r["day"], 0)
-    whr.auto_iterate(time_limit=240, precision=5e-3, batch_size=10)
+        whr = WHR({"w2": w2})
+        for r in train:
+            whr.create_game(r["winner"], r["loser"], "B", r["day"], 0)
+        whr.auto_iterate(time_limit=400, precision=1e-3)
+        return whr
+
+    whr = _cached_fit("tennis", train, w2, build)
     pairs = []
     for p1, p2, y, _day in oriented(test):
         p, _ = whr.probability_future_match(
@@ -379,15 +407,19 @@ def load_nba():
 
 
 def nba_pairs_whr(train, test, *, w2, predict_uncertainty=False):
-    from whr import WHR
+    def build():
+        from whr import WHR
 
-    whr = WHR({"w2": w2})
-    for r in train:
-        hcap = 0 if r["neutral"] else "home"
-        whr.create_game(
-            r["home"], r["away"], "B" if r["home_won"] else "W", r["day"], hcap
-        )
-    whr.auto_iterate(time_limit=120, precision=5e-3, batch_size=10)
+        whr = WHR({"w2": w2})
+        for r in train:
+            hcap = 0 if r["neutral"] else "home"
+            whr.create_game(
+                r["home"], r["away"], "B" if r["home_won"] else "W", r["day"], hcap
+            )
+        whr.auto_iterate(time_limit=180, precision=1e-3)
+        return whr
+
+    whr = _cached_fit("nba", train, w2, build)
     pairs = []
     for r in test:
         key = None if r["neutral"] else "home"
@@ -587,13 +619,17 @@ def _three_way_score(rows):
 
 
 def fb_rows_whr(train, test, *, w2, predict_uncertainty=False):
-    from whr import WHR
+    def build():
+        from whr import WHR
 
-    whr = WHR({"w2": w2})
-    for r in train:
-        winner = {"W": "B", "D": "D", "L": "W"}[r["outcome"]]
-        whr.create_game(r["home"], r["away"], winner, r["day"], "home")
-    whr.auto_iterate(time_limit=150, precision=3e-3, batch_size=10)
+        whr = WHR({"w2": w2})
+        for r in train:
+            winner = {"W": "B", "D": "D", "L": "W"}[r["outcome"]]
+            whr.create_game(r["home"], r["away"], winner, r["day"], "home")
+        whr.auto_iterate(time_limit=300, precision=1e-3)
+        return whr
+
+    whr = _cached_fit("football", train, w2, build)
     rows = []
     for r in test:
         w, d, ls = whr.win_draw_loss_probabilities(

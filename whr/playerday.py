@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import math
+from itertools import chain
 
 import numpy as np
 
 from whr import game as G
 from whr import player as P
+
+# Below this many decisive games on one day, a plain Python loop beats numpy:
+# a numpy call costs ~2.5us regardless of size, so at the 1-5 games a typical
+# player-day carries it is 10-16x slower than looping. numpy only wins again
+# around a hundred games in a single day (measured), which coarse time bins can
+# produce -- hence the threshold rather than dropping numpy entirely.
+_NUMPY_THRESHOLD = 64
 
 
 class PlayerDay:
@@ -17,6 +25,11 @@ class PlayerDay:
         self.drawn_games: list[G.Game] = []
         self._won_game_terms: list[list[float]] | None = None
         self._lost_game_terms: list[list[float]] | None = None
+        # The hot Bradley-Terry paths need only the opponents' adjusted gammas,
+        # so they are cached flat rather than re-derived from the legacy
+        # ``[a, b, c, d]`` term rows on every call.
+        self._won_gammas: list[float] | None = None
+        self._lost_gammas: list[float] | None = None
         self.uncertainty: float = -1
         # natural-rating (log-gamma); overwritten by set_gamma / the elo setter
         self.r: float = 0.0
@@ -59,33 +72,51 @@ class PlayerDay:
         """Clears the cached terms for games won and lost, forcing recalculation."""
         self._won_game_terms = None
         self._lost_game_terms = None
+        self._won_gammas = None
+        self._lost_gammas = None
+
+    def won_gammas(self) -> list[float]:
+        """Opponents' adjusted gammas for this day's won games (cached)."""
+        if self._won_gammas is None:
+            # opponents_adjusted_gamma already raises on a non-finite gamma.
+            self._won_gammas = [
+                g.opponents_adjusted_gamma(self.player) for g in self.won_games
+            ]
+        return self._won_gammas
+
+    def lost_gammas(self) -> list[float]:
+        """Opponents' adjusted gammas for this day's lost games (cached)."""
+        if self._lost_gammas is None:
+            self._lost_gammas = [
+                g.opponents_adjusted_gamma(self.player) for g in self.lost_games
+            ]
+        return self._lost_gammas
 
     def won_game_terms(self) -> list[list[float]]:
         """Calculates terms for games won by the player on this day.
+
+        The ``[a, b, c, d]`` shape predates vectorization and only ``d`` (the
+        opponent's adjusted gamma) is ever read; it is kept for backward
+        compatibility and built from :meth:`won_gammas`, which is what the hot
+        paths actually use.
 
         Returns:
             list[list[float]]: A list of terms used for calculations, including the opponent's adjusted gamma.
         """
         if self._won_game_terms is None:
-            self._won_game_terms = []
-            for g in self.won_games:
-                # opponents_adjusted_gamma already raises on a non-finite gamma.
-                other_gamma = g.opponents_adjusted_gamma(self.player)
-                self._won_game_terms.append([1.0, 0.0, 1.0, other_gamma])
+            self._won_game_terms = [[1.0, 0.0, 1.0, d] for d in self.won_gammas()]
         return self._won_game_terms
 
     def lost_game_terms(self) -> list[list[float]]:
         """Calculates terms for games lost by the player on this day.
 
+        See :meth:`won_game_terms` on the legacy shape.
+
         Returns:
             list[list[float]]: A list of terms used for calculations, including the opponent's adjusted gamma.
         """
         if self._lost_game_terms is None:
-            self._lost_game_terms = []
-            for g in self.lost_games:
-                # opponents_adjusted_gamma already raises on a non-finite gamma.
-                other_gamma = g.opponents_adjusted_gamma(self.player)
-                self._lost_game_terms.append([0.0, other_gamma, 1.0, other_gamma])
+            self._lost_game_terms = [[0.0, d, 1.0, d] for d in self.lost_gammas()]
         return self._lost_game_terms
 
     def log_likelihood_second_derivative(self) -> float:
@@ -99,11 +130,20 @@ class PlayerDay:
         Returns:
             float: The second derivative of the log likelihood.
         """
-        d_vals = [term[3] for term in self.won_game_terms() + self.lost_game_terms()]
-        if not d_vals:
+        won, lost = self.won_gammas(), self.lost_gammas()
+        if not won and not lost:
             return 0.0
         gamma = self.gamma()
-        d = np.array(d_vals, dtype=np.float64)
+        if len(won) + len(lost) < _NUMPY_THRESHOLD:
+            total = 0.0
+            for d_val in won:
+                gd = gamma + d_val
+                total += d_val / (gd * gd)
+            for d_val in lost:
+                gd = gamma + d_val
+                total += d_val / (gd * gd)
+            return -gamma * total
+        d = np.fromiter(chain(won, lost), dtype=np.float64, count=len(won) + len(lost))
         return float(-gamma * np.sum(d / (gamma + d) ** 2.0))
 
     def log_likelihood_derivative(self) -> float:
@@ -116,12 +156,19 @@ class PlayerDay:
         Returns:
             float: The derivative of the log likelihood.
         """
-        n_wins = len(self.won_games)
-        d_vals = [term[3] for term in self.won_game_terms() + self.lost_game_terms()]
-        if not d_vals:
+        won, lost = self.won_gammas(), self.lost_gammas()
+        n_wins = len(won)
+        if not won and not lost:
             return float(n_wins)
         gamma = self.gamma()
-        d = np.array(d_vals, dtype=np.float64)
+        if len(won) + len(lost) < _NUMPY_THRESHOLD:
+            total = 0.0
+            for d_val in won:
+                total += 1.0 / (gamma + d_val)
+            for d_val in lost:
+                total += 1.0 / (gamma + d_val)
+            return n_wins - gamma * total
+        d = np.fromiter(chain(won, lost), dtype=np.float64, count=len(won) + len(lost))
         return float(n_wins - gamma * np.sum(1.0 / (gamma + d)))
 
     def log_likelihood(self) -> float:
@@ -135,14 +182,21 @@ class PlayerDay:
             float: The log likelihood.
         """
         gamma = self.gamma()
+        won, lost = self.won_gammas(), self.lost_gammas()
+        if len(won) + len(lost) < _NUMPY_THRESHOLD:
+            total = 0.0
+            log_gamma = math.log(gamma)
+            for d_val in won:
+                total += log_gamma - math.log(gamma + d_val)
+            for d_val in lost:
+                total += math.log(d_val) - math.log(gamma + d_val)
+            return total
         total = 0.0
-        d_won_vals = [term[3] for term in self.won_game_terms()]
-        if d_won_vals:
-            d_won = np.array(d_won_vals, dtype=np.float64)
+        if won:
+            d_won = np.fromiter(won, dtype=np.float64, count=len(won))
             total += float(np.sum(np.log(gamma) - np.log(gamma + d_won)))
-        d_lost_vals = [term[3] for term in self.lost_game_terms()]
-        if d_lost_vals:
-            d_lost = np.array(d_lost_vals, dtype=np.float64)
+        if lost:
+            d_lost = np.fromiter(lost, dtype=np.float64, count=len(lost))
             total += float(np.sum(np.log(d_lost) - np.log(gamma + d_lost)))
         return total
 

@@ -109,7 +109,7 @@ def build_and_fit(
             winner = "W"  # p1 lost -> white (p2) won
         whr.create_game(m.p1, m.p2, winner, m.day, m.handicap)
 
-    iters = whr.auto_iterate(time_limit=time_limit, precision=precision, batch_size=10)
+    iters = whr.auto_iterate(time_limit=time_limit, precision=precision)
     if verbose:
         gn = whr.max_gradient_norm()
         extra = f", nu={whr.draw_tendency:.4f}" if with_draws else ""

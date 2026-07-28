@@ -45,6 +45,39 @@ class HandicapBaselineWarning(UserWarning):
     """
 
 
+class StaleFitWarning(UserWarning):
+    """Ratings or predictions were read after games were added but not re-fitted.
+
+    ``create_game`` / ``load_games`` only record a game; nothing is re-estimated
+    until ``iterate()`` or ``auto_iterate()`` runs. Reading in between returns the
+    previous fit, silently. That is easy to miss in an online loop, and the error
+    is not small: adding results to a day a player already had moved one rating by
+    464 elo once re-fitted, while the value read beforehand -- and its uncertainty
+    -- looked entirely plausible.
+
+    ``max_gradient_norm()`` is not a reliable check either: it can sit at 2e-3
+    while the fit is that far out of date.
+
+    Call ``iterate()`` / ``auto_iterate()`` after adding games, or read
+    ``games_since_last_fit`` to test for it.
+    """
+
+
+class DisconnectedPlayersWarning(UserWarning):
+    """A comparison was made between players with no chain of games linking them.
+
+    WHR estimates *relative* strength, so two groups that never meet are each
+    anchored toward 0 elo independently and their ratings are on separate,
+    incomparable scales. A prediction across the gap is not merely uncertain, it
+    is unfounded: an undefeated player in one pool was reported as beating an
+    evenly-matched player from another with probability 0.99, on no evidence at
+    all.
+
+    ``connected_components()`` lists the groups. Rate each pool separately, or
+    add games that actually link them (cross-pool fixtures, a shared opponent).
+    """
+
+
 class UncomputedUncertaintyWarning(UserWarning):
     """Uncertainties were read before ``iterate()`` computed any.
 

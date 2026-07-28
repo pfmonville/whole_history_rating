@@ -1,16 +1,38 @@
 tennis: 48335 matches 2000-2015 | train_v=41446 valid=2959 train_t=44405 test=2816
-    WHR {'w2': 0.3, 'predict_uncertainty': False} valid log-loss=0.6151  <- best so far
-    WHR {'w2': 0.3, 'predict_uncertainty': True} valid log-loss=0.6132  <- best so far
-    WHR {'w2': 1.0, 'predict_uncertainty': False} valid log-loss=0.6132  <- best so far
-    WHR {'w2': 1.0, 'predict_uncertainty': True} valid log-loss=0.6111  <- best so far
-    WHR {'w2': 3.0, 'predict_uncertainty': False} valid log-loss=0.6127
-    WHR {'w2': 3.0, 'predict_uncertainty': True} valid log-loss=0.6104  <- best so far
-    WHR {'w2': 10.0, 'predict_uncertainty': False} valid log-loss=0.6164
-    WHR {'w2': 10.0, 'predict_uncertainty': True} valid log-loss=0.6132
-    WHR {'w2': 30.0, 'predict_uncertainty': False} valid log-loss=0.6260
-    WHR {'w2': 30.0, 'predict_uncertainty': True} valid log-loss=0.6207
-  WHR: selected {'w2': 3.0, 'predict_uncertainty': True} (valid 0.6104)
-  WHR: TEST log-loss=0.6141 acc=67.0%  edge={'w2': False} flat=[]
+/Users/pf.monville/Documents/git/whole_history_rating/benchmarks/versus.py:230: DisconnectedPlayersWarning: 'Sebastien Vidal' and 'David Souto' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p, _ = whr.probability_future_match(
+/Users/pf.monville/Documents/git/whole_history_rating/benchmarks/versus.py:230: DisconnectedPlayersWarning: 'Di Wu' and 'Liang Chi Huang' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p, _ = whr.probability_future_match(
+/Users/pf.monville/Documents/git/whole_history_rating/benchmarks/versus.py:230: DisconnectedPlayersWarning: 'Luis David Martinez' and 'Jorge Brian Panta Herreros' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p, _ = whr.probability_future_match(
+/Users/pf.monville/Documents/git/whole_history_rating/benchmarks/versus.py:230: DisconnectedPlayersWarning: 'Olivier Sajous' and 'Sebastien Vidal' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p, _ = whr.probability_future_match(
+/Users/pf.monville/Documents/git/whole_history_rating/benchmarks/versus.py:230: DisconnectedPlayersWarning: 'Liang Chi Huang' and 'Wisnu Adi Nugroho' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p, _ = whr.probability_future_match(
+/Users/pf.monville/Documents/git/whole_history_rating/benchmarks/versus.py:230: DisconnectedPlayersWarning: 'Christopher Rungkat' and 'Liang Chi Huang' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p, _ = whr.probability_future_match(
+/Users/pf.monville/Documents/git/whole_history_rating/benchmarks/versus.py:230: DisconnectedPlayersWarning: 'Michael Lammer' and 'Roberto Quiroz' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p, _ = whr.probability_future_match(
+    WHR {'w2': 0.3, 'predict_uncertainty': False} valid log-loss=0.6140  <- best so far
+    WHR {'w2': 0.3, 'predict_uncertainty': True} valid log-loss=0.6120  <- best so far
+    WHR {'w2': 1.0, 'predict_uncertainty': False} valid log-loss=0.6122
+    WHR {'w2': 1.0, 'predict_uncertainty': True} valid log-loss=0.6100  <- best so far
+    WHR {'w2': 3.0, 'predict_uncertainty': False} valid log-loss=0.6119
+    WHR {'w2': 3.0, 'predict_uncertainty': True} valid log-loss=0.6094  <- best so far
+    WHR {'w2': 10.0, 'predict_uncertainty': False} valid log-loss=0.6158
+    WHR {'w2': 10.0, 'predict_uncertainty': True} valid log-loss=0.6123
+    WHR {'w2': 30.0, 'predict_uncertainty': False} valid log-loss=0.6257
+    WHR {'w2': 30.0, 'predict_uncertainty': True} valid log-loss=0.6201
+  WHR: selected {'w2': 3.0, 'predict_uncertainty': True} (valid 0.6094)
+/Users/pf.monville/Documents/git/whole_history_rating/benchmarks/versus.py:230: DisconnectedPlayersWarning: 'Gilles Muller' and 'Hicham Khaddari' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p, _ = whr.probability_future_match(
+/Users/pf.monville/Documents/git/whole_history_rating/benchmarks/versus.py:230: DisconnectedPlayersWarning: 'Hicham Khaddari' and 'Ugo Nastasi' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p, _ = whr.probability_future_match(
+/Users/pf.monville/Documents/git/whole_history_rating/benchmarks/versus.py:230: DisconnectedPlayersWarning: 'Hicham Khaddari' and 'Sergis Kyratzis' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p, _ = whr.probability_future_match(
+/Users/pf.monville/Documents/git/whole_history_rating/benchmarks/versus.py:230: DisconnectedPlayersWarning: 'Victor Hanescu' and 'Hicham Khaddari' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p, _ = whr.probability_future_match(
+  WHR: TEST log-loss=0.6135 acc=67.1%  edge={'w2': False} flat=[]
     TTT {'gamma': 0.003, 'beta': 0.5} valid log-loss=0.6243  <- best so far
     TTT {'gamma': 0.003, 'beta': 1.0} valid log-loss=0.6235  <- best so far
     TTT {'gamma': 0.003, 'beta': 2.0} valid log-loss=0.6203  <- best so far

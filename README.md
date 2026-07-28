@@ -37,15 +37,15 @@ at a value the grid merely failed to reach.
 | Benchmark | Test set | WHR | KickScore | TrueSkill Through Time |
 |---|---|---|---|---|
 | **NBA** (FiveThirtyEight) | 2018-19, n=1312 | 0.666 · 63.6% | **0.662** · 63.9% | 0.688 · 63.6% |
-| **ATP tennis** (Sackmann) | 2014, n=2816 | 0.614 · **67.0%** | 0.606 · 66.4% | **0.604** · 66.6% |
-| **Football** big-5, 3-way | 2022-23, n=1826 | **1.009** · 51.5% | 1.013 · 51.5% | 1.023 · 52.0% |
+| **ATP tennis** (Sackmann) | 2014, n=2816 | 0.614 · **67.1%** | 0.606 · 66.4% | **0.604** · 66.6% |
+| **Football** big-5, 3-way | 2022-23, n=1826 | **1.008** · 51.4% | 1.013 · 51.5% | 1.023 · 52.0% |
 
 Log-loss in nats, lower is better; accuracy after it. Four things worth pulling
 out, including the ones that do not flatter this library:
 
 - **No system wins outright, and the spread is small.** WHR takes the football
-  benchmark, KickScore the NBA, TTT the tennis. WHR is never more than 1.6%
-  behind whichever system leads (0.6% on the NBA, 1.6% on tennis), and the full
+  benchmark, KickScore the NBA, TTT the tennis. WHR is never more than 1.5%
+  behind whichever system leads (0.6% on the NBA, 1.5% on tennis), and the full
   best-to-worst spread stays under 4% on every sport. If you are choosing a
   library, this benchmark is not the reason to pick one: API, dependencies and
   speed will matter more than a hundredth of a nat.
@@ -55,17 +55,18 @@ out, including the ones that do not flatter this library:
   `p_draw` on exactly the same matches. This is the one benchmark where the
   modelling choice, not the tuning, decides the result.
 - **WHR trades calibration for ranking on two-outcome sports.** On tennis it has
-  the *best* accuracy of the three (67.0%) and the *worst* log-loss: it ranks
+  the *best* accuracy of the three (67.1%) and the *worst* log-loss: it ranks
   players at least as well but is overconfident about it. Passing
   `account_for_uncertainty=True` to
   [`probability_future_match`](#uncertainty) recovers a real part
-  of that gap (0.616 → 0.614 on tennis, 0.670 → 0.666 on the NBA) and is
-  recommended whenever you consume the probabilities rather than the ordering.
+  of that gap — on the validation season the sweep selects on, 0.6119 → 0.6094
+  for tennis and 0.6577 → 0.6549 for the NBA — and is recommended whenever you
+  consume the probabilities rather than the ordering.
   [`win_draw_loss_probabilities` takes the same option](#draws); every number in
   the table above is scored with whichever setting its validation season chose,
   which was `True` on all three sports. It buys much less on three outcomes
-  (1.0089 → 1.0085) because that hedge compresses the win/loss odds rather than
-  moving mass toward the draw.
+  (1.0085 → 1.0083 on football's validation season) because that hedge compresses
+  the win/loss odds rather than moving mass toward the draw.
 - **A domain-specific model still beats all three.** FiveThirtyEight's published
   pre-game probabilities score 0.615 (RAPTOR) and 0.619 (Elo) on the identical
   1,312 games, against 0.662–0.688 for the general-purpose systems. RAPTOR sees
@@ -76,7 +77,8 @@ out, including the ones that do not flatter this library:
 
 The advantages WHR reports are *learned, not assumed*: given only wins and
 losses it put the NBA home-court edge at **+98 elo** (the accepted value is
-≈+100) and the football home edge at **+80 elo**.
+≈+100) and the football home edge at **+79 elo**, alongside a draw tendency
+ν≈0.79.
 
 ### The ratings are historically recognisable
 
@@ -173,16 +175,47 @@ This command will perform 50 iterations, incrementally adjusting player ratings 
 For a more hands-off approach, the algorithm can automatically iterate until the Elo ratings stabilize within a specified precision. Automatic iteration is particularly useful when dealing with large datasets or when seeking to automate the rating process.
 
 ```python
-whr.auto_iterate(time_limit=10, precision=1e-3, batch_size=10)
+whr.auto_iterate(time_limit=10, precision=1e-3, batch_size=50)
 ```
 
 - `time_limit` (optional): Sets a maximum duration (in seconds) for the iteration process. If `None` (the default), the algorithm will run indefinitely until the specified precision is achieved.
 - `precision` (optional): Defines the desired level of accuracy for the ratings' stability. The default value is `0.001`. Convergence is measured on the gradient infinity-norm (the largest absolute gradient component across all player-days, in natural-rating units); iteration stops once that value drops below this threshold.
-- `batch_size` (optional): Determines the number of iterations to perform before checking for convergence and, if a `time_limit` is set, before evaluating whether the time limit has been reached. The default value is `10`, balancing between frequent convergence checks and computational efficiency.
+- `batch_size` (optional): Determines the number of iterations to perform before checking for convergence and, if a `time_limit` is set, before evaluating whether the time limit has been reached. The default is `50` (raised from `10` in 3.5.0). Checking is not free: `max_gradient_norm()` costs about 0.44 of an iteration and, more importantly, clears every game-term cache, so the first iteration after each check has to repopulate it. Reaching a `1e-4` target on ATP 2000–2006 took 165 s at `5`, 132 s at `10`, 115 s at `25`, **109 s at `50`**, then 130 s at `100` — where overshooting the target by up to `batch_size - 1` wasted iterations starts to dominate. Lower it if you need a `time_limit` honoured promptly.
 
 This automated process allows the algorithm to efficiently converge to stable ratings, adjusting the number of iterations dynamically based on the complexity of the data and the specified precision and time constraints.
 
-**Performance.** The per-game hot loops (handicap/komi/draw-tendency accumulation and each player-day's Bradley-Terry/Davidson terms) are numpy-vectorized, so `iterate`/`auto_iterate` scale well to large histories — the algorithm and results are unchanged, only the summation is batched.
+> **`precision` is a gradient threshold, not an elo tolerance — and the default
+> is a good place to stop.** Measured on ATP 2000–2013 (44,405 games, 1,842
+> players) fitted to each target in turn, scoring the held-out 2014 season, and
+> repeated with the games inserted in a shuffled order:
+>
+> | `precision` | iterations | held-out log-loss | elo spread across insertion orders |
+> |---|---|---|---|
+> | `1e-2` | 160 | 0.616521 | 5.86 |
+> | `5e-3` | 320 | 0.614102 | 2.97 |
+> | **`1e-3` (default)** | **720** | **0.613530** | **0.25** |
+> | `1e-4` | 1330 | 0.613592 | 0.06 |
+> | `1e-5` | 1940 | 0.613602 | 0.006 |
+> | `1e-6` | 2550 | 0.613603 | 0.0006 |
+>
+> Predictive quality bottoms out **at the default**: past `1e-3` the loss moves by
+> under `1e-4`, which is noise on a 2,816-match test set, while the cost rises
+> 1.9× to 3.5×. Looser is measurably worse — `1e-2` costs 0.003 nats.
+>
+> Tightening buys *stability of the rating values*, not accuracy: ratings shift by
+> tens of elo between `1e-3` and `1e-4` and settle to hundredths by `1e-5`. Ask
+> for `1e-5` if you publish rating numbers and need them stable run to run; stay
+> at the default if you consume predictions.
+>
+> Convergence speed is dataset-shaped, not just size-shaped. The NBA base (41,279
+> games, 37 teams, 14-day bins) reaches `1e-3` in 230 iterations but needs 5,430
+> for `1e-4` and cannot reach `1e-5` inside 900 s — while its held-out loss is
+> flat to five decimals across the whole range. Raise `precision`, or accept
+> `stable=False`, rather than assuming a tighter target is always reachable.
+
+**Performance.** Cost scales with the number of **(player, distinct day)** pairs rather than with the number of games: each player solves its own tridiagonal system over its own rated days. Two datasets of the same size can therefore differ by an order of magnitude — 41k NBA games over 37 teams in 14-day bins fits in ~4 s, while 44k ATP matches over 1,842 players at day granularity takes ~85 s. If a fit is slower than you expect, **coarsen the time unit** (bin days into weeks or fortnights) and retune `w2` to match: that is the single biggest lever.
+
+The per-game hot paths are batched where batching pays and left in plain Python where it does not — a numpy call costs ~2.5 µs regardless of size, so on the one-to-three games a typical player-day carries, a loop is 10–16× faster. The threshold is internal and a test requires both paths to agree, so it cannot change a result.
 
 ### Viewing Ratings
 
@@ -218,12 +251,31 @@ elo values are **rounded to integers** and the uncertainty to two decimals.
 > shifted = [(day, elo + OFFSET, unc) for day, elo, unc in whr.ratings_for_player("shusaku")]
 > ```
 >
-> Shift a **copy**, as above, rather than writing back into the model. Assigning
-> `day.elo = day.elo + OFFSET` also leaves predictions unchanged, but the offset
-> is not a fixed point of the fit: the first-day anchor pulls ratings back toward
-> 0, so a later `iterate()` erodes it silently — an added 1500 decays to roughly
-> 100 over 500 further iterations. If you do shift in place, do it last, after
-> your final `iterate()`.
+> Better, since 3.5.0, let the library hold the scale: set `display_offset` and
+> every *display* surface applies it, while nothing is written back into the
+> model.
+>
+> ```python
+> whr.config["display_offset"] = 1500
+> whr.ratings_for_player("shusaku")     # elo shifted
+> whr.probability_future_match("shusaku", "shusai", 0)   # unchanged — differences only
+> ```
+>
+> A fixed `+1500` is arbitrary, though: ratings drift across eras, so the same
+> constant means different things in 1950 and 2020. `display_offset_for()`
+> derives one from an anchoring rule instead — it returns the value without
+> applying it, so you can inspect it first:
+>
+> ```python
+> whr.config["display_offset"] = whr.display_offset_for(target=1500)                  # field mean
+> whr.config["display_offset"] = whr.display_offset_for(target=2000, player="shusai") # one player
+> ```
+>
+> Do **not** write the offset into the model by hand. Assigning
+> `day.elo += OFFSET` also leaves predictions unchanged, but the offset is not a
+> fixed point of the fit: the first-day anchor pulls ratings back toward 0, so a
+> later `iterate()` erodes it silently — an added 1500 decays to roughly 100 over
+> 500 further iterations.
 >
 > If the spread itself is too narrow, lower `initial_prior_wins` (see "Optional
 > Configuration") so weakly-connected players are pulled less toward the centre.
@@ -233,6 +285,23 @@ uncertainties are the sentinel **`-1`** — not a standard deviation, but "not
 computed yet"; reading them emits an `UncomputedUncertaintyWarning` once per
 instance. (`rating_difference`, `rating_covariance` and `rating_change` raise a
 `ValueError` in that same state rather than returning a sentinel.)
+
+> **The uncertainty is a variance in natural log units, not elo.** The `0.26`
+> above is not "±0.26 elo": its elo standard error is
+> `sqrt(0.26) × 400/ln(10)` = **88.6 elo**, a factor of ~340 apart — which is a
+> real trap in a column of elo values. Set
+> `config["display_uncertainty"] = "elo"` to have this column reported as an elo
+> standard error instead (the default stays `"variance"` for backward
+> compatibility). `rating_difference` has always reported elo.
+
+> **Ratings read after adding games are out of date.** `create_game` and
+> `load_games` only record; nothing is re-estimated until `iterate()` or
+> `auto_iterate()` runs. Reading in between returns the previous fit, and the
+> error is not small — adding results to a day a player already had moved one
+> rating by **464 elo** once re-fitted, while the stale value *and its
+> uncertainty* looked entirely plausible. `max_gradient_norm()` is not a reliable
+> check either: it can sit at `2e-3` throughout. Since 3.5.0 such a read emits a
+> `StaleFitWarning`, and `games_since_last_fit` reports the count.
 
 To get the underlying `Player` object itself (for direct access to its `days`,
 each day's `elo` / `gamma()`, etc.), use `player_by_name()`. Note it *creates*
@@ -257,7 +326,7 @@ ratings = whr.get_ordered_ratings(current=False, compact=False)  # Set `compact=
 `log_likelihood()` returns the model's total log-posterior (game likelihood + the first-day prior + the Gaussian Wiener prior over time, and the Davidson draw term when draws are present). It **increases** as `iterate()` converges, so it is a handy convergence/diagnostic signal:
 
 ```python
-whr.log_likelihood()  # -> 0.3301006161791349  (three-game example, after iterate(50))
+whr.log_likelihood()  # -> 0.33010610615918456  (three-game example, after iterate(50))
 ```
 
 Only the *direction* is meaningful: higher is a better fit. Note the value is a
@@ -283,6 +352,22 @@ game.prediction_score()       # 1.0 if the model's favourite actually won, 0.0 i
 In normal use ratings always converge to finite values. Only a genuinely non-finite result (e.g. a pathological input) raises `whr.utils.UnstableRatingException`; it is exported for `except` handling but should not occur in practice.
 
 ### Predicting Match Outcomes
+
+> **Only players linked by a chain of games are comparable.** WHR estimates
+> *relative* strength, so two groups that never meet — separate leagues, disjoint
+> eras, a multi-federation pool — are each anchored toward 0 elo independently,
+> and their numbers look comparable while sitting on different scales. A
+> cross-group prediction is not merely uncertain, it is unfounded: in a base where
+> an undefeated player in one pool faced an evenly-matched player from another,
+> the library answered **0.99** on no shared game whatsoever. Since 3.5.0 such a
+> call emits a `DisconnectedPlayersWarning`, and `connected_components()` lists
+> the groups (largest first) so you can check:
+>
+> ```python
+> groups = whr.connected_components()   # [frozenset({...}), frozenset({...})]
+> ```
+>
+> Either rate each pool separately, or add the fixtures that actually link them.
 
 Predict the outcome of future matches, including between non-existent players:
 
@@ -321,8 +406,8 @@ for day in range(1, 11):
 whr.auto_iterate()
 
 whr.rating_difference("north", "south")
-# {'difference': 1054.66, 'std_error': 85.73,
-#  'confidence_interval_95': (886.63, 1222.69)}
+# {'difference': 1056.95, 'std_error': 85.74,
+#  'confidence_interval_95': (888.9, 1224.99)}
 ```
 
 This is an **approximation**: WHR never computes cross-player covariance, so
@@ -431,14 +516,14 @@ three outcomes over the players' rating uncertainty:
 
 ```python
 whr.win_draw_loss_probabilities("shusaku", "shusai")
-# (0.2146, 0.3999, 0.3855) -- point prediction (default, unchanged from before)
+# (0.2142, 0.4, 0.3859) -- point prediction (default, unchanged from before)
 whr.win_draw_loss_probabilities("shusaku", "shusai", account_for_uncertainty=True)
-# (0.2209, 0.3918, 0.3872) -- hedged; the three still sum to 1.0
+# (0.2205, 0.3919, 0.3876) -- hedged; the three still sum to 1.0
 ```
 
 **This hedges by compressing the win/loss odds, not by moving mass toward the
-draw.** Above, the win/loss odds go from `0.2146/0.3855 = 0.557` to
-`0.2209/0.3872 = 0.571`, i.e. toward an even `1.0` — but the *draw* probability
+draw.** Above, the win/loss odds go from `0.2142/0.3859 = 0.555` to
+`0.2205/0.3876 = 0.569`, i.e. toward an even `1.0` — but the *draw* probability
 goes **down**, and both decisive outcomes go up. That is not a quirk: Davidson's
 draw curve `nu/(2*cosh(d/2) + nu)` is concave near an even rating gap `d` and
 convex in the tails, so spreading `d` over its uncertainty drains the draw for a
@@ -604,6 +689,12 @@ Declare whether your domain has draws, via `draw_rate` (a draw percentage betwee
 whr = WHR({'draw_rate': 0.25})     # or {'pinned_draw': 0.79}
 ```
 
+Choose the **display** scale with `display_offset` (a constant added to every displayed elo, default `0.0`) and `display_uncertainty` (`"variance"`, the default, or `"elo"` for a standard error). Both affect presentation only — never a prediction, a difference or a covariance. See ["Why are the ratings centred on 0"](#viewing-ratings) and `display_offset_for()`.
+
+```python
+whr = WHR({'display_offset': 1500, 'display_uncertainty': 'elo'})
+```
+
 ### Removing Rating Drift
 
 Over long histories, the whole population's average strength can drift or inflate over time even though individual ratings are locally accurate, making players from different eras hard to compare. `remove_drift()` (a faithful port of Coulom's `RemoveDrift`) corrects for this by recentring the per-day mean player strength near 0 elo, using a Gaussian-smoothed estimate of the drift at each day (controlled by `drift_kernel_radius`).
@@ -626,6 +717,15 @@ This step is opt-in: it does not run automatically and does not change what `ite
 Every game carries a `handicap` key (the `handicap` argument to `create_game`/`load_games`) and an optional `komi` key (the `komi` argument — **opt-in since 3.1.0**: `None`/absent means the game has no komi and none is estimated). Handicap boosts **black**; komi boosts **white**. Rather than a fixed elo constant, each distinct key is a Bradley-Terry *category*: its advantage, in elo, is a parameter co-estimated alongside the player ratings on every iteration (a faithful port of Coulom's `NewtonKomiHandicap`), and is readable at any time from `whr.handicap_gamma` / `whr.komi_gamma` — dicts mapping each key to its estimated gamma (convert to elo with `400 * log10(gamma)`).
 
 The `handicap` key `0` (no handicap) is a pinned no-advantage baseline (gamma `1.0`, i.e. `0` elo) by default and is never moved by estimation — this resolves an identifiability confound between the black/white baseline and the komi advantage. Set `estimate_handicap_zero=True` if you want it estimated instead.
+
+> **Advantage keys are dictionary keys.** `handicap` and `komi` values are used
+> as-is, so `komi=6.5` and `komi="6.5"` are **two different categories** and each
+> gets its own estimated advantage — a data pipeline mixing string and numeric
+> komi silently fits the same real komi twice. Conversely `0`, `0.0` and `False`
+> all collapse to the one key `0` (Python dict semantics), which is what you want
+> for "no handicap". Normalise the type before passing it. Note too that
+> `extras={"komi": …}` is matched by exact name: a misspelled key is kept in
+> `extras` and silently models no komi at all — prefer the `komi=` argument.
 
 > **`estimate_handicap_zero=True` can fabricate rating gaps.** Freeing key `0`
 > adds a global black-advantage parameter, and that parameter is only

@@ -4,14 +4,14 @@
   "n_test": 2816,
   "models": {
     "whr": {
-      "log_loss": 0.6141020792364238,
-      "accuracy": 0.6697443181818182,
+      "log_loss": 0.6135333003257805,
+      "accuracy": 0.6708096590909091,
       "n": 2816,
       "params": {
         "w2": 3.0,
         "predict_uncertainty": true
       },
-      "valid_log_loss": 0.6104259224433402,
+      "valid_log_loss": 0.6094009391434498,
       "grid_size": 10,
       "on_grid_edge": {
         "w2": false

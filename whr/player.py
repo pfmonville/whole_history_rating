@@ -221,7 +221,12 @@ class Player:
         dp = np.zeros((n,))
         dp[n - 1] = diag[n - 1]
         bp = np.zeros((n,))
-        bp[n - 1] = sub_diag[n - 2] if sub_diag.size >= 2 else 0
+        # The guard is on the validity of the INDEX n-2, not on the length of
+        # sub_diag. `sub_diag.size >= 2` wrongly required two sub-diagonal
+        # entries to read entry n-2 == 0, so a player with exactly two rated days
+        # got bp[1] = 0 and a first-day variance ~25x too small (17 elo reported
+        # against a true 90). n >= 3 was unaffected, since there size == n-1 >= 2.
+        bp[n - 1] = sub_diag[n - 2] if n >= 2 else 0
         ap = np.zeros((n,))
         for i in range(n - 2, -1, -1):
             ap[i] = sub_diag[i] / dp[i + 1]
@@ -252,9 +257,19 @@ class Player:
         For each day the variance is read from the diagonal of the covariance
         matrix and stored as that day's uncertainty. Players with no recorded
         day are left untouched.
+
+        The per-day game-term caches are cleared first, for the same reason
+        ``gradient_infinity_norm`` does it: a cache populated during this
+        player's own Newton step holds opponent gammas from *before* the
+        opponents were updated later in the same iteration. Reading it left the
+        stored variance a whisker off the true posterior variance (~2e-5
+        relative, i.e. well under a thousandth of an elo, but needlessly
+        inexact).
         """
         if len(self.days) == 0:
             return
+        for day in self.days:
+            day.clear_game_terms_cache()
         c = self.covariance()
         u = [c[i, i] for i in range(len(self.days))]  # u = variance
         for i, d in enumerate(self.days):

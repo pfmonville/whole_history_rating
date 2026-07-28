@@ -54,7 +54,7 @@ def test_readme_player_by_name_elos():
 def test_readme_inspecting_the_fit():
     whr = _running_example()
     # A log *density*: legitimately positive, which the README now says.
-    assert whr.log_likelihood() == pytest.approx(0.3301006161791349, rel=1e-9)
+    assert whr.log_likelihood() == pytest.approx(0.33010610615918456, rel=1e-9)
     assert whr.log_likelihood() > 0.0
     assert whr.max_gradient_norm() == pytest.approx(9.54e-05, abs=1e-7)
 
@@ -100,13 +100,13 @@ def test_readme_uncertainty_aware_three_outcome_example():
     hedged = whr.win_draw_loss_probabilities(
         "shusaku", "shusai", account_for_uncertainty=True
     )
-    assert tuple(round(x, 4) for x in point) == (0.2146, 0.3999, 0.3855)
-    assert tuple(round(x, 4) for x in hedged) == (0.2209, 0.3918, 0.3872)
+    assert tuple(round(x, 4) for x in point) == (0.2142, 0.4, 0.3859)
+    assert tuple(round(x, 4) for x in hedged) == (0.2205, 0.3919, 0.3876)
     assert sum(hedged) == pytest.approx(1.0)
 
     # the odds quoted in the README, and their compression toward 1.0
-    assert round(point[0] / point[2], 3) == 0.557
-    assert round(hedged[0] / hedged[2], 3) == 0.571
+    assert round(point[0] / point[2], 3) == 0.555
+    assert round(hedged[0] / hedged[2], 3) == 0.569
     assert point[0] / point[2] < hedged[0] / hedged[2] < 1.0
 
     # "the draw probability goes down, and both decisive outcomes go up"
@@ -122,10 +122,10 @@ def test_readme_rating_difference():
         whr.create_game("south", "referee", "W", day, 0)
     whr.auto_iterate()
     res = whr.rating_difference("north", "south")
-    assert round(res["difference"], 2) == 1054.66
-    assert round(res["std_error"], 2) == 85.73
+    assert round(res["difference"], 2) == 1056.95
+    assert round(res["std_error"], 2) == 85.74
     lo, hi = res["confidence_interval_95"]
-    assert (round(lo, 2), round(hi, 2)) == (886.63, 1222.69)
+    assert (round(lo, 2), round(hi, 2)) == (888.9, 1224.99)
 
 
 def test_readme_rating_change_and_naive_comparison():
