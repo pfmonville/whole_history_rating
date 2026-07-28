@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite both this package and Rémi Coulom's original Whole-History Rating paper."
+title: "whole-history-rating"
+type: software
+authors:
+  - family-names: "Monville"
+    given-names: "Pierre-François"
+version: "3.6.1"
+date-released: "2026-07-28"
+repository-code: "https://github.com/pfmonville/whole_history_rating"
+url: "https://pypi.org/project/whole-history-rating/"
+license: MIT
+keywords:
+  - whole-history rating
+  - Bayesian rating
+  - time-varying skill
+  - pairwise comparison
+preferred-citation:
+  type: conference-paper
+  authors:
+    - family-names: "Coulom"
+      given-names: "Rémi"
+  title: "Whole-History Rating: A Bayesian Rating System for Players of Time-Varying Strength"
+  year: 2008
+  doi: 10.1007/978-3-540-87608-3_11
+  url: "https://www.remi-coulom.fr/WHR/"

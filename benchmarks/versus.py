@@ -48,8 +48,10 @@ from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
+import provenance as P  # noqa: E402
 
 RESULTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
+DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
 
 EDGE_TOL = 1e-4  # the precision every log-loss in this file is reported at
@@ -352,6 +354,14 @@ def main_tennis():
         [(0.5, y) for _p1, _p2, y, _d in oriented(test)]
     )
 
+    P.attach_provenance(
+        out,
+        dataset_source="https://github.com/JeffSackmann/tennis_atp",
+        dataset_files=sorted(
+            glob.glob(os.path.join(DATA, "tennis", "atp_matches_*.csv"))
+        ),
+        package_names=["pandas", "kickscore", "TrueSkillThroughTime"],
+    )
     path = os.path.join(RESULTS, "versus_tennis.json")
     with open(path, "w") as f:
         json.dump(out, f, indent=2)
@@ -548,6 +558,12 @@ def main_nba():
         [(rate, 1 if r["home_won"] else 0) for r in test]
     )
 
+    P.attach_provenance(
+        out,
+        dataset_source="https://lum-public.s3.eu-west-1.amazonaws.com/nba_elo.csv",
+        dataset_files=[os.path.join(DATA, "nba_elo.csv")],
+        package_names=["pandas", "kickscore", "TrueSkillThroughTime"],
+    )
     path = os.path.join(RESULTS, "versus_nba.json")
     with open(path, "w") as f:
         json.dump(out, f, indent=2)
@@ -789,6 +805,12 @@ def main_football():
         [(base, CLS[r["outcome"]]) for r in test]
     )
 
+    P.attach_provenance(
+        out,
+        dataset_source="https://github.com/openfootball/football.json",
+        dataset_files=sorted(glob.glob(os.path.join(DATA, "football", "*.json"))),
+        package_names=["kickscore", "TrueSkillThroughTime"],
+    )
     path = os.path.join(RESULTS, "versus_football.json")
     with open(path, "w") as f:
         json.dump(out, f, indent=2)

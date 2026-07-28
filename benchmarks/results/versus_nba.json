@@ -68,5 +68,30 @@
       "accuracy": 0.5907012195121951,
       "n": 1312
     }
+  },
+  "provenance": {
+    "schema_version": 1,
+    "generated_at": "2026-07-28T09:23:55Z",
+    "source": {
+      "commit": "27a90fdc0afacf58b3274605ae831e61d89ba537",
+      "dirty": null
+    },
+    "runtime": {
+      "python": null,
+      "platform": null,
+      "machine": null
+    },
+    "packages": {
+      "whole-history-rating": null,
+      "kickscore": null,
+      "TrueSkillThroughTime": null
+    },
+    "dataset": {
+      "source": "https://lum-public.s3.eu-west-1.amazonaws.com/nba_elo.csv",
+      "files": []
+    },
+    "random_seed": null,
+    "legacy": true,
+    "note": "This result predates automatic provenance; runtime, package versions, and dataset hashes were not recorded."
   }
 }

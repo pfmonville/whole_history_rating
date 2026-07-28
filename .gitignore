@@ -10,3 +10,4 @@ whole_history_rating.egg-info/*
 .venv/
 .coverage
 htmlcov/
+site/

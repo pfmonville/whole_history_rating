@@ -4,7 +4,6 @@ import re
 import tomllib
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 
@@ -57,9 +56,9 @@ def test_sdist_selection_is_explicit():
 
 def test_ci_has_fast_smoke_and_manual_full_benchmarks():
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    full = (
-        ROOT / ".github" / "workflows" / "full-benchmarks.yml"
-    ).read_text(encoding="utf-8")
+    full = (ROOT / ".github" / "workflows" / "full-benchmarks.yml").read_text(
+        encoding="utf-8"
+    )
     assert "benchmarks/smoke.py" in ci
     assert "workflow_dispatch:" in full
     assert "benchmarks/download_data.py all" in full

@@ -31,6 +31,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
+import provenance as P  # noqa: E402
 
 BIN_DAYS = 14
 # w2 is elo^2 of random-walk variance PER time-step (here per 14-day bin);
@@ -43,6 +44,7 @@ W2_GRID = [100.0, 300.0, 1000.0, 3000.0]
 TRAIN_FROM_SEASON = 1985
 DATA = os.path.join(os.path.dirname(__file__), "data", "nba_elo.csv")
 RESULTS = os.path.join(os.path.dirname(__file__), "results")
+DATA_SOURCE = "https://lum-public.s3.eu-west-1.amazonaws.com/nba_elo.csv"
 
 
 def load() -> tuple[list, dict, date]:
@@ -221,6 +223,12 @@ def main():
         f"estimated home advantage: {results['home_advantage_elo']:.1f} elo", flush=True
     )
 
+    P.attach_provenance(
+        results,
+        dataset_source=DATA_SOURCE,
+        dataset_files=[DATA],
+        package_names=["pandas"],
+    )
     with open(os.path.join(RESULTS, "nba_results.json"), "w") as f:
         json.dump(results, f, indent=2)
 
@@ -257,8 +265,15 @@ def _dump_history_curves(matches, w2):
             [d0.year + (day * BIN_DAYS) / 365.25, elo + 1500]
             for (day, elo, _) in r
         ]
+    output = {"display_shift": 1500, "curves": curves}
+    P.attach_provenance(
+        output,
+        dataset_source=DATA_SOURCE,
+        dataset_files=[DATA],
+        package_names=["pandas"],
+    )
     with open(os.path.join(RESULTS, "nba_curves.json"), "w") as f:
-        json.dump({"display_shift": 1500, "curves": curves}, f)
+        json.dump(output, f)
 
 
 if __name__ == "__main__":

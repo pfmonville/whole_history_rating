@@ -23,6 +23,18 @@ ablations, and the rating-history figures.
 
 ## Running
 
+Download the public inputs first (files already present are left untouched):
+
+```bash
+uv run python benchmarks/download_data.py all
+```
+
+Pass `nba`, `tennis`, or `football` instead of `all` to fetch one dataset.
+The downloader uses the source URLs listed below and writes only to the
+git-ignored `benchmarks/data/` directory.
+
+Then run the head-to-head comparison:
+
 ```bash
 uv run --with pandas --with kickscore --with TrueSkillThroughTime python benchmarks/versus.py tennis
 ```
@@ -35,9 +47,9 @@ uv run --with pandas --with matplotlib python benchmarks/tennis.py
 uv run --with pandas python benchmarks/football.py
 ```
 
-Each script downloads its data into `benchmarks/data/` (git-ignored) on first
-run, fits WHR, writes a `*_results.json` (and, for NBA/tennis, a `*_curves.json`
-of per-day rating curves) into `benchmarks/results/`, and prints a summary.
+Each script reads `benchmarks/data/`, fits WHR, writes a `*_results.json` (and,
+for NBA/tennis, a `*_curves.json` of per-day rating curves) into
+`benchmarks/results/`, and prints a summary.
 
 Figures are rendered separately, so the expensive fits are not repeated when a
 chart's design changes:
@@ -50,6 +62,32 @@ That writes each README figure twice — `*_light.png` and `*_dark.png`, stepped
 from the same palette — which the README serves via
 `<picture media="(prefers-color-scheme: dark)">`. See `REPORT.md` for the
 write-up.
+
+### Reproduction metadata
+
+Every newly generated JSON result includes a `provenance` object containing:
+
+- the repository commit and whether the working tree was dirty;
+- Python, operating-system, and machine details;
+- installed versions of WHR and relevant comparison packages;
+- the URL, size, and SHA-256 digest of every input file;
+- generation time and the random-seed policy (`null`, because these runners are
+  deterministic).
+
+Older committed results are marked `legacy: true`: their original result commit
+is known, but runtime versions and dataset hashes were not captured at the time
+and are deliberately left `null` rather than reconstructed.
+
+### CI levels
+
+`benchmarks/smoke.py` exercises fitting, draws, learned advantages, and
+uncertainty-aware predictions on a tiny synthetic history. Normal CI runs it
+without network access.
+
+The **Full benchmarks** GitHub Actions workflow is manually dispatched. It
+downloads all datasets, runs the three head-to-head comparisons and three deep
+dives, renders the figures, and uploads `benchmarks/results/` as an artifact.
+It is not run on every commit because the full sweeps can take hours.
 
 ## Data sources (all fetched at runtime)
 

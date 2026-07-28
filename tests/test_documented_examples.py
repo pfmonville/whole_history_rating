@@ -1,13 +1,13 @@
-"""Locks the numbers printed in README.md.
+"""Locks the numbers printed in ``docs/user-guide.md``.
 
-Every worked example in the README shows real output. Those numbers silently
+Every worked example in the user guide shows real output. Those numbers silently
 rotted twice (once when 3.0.0 changed the anchor/damping, once when 3.1.0 made
 komi opt-in), leaving figures a reader could not reproduce. These tests run the
 documented snippets verbatim and assert the documented values, so a change that
 moves them fails here instead of in the docs.
 
-If a test here fails after an intentional model change, re-run the snippet, put
-the new value in README.md, and update the expectation in the same commit.
+If a test here fails after an intentional model change, re-run the snippet,
+update the user guide, and update the expectation in the same commit.
 """
 
 import math
@@ -18,7 +18,7 @@ from whr import WHR
 
 
 def _running_example() -> WHR:
-    """The README's three-game example: shusaku vs shusai, B / W / W."""
+    """The user guide's three-game example: shusaku vs shusai, B / W / W."""
     whr = WHR()
     whr.create_game("shusaku", "shusai", "B", 1, 0)
     whr.create_game("shusaku", "shusai", "W", 2, 0)
@@ -53,7 +53,7 @@ def test_readme_player_by_name_elos():
 
 def test_readme_inspecting_the_fit():
     whr = _running_example()
-    # A log *density*: legitimately positive, which the README now says.
+    # A log *density*: legitimately positive, which the user guide now says.
     assert whr.log_likelihood() == pytest.approx(0.33010610615918456, rel=1e-9)
     assert whr.log_likelihood() > 0.0
     assert whr.max_gradient_norm() == pytest.approx(9.54e-05, abs=1e-7)
@@ -70,7 +70,7 @@ def test_readme_prediction_and_its_elo_gap():
     assert round(ordered["shusai"], 2) == 52.05
     gap = ordered["shusai"] - ordered["shusaku"]
     assert round(gap, 2) == 103.74
-    # the README claims the prediction is exactly Bradley-Terry on that gap
+    # the user guide claims the prediction is exactly Bradley-Terry on that gap
     assert 1.0 / (1.0 + 10 ** (gap / 400.0)) == pytest.approx(p_shusaku, rel=1e-12)
 
 
@@ -83,12 +83,12 @@ def test_readme_draws_example():
     wdl = whr.win_draw_loss_probabilities("shusaku", "shusai")
     assert tuple(round(x, 2) for x in wdl) == (0.21, 0.40, 0.39)
     assert sum(wdl) == pytest.approx(1.0)
-    # the README says a draw is the single most likely outcome here
+    # the user guide says a draw is the single most likely outcome here
     assert max(range(3), key=lambda i: wdl[i]) == 1
 
 
 def test_readme_uncertainty_aware_three_outcome_example():
-    """The README's uncertainty-integrated win/draw/loss block, including its
+    """The user guide's uncertainty-integrated win/draw/loss block, including its
     claim that the hedge compresses the win/loss ODDS while the draw
     probability falls and both decisive outcomes rise."""
     whr = _running_example()
@@ -104,7 +104,7 @@ def test_readme_uncertainty_aware_three_outcome_example():
     assert tuple(round(x, 4) for x in hedged) == (0.2205, 0.3919, 0.3876)
     assert sum(hedged) == pytest.approx(1.0)
 
-    # the odds quoted in the README, and their compression toward 1.0
+    # the odds quoted in the user guide, and their compression toward 1.0
     assert round(point[0] / point[2], 3) == 0.555
     assert round(hedged[0] / hedged[2], 3) == 0.569
     assert point[0] / point[2] < hedged[0] / hedged[2] < 1.0
@@ -144,7 +144,7 @@ def test_readme_rating_change_and_naive_comparison():
     lo, hi = res["confidence_interval_95"]
     assert (round(lo, 2), round(hi, 2)) == (-119.32, 105.99)
 
-    # the three covariance entries the README quotes, and both derived numbers
+    # the three covariance entries the user guide quotes, and both derived numbers
     i, j = days.index(1), days.index(13)
     v_from, v_to, c = cov[i][i], cov[j][j], cov[i][j]
     assert round(float(v_from), 2) == 6628.33
@@ -152,7 +152,7 @@ def test_readme_rating_change_and_naive_comparison():
     assert round(float(c), 2) == 5057.12
     assert round(math.sqrt(v_to + v_from - 2 * c), 2) == 57.48  # reported
     assert round(math.sqrt(v_to + v_from), 2) == 115.83  # naive, independent
-    # README: ignoring the correlation overstates the error by about 2x
+    # User guide: ignoring the correlation overstates the error by about 2x
     assert math.sqrt(v_to + v_from) / math.sqrt(v_to + v_from - 2 * c) == pytest.approx(
         2.02, abs=0.01
     )
@@ -168,7 +168,7 @@ def test_readme_uncertainty_aware_prediction():
     )
     assert tuple(round(x, 3) for x in point) == (0.883, 0.117)
     assert tuple(round(x, 3) for x in hedged) == (0.856, 0.144)
-    # README: hedged is pulled toward 0.5
+    # User guide: hedged is pulled toward 0.5
     assert 0.5 < hedged[0] < point[0]
 
 
@@ -197,7 +197,7 @@ def test_readme_fit_w2_example():
     }
     for w2, want in expected.items():
         assert res["log_loss"][w2] == pytest.approx(want, abs=5e-4)
-    # README: the curve falls monotonically, which is why best_w2 is the largest
+    # User guide: the curve falls monotonically, which is why best_w2 is the largest
     losses = [res["log_loss"][w2] for w2 in sorted(res["log_loss"])]
     assert losses == sorted(losses, reverse=True)
 
@@ -217,7 +217,7 @@ def test_readme_documented_config_defaults():
 
 
 def test_readme_display_offset_leaves_predictions_unchanged():
-    """The README's answer to "can I make ratings look like real elo?" —
+    """The user guide's answer to "can I make ratings look like real elo?" —
     adding a constant to every rating changes no prediction."""
     whr = _running_example()
     before = whr.probability_future_match("shusaku", "shusai", 0)
@@ -229,7 +229,7 @@ def test_readme_display_offset_leaves_predictions_unchanged():
 
 
 def test_readme_draw_rate_conversion_outputs():
-    """The README's "Does your domain have draws at all?" snippet prints two
+    """The user guide's "Does your domain have draws at all?" snippet prints two
     concrete numbers; pin them so the documented output cannot rot."""
     assert WHR(config={"draw_rate": 0.25}).draw_tendency == 0.6666666666666666
     assert WHR.draw_rate_from_nu(0.79) == 0.2831541218637993
@@ -239,7 +239,7 @@ def test_readme_draw_rate_conversion_outputs():
 
 
 def test_readme_draw_state_table_behaves_as_documented():
-    """The three rows of the README's draw-declaration table."""
+    """The three rows of the user guide's draw-declaration table."""
     # row 2: declared no-draws -> nu stays 0 even with draws in the data
     w = WHR(config={"draw_rate": 0.0})
     w.create_game("a", "b", "D", 1, 0)
@@ -255,7 +255,7 @@ def test_readme_draw_state_table_behaves_as_documented():
 
 
 def test_readme_inplace_offset_erodes_under_further_iteration():
-    """The README's recipe shifts a copy; this pins why it says not to write the
+    """The user guide's recipe shifts a copy; this pins why it says not to write the
     offset back into the model. Predictions stay invariant either way, but the
     first-day anchor pulls an in-place offset back toward 0, so it is not stable
     across a later iterate()."""

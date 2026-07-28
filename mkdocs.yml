@@ -1,0 +1,22 @@
+site_name: Whole-History Rating for Python
+site_description: Time-varying ratings from dated pairwise results
+site_url: https://pfmonville.github.io/whole_history_rating/
+repo_url: https://github.com/pfmonville/whole_history_rating
+repo_name: pfmonville/whole_history_rating
+docs_dir: docs
+strict: true
+
+nav:
+  - Home: index.md
+  - User guide: user-guide.md
+  - API reference: api.md
+  - Benchmark guide: benchmarks.md
+
+theme:
+  name: mkdocs
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true

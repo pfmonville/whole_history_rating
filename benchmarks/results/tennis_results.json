@@ -70,5 +70,28 @@
       0.8428571428571429,
       210
     ]
-  ]
+  ],
+  "provenance": {
+    "schema_version": 1,
+    "generated_at": "2026-07-24T15:31:11Z",
+    "source": {
+      "commit": "7441cf89aec2d19d402d87714737fef2a003cd29",
+      "dirty": null
+    },
+    "runtime": {
+      "python": null,
+      "platform": null,
+      "machine": null
+    },
+    "packages": {
+      "whole-history-rating": null
+    },
+    "dataset": {
+      "source": "https://github.com/JeffSackmann/tennis_atp",
+      "files": []
+    },
+    "random_seed": null,
+    "legacy": true,
+    "note": "This result predates automatic provenance; runtime, package versions, and dataset hashes were not recorded."
+  }
 }

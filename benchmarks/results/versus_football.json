@@ -56,5 +56,30 @@
       "accuracy": 0.45728368017524645,
       "n": 1826
     }
+  },
+  "provenance": {
+    "schema_version": 1,
+    "generated_at": "2026-07-28T09:23:55Z",
+    "source": {
+      "commit": "27a90fdc0afacf58b3274605ae831e61d89ba537",
+      "dirty": null
+    },
+    "runtime": {
+      "python": null,
+      "platform": null,
+      "machine": null
+    },
+    "packages": {
+      "whole-history-rating": null,
+      "kickscore": null,
+      "TrueSkillThroughTime": null
+    },
+    "dataset": {
+      "source": "https://github.com/openfootball/football.json",
+      "files": []
+    },
+    "random_seed": null,
+    "legacy": true,
+    "note": "This result predates automatic provenance; runtime, package versions, and dataset hashes were not recorded."
   }
 }

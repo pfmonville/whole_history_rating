@@ -35,11 +35,13 @@ from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
+import provenance as P  # noqa: E402
 
 W2_GRID = [30.0, 100.0, 300.0, 1000.0]
 BIN_DAYS = 7
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data", "football")
 RESULTS = os.path.join(os.path.dirname(__file__), "results")
+DATA_SOURCE = "https://github.com/openfootball/football.json"
 
 CLS = {C.WIN: 0, C.DRAW: 1, C.LOSS: 2}
 
@@ -213,6 +215,12 @@ def main():
             flush=True,
         )
 
+    P.attach_provenance(
+        results,
+        dataset_source=DATA_SOURCE,
+        dataset_files=sorted(glob.glob(os.path.join(DATA_DIR, "*.json"))),
+        package_names=[],
+    )
     with open(os.path.join(RESULTS, "football_results.json"), "w") as f:
         json.dump(results, f, indent=2)
     print("wrote results/football_results.json", flush=True)

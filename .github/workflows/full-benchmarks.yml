@@ -1,0 +1,51 @@
+name: Full benchmarks
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+
+      - name: Download benchmark datasets
+        run: uv run python benchmarks/download_data.py all
+
+      - name: Compare libraries on tennis
+        run: uv run --with pandas --with kickscore --with TrueSkillThroughTime python benchmarks/versus.py tennis
+
+      - name: Compare libraries on NBA
+        run: uv run --with pandas --with kickscore --with TrueSkillThroughTime python benchmarks/versus.py nba
+
+      - name: Compare libraries on football
+        run: uv run --with pandas --with kickscore --with TrueSkillThroughTime python benchmarks/versus.py football
+
+      - name: Run WHR tennis deep dive
+        run: uv run --with pandas --with matplotlib python benchmarks/tennis.py
+
+      - name: Run WHR NBA deep dive
+        run: uv run --with pandas --with matplotlib python benchmarks/nba.py
+
+      - name: Run WHR football deep dive
+        run: uv run --with pandas python benchmarks/football.py
+
+      - name: Render benchmark figures
+        run: uv run --with matplotlib python benchmarks/make_figures.py
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: whole-history-rating-benchmarks-${{ github.sha }}
+          path: benchmarks/results/
+          if-no-files-found: error

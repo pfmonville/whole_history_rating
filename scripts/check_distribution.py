@@ -7,7 +7,6 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-
 FORBIDDEN_SDIST_PARTS = (
     "/.agents/",
     "/.claude/",
@@ -41,7 +40,9 @@ def validate_sdist(path: Path) -> None:
     for part in FORBIDDEN_SDIST_PARTS:
         offenders = [name for name in names if part in f"/{name}/"]
         if offenders:
-            raise AssertionError(f"{path.name} contains forbidden {part}: {offenders[:5]}")
+            raise AssertionError(
+                f"{path.name} contains forbidden {part}: {offenders[:5]}"
+            )
 
     for suffix in REQUIRED_SDIST_SUFFIXES:
         if not any(name.endswith(suffix) for name in names):
@@ -53,9 +54,7 @@ def validate_wheel(path: Path) -> None:
         names = archive.namelist()
 
     unexpected = [
-        name
-        for name in names
-        if not (name.startswith("whr/") or ".dist-info/" in name)
+        name for name in names if not (name.startswith("whr/") or ".dist-info/" in name)
     ]
     if unexpected:
         raise AssertionError(f"{path.name} contains unexpected files: {unexpected[:5]}")

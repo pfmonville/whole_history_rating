@@ -29,12 +29,14 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
+import provenance as P  # noqa: E402
 
 # Tennis skill is stable week to week, so small w2 (rigid ratings) fits best;
 # the grid reaches down to 1 elo^2/day.
 W2_GRID = [1.0, 3.0, 10.0, 30.0]
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data", "tennis")
 RESULTS = os.path.join(os.path.dirname(__file__), "results")
+DATA_SOURCE = "https://github.com/JeffSackmann/tennis_atp"
 
 
 def _d(yyyymmdd: int) -> date:
@@ -151,6 +153,13 @@ def main():
             flush=True,
         )
 
+    data_files = sorted(glob.glob(os.path.join(DATA_DIR, "atp_matches_*.csv")))
+    P.attach_provenance(
+        results,
+        dataset_source=DATA_SOURCE,
+        dataset_files=data_files,
+        package_names=["pandas"],
+    )
     with open(os.path.join(RESULTS, "tennis_results.json"), "w") as f:
         json.dump(results, f, indent=2)
 
@@ -184,8 +193,15 @@ def _dump_history_curves(recs, w2):
         # +1500 is a goratings-style display shift (only rating *differences*
         # are meaningful in WHR).
         curves[name] = [[origin.year + day / 365.25, elo + 1500] for (day, elo, _) in r]
+    output = {"display_shift": 1500, "curves": curves}
+    P.attach_provenance(
+        output,
+        dataset_source=DATA_SOURCE,
+        dataset_files=sorted(glob.glob(os.path.join(DATA_DIR, "atp_matches_*.csv"))),
+        package_names=["pandas"],
+    )
     with open(os.path.join(RESULTS, "tennis_curves.json"), "w") as f:
-        json.dump({"display_shift": 1500, "curves": curves}, f)
+        json.dump(output, f)
 
 
 if __name__ == "__main__":

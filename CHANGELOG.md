@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.1] - 2026-07-28
+
+### Fixed
+- The source distribution now uses an explicit allowlist. Release 3.6.0
+  accidentally included a local `.claude/worktrees/` copy, raw benchmark data,
+  generated benchmark artifacts, and internal design notes. The wheel was not
+  affected. A distribution-content check now prevents these paths from
+  returning.
+- README links to benchmark material are absolute so they work from both GitHub
+  and PyPI.
+
+### Added
+- A short README onboarding path, a separate user guide and API reference, and
+  a strict MkDocs build.
+- `CITATION.cff` metadata for both the software and Rémi Coulom's original WHR
+  paper.
+- Automatic benchmark provenance containing the source commit, package
+  versions, runtime, dataset hashes, generation time, and random seed policy.
+- A deterministic synthetic benchmark smoke test for normal CI.
+- A manual full-benchmark workflow that downloads the documented datasets,
+  runs all comparisons and deep dives, and uploads the generated results.
+
 ## [3.6.0] - 2026-07-25
 
 ### Changed

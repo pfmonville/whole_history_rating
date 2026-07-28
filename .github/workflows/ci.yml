@@ -25,11 +25,26 @@ jobs:
 
       - name: Lint (ruff)
         run: |
-          uv run ruff check whr tests
-          uv run ruff format --check whr tests
+          uv run ruff check whr tests benchmarks scripts
+          uv run ruff format --check whr tests benchmarks scripts
 
       - name: Type-check (mypy)
-        run: uv run mypy
+        run: uv run mypy whr benchmarks/provenance.py benchmarks/download_data.py benchmarks/smoke.py scripts/check_distribution.py
 
       - name: Test (pytest)
         run: uv run pytest
+
+      - name: Benchmark smoke
+        run: uv run python benchmarks/smoke.py
+
+      - name: Build documentation
+        if: matrix.python-version == '3.13'
+        run: |
+          uv sync --group docs
+          uv run --group docs mkdocs build --strict
+
+      - name: Validate distributions
+        if: matrix.python-version == '3.13'
+        run: |
+          uv build
+          python scripts/check_distribution.py dist
