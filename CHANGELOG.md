@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.5.0] - 2026-07-25
 
 A maths audit (every analytic derivative checked against finite differences of
 the log-likelihood it claims to differentiate) plus a second usability pass.
@@ -25,8 +25,17 @@ the log-likelihood it claims to differentiate) plus a second usability pass.
   values match an independently computed joint optimum exactly.
 
   Every correction term carries a factor `T`, so at `ν = 0` they are **exactly**
-  zero and draw-free data is bit-identical — pinned by a test. Football ratings
-  and its fitted home advantage change; tennis and NBA do not.
+  zero and draw-free data is bit-identical — pinned by a test, and confirmed by
+  the tennis and NBA benchmarks coming back unchanged.
+
+  Worth stating plainly: on the football benchmark the fix barely moves anything.
+  The 3-way log-loss is unchanged and the fitted home advantage shifts by about
+  1 elo (80.3 → 79.4), against the 83 elo the fix removes on a synthetic base at
+  the same draw rate. That is structural rather than luck — the synthetic case had
+  a strong handicap and two competing keys, whereas here every match carries the
+  same `"home"` key and every team plays both sides, which identifies the
+  advantage independently of the ratings. The estimator is now the correct one;
+  how much that is worth depends on how confounded the data is.
 - **A player with exactly two rated days got a first-day uncertainty ~25× too
   small** (17 elo reported against a true 90). The covariance backward pass
   guarded on `sub_diag.size >= 2` when reading index `n − 2`, which only needs one
@@ -96,9 +105,9 @@ degrade on long histories either: 2e-15 at 800 rated days, condition number flat
 ### Performance
 - **Fits are about twice as fast** on day-granular histories, with results
   unchanged: a real ATP 2000–2013 fit (44,405 games, 1,842 players) went from
-  **186.4 s to 85.4 s** (2.18×), and its held-out log-loss is 0.614102 against a
-  previously committed 0.6141. Two causes, both found by profiling rather than
-  guessing:
+  **186.4 s to 85.4 s** (2.18×) at an identical held-out log-loss (0.614102
+  against a previously committed 0.6141, at the same convergence target). Two
+  causes, both found by profiling rather than guessing:
 
   - The per-day Bradley-Terry terms called `np.sum` **1,056,459 times** in a
     30-iteration fit — on lists of *one to three* elements. A numpy call costs
