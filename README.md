@@ -213,7 +213,7 @@ This automated process allows the algorithm to efficiently converge to stable ra
 > flat to five decimals across the whole range. Raise `precision`, or accept
 > `stable=False`, rather than assuming a tighter target is always reachable.
 
-**Performance.** Cost scales with the number of **(player, distinct day)** pairs rather than with the number of games: each player solves its own tridiagonal system over its own rated days. Two datasets of the same size can therefore differ by an order of magnitude — 41k NBA games over 37 teams in 14-day bins fits in ~4 s, while 44k ATP matches over 1,842 players at day granularity takes ~85 s. If a fit is slower than you expect, **coarsen the time unit** (bin days into weeks or fortnights) and retune `w2` to match: that is the single biggest lever.
+**Performance.** Cost scales with the number of **(player, distinct day)** pairs rather than with the number of games: each player solves its own tridiagonal system over its own rated days. Two datasets of the same size can therefore differ by an order of magnitude — 41k NBA games over 37 teams in 14-day bins fits in ~4 s, while 44k ATP matches over 1,842 players at day granularity takes ~51 s. If a fit is slower than you expect, **coarsen the time unit** (bin days into weeks or fortnights) and retune `w2` to match: that is the single biggest lever.
 
 The per-game hot paths are batched where batching pays and left in plain Python where it does not — a numpy call costs ~2.5 µs regardless of size, so on the one-to-three games a typical player-day carries, a loop is 10–16× faster. The threshold is internal and a test requires both paths to agree, so it cannot change a result.
 
@@ -419,7 +419,10 @@ ignores, so treat the CI as indicative rather than exact. Pass `day_a=`/
 **One player's trajectory over time.** `rating_covariance()` /
 `rating_change()` instead use the *exact* joint covariance among a single
 player's own day ratings (already implicit in WHR's per-player Hessian —
-no approximation involved):
+no approximation involved). Use these, not `Player.covariance()`: the latter is a
+lower-level helper that returns only the **tridiagonal band** of that covariance
+in natural log units, zero outside it — the far entries are uncomputed, not
+genuinely zero.
 
 ```python
 whr = WHR()

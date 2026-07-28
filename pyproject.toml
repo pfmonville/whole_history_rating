@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "whole-history-rating"
-version = "3.5.0"
+version = "3.6.0"
 description = "Python implementation of Rémi Coulom's Whole-History Rating (WHR) algorithm."
 readme = "README.md"
 requires-python = ">=3.11"

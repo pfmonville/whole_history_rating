@@ -412,3 +412,98 @@ def test_the_advantage_layout_cache_is_invalidated_by_a_new_game():
     second = w._advantage_layout()
     assert second is not first
     assert 3 in second[3]  # the new handicap key made it into the index map
+
+
+# --------------------------------------------------------------------------- #
+# Player.covariance() is a BAND, and says so
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("n_days", [1, 2, 3, 12, 40])
+def test_the_covariance_band_is_exact_where_it_is_defined(n_days):
+    """The diagonal and both adjacent off-diagonals come from Coulom's
+    forward/backward recursion and must match the dense inverse exactly."""
+    w = WHR({"w2": 300})
+    for day in range(1, n_days + 1):
+        for _ in range(3):
+            w.create_game("a", "b", "B", day, 0)
+        w.create_game("a", "b", "W", day, 0)
+    w.iterate(80)
+    p = w.player_by_name("a")
+    _clear(w)
+    true_cov = np.linalg.inv(-_dense_hessian(p))
+    got = np.asarray(p.covariance())
+    for i in range(n_days):
+        assert got[i, i] == pytest.approx(true_cov[i, i], abs=1e-12)
+    for i in range(n_days - 1):
+        assert got[i, i + 1] == pytest.approx(true_cov[i, i + 1], abs=1e-12)
+        assert got[i + 1, i] == pytest.approx(true_cov[i + 1, i], abs=1e-12)
+
+
+@pytest.mark.parametrize("n_days", [1, 2, 3, 12])
+def test_the_covariance_band_is_symmetric(n_days):
+    """Until 3.5.0 the super-diagonal was filled and the sub-diagonal left at
+    zero, so the "covariance matrix" was not even symmetric."""
+    w = WHR({"w2": 300})
+    for day in range(1, n_days + 1):
+        for _ in range(3):
+            w.create_game("a", "b", "B", day, 0)
+        w.create_game("a", "b", "W", day, 0)
+    w.iterate(80)
+    got = np.asarray(w.player_by_name("a").covariance())
+    assert np.allclose(got, got.T)
+
+
+def test_outside_the_band_is_zero_not_the_real_covariance():
+    """Documents the limitation rather than pretending it away: the far entries
+    are *not computed*, and the true ones are non-zero."""
+    w = WHR({"w2": 300})
+    for day in range(1, 7):
+        for _ in range(3):
+            w.create_game("a", "b", "B", day, 0)
+        w.create_game("a", "b", "W", day, 0)
+    w.iterate(80)
+    p = w.player_by_name("a")
+    _clear(w)
+    true_cov = np.linalg.inv(-_dense_hessian(p))
+    got = np.asarray(p.covariance())
+    n = len(p.days)
+    far = [(i, j) for i in range(n) for j in range(n) if abs(i - j) > 1]
+    assert all(got[i, j] == 0.0 for i, j in far)
+    assert all(abs(true_cov[i, j]) > 1e-3 for i, j in far)  # genuinely non-zero
+
+
+def test_the_band_helper_returns_matching_shapes():
+    w = WHR({"w2": 300})
+    for day in range(1, 5):
+        w.create_game("a", "b", "B", day, 0)
+        w.create_game("a", "b", "W", day, 0)
+    w.iterate(20)
+    p = w.player_by_name("a")
+    variances, adjacent = p._banded_covariance()
+    assert len(variances) == len(p.days)
+    assert len(adjacent) == len(p.days) - 1
+    assert all(v > 0 for v in variances)
+
+
+def test_a_single_rated_day_has_an_empty_adjacent_band():
+    w = WHR({"w2": 300})
+    w.create_game("a", "b", "B", 1, 0)
+    w.iterate(20)
+    variances, adjacent = w.player_by_name("a")._banded_covariance()
+    assert len(variances) == 1 and len(adjacent) == 0
+    assert np.asarray(w.player_by_name("a").covariance()).shape == (1, 1)
+
+
+def test_uncertainty_still_equals_the_band_diagonal():
+    """update_uncertainty now takes the O(n) band instead of building the n x n
+    matrix; the stored values must be untouched by that."""
+    w = WHR({"w2": 300})
+    for day in range(1, 15):
+        for _ in range(3):
+            w.create_game("a", "b", "B", day, 0)
+        w.create_game("a", "b", "W", day, 0)
+    w.iterate(120)
+    p = w.player_by_name("a")
+    _clear(w)
+    variances, _ = p._banded_covariance()
+    for day, variance in zip(p.days, variances, strict=True):
+        assert day.uncertainty == pytest.approx(variance, rel=1e-12)

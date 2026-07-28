@@ -50,7 +50,7 @@ class Player:
     @staticmethod
     def hessian(
         days: list[PD.PlayerDay], sigma2: list[float], damping: float
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ) -> tuple[list[float], list[float]]:
         """Computes the Hessian matrix for the log likelihood function.
 
         Args:
@@ -60,11 +60,16 @@ class Player:
                 (Coulom's HessianEpsilon).
 
         Returns:
-            tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: A tuple containing the diagonal and sub-diagonal elements of the Hessian matrix.
+            tuple[list[float], list[float]]: The diagonal and sub-diagonal
+            elements of the Hessian matrix.
         """
         n = len(days)
-        diagonal = np.zeros((n,))
-        sub_diagonal = np.zeros((n - 1,))
+        # Plain lists, not numpy: every consumer walks these one scalar at a time
+        # (a tridiagonal recursion cannot be vectorised), so numpy only adds
+        # per-element indexing cost -- measured 2-4.7x slower at every realistic
+        # day count, for bit-identical results.
+        diagonal = [0.0] * n
+        sub_diagonal = [0.0] * (n - 1)
         for row in range(n):
             prior = 0.0
             if row < (n - 1):
@@ -160,11 +165,11 @@ class Player:
         diag, sub_diag = Player.hessian(self.days, sigma2, self.hessian_damping)
         g = self.gradient(r, self.days, sigma2)
         n = len(r)
-        a = np.zeros((n,))
-        d = np.zeros((n,))
-        b = np.zeros((n,))
+        a = [0.0] * n
+        d = [0.0] * n
+        b = [0.0] * n
         d[0] = diag[0]
-        b[0] = sub_diag[0] if sub_diag.size > 0 else 0
+        b[0] = sub_diag[0] if n > 1 else 0.0
 
         for i in range(1, n):
             a[i] = sub_diag[i - 1] / d[i - 1]
@@ -172,12 +177,12 @@ class Player:
             if i < n - 1:
                 b[i] = sub_diag[i]
 
-        y = np.zeros((n,))
+        y = [0.0] * n
         y[0] = g[0]
         for i in range(1, n):
             y[i] = g[i] - a[i] * y[i - 1]
 
-        x = np.zeros((n,))
+        x = [0.0] * n
         x[n - 1] = y[n - 1] / d[n - 1]
         for i in range(n - 2, -1, -1):
             x[i] = (y[i] - b[i] * x[i + 1]) / d[i]
@@ -194,23 +199,26 @@ class Player:
         for day, new_r in zip(self.days, new_rs, strict=True):
             day.r = new_r
 
-    def covariance(self) -> npt.NDArray[np.float64]:
-        """Computes the covariance matrix of the player's rating estimations.
+    def _banded_covariance(self) -> tuple[list[float], list[float]]:
+        """The tridiagonal band of the posterior covariance, in nat² units.
 
-        Returns:
-            The covariance matrix for the player's ratings.
+        Returns ``(variances, adjacent)``: the exact diagonal of ``inv(-H)``, and
+        the exact first off-diagonal (``adjacent[i]`` is the covariance of day
+        ``i`` with day ``i+1``, so ``len(adjacent) == n - 1``). Coulom's
+        forward/backward recursion gives both in O(n); nothing beyond the band is
+        computed, and nothing beyond it is needed -- ``update_uncertainty`` reads
+        only the diagonal, and ``WHR.rating_covariance`` inverts the Hessian
+        densely when the full matrix is genuinely wanted.
         """
-        r = [d.r for d in self.days]
-
         sigma2 = self.compute_sigma2()
         diag, sub_diag = Player.hessian(self.days, sigma2, self.hessian_damping)
-        n = len(r)
+        n = len(self.days)
 
-        a = np.zeros((n,))
-        d = np.zeros((n,))
-        b = np.zeros((n,))
+        a = [0.0] * n
+        d = [0.0] * n
+        b = [0.0] * n
         d[0] = diag[0]
-        b[0] = sub_diag[0] if sub_diag.size > 0 else 0
+        b[0] = sub_diag[0] if n > 1 else 0.0
 
         for i in range(1, n):
             a[i] = sub_diag[i - 1] / d[i - 1]
@@ -218,37 +226,61 @@ class Player:
             if i < n - 1:
                 b[i] = sub_diag[i]
 
-        dp = np.zeros((n,))
+        dp = [0.0] * n
         dp[n - 1] = diag[n - 1]
-        bp = np.zeros((n,))
+        bp = [0.0] * n
         # The guard is on the validity of the INDEX n-2, not on the length of
         # sub_diag. `sub_diag.size >= 2` wrongly required two sub-diagonal
         # entries to read entry n-2 == 0, so a player with exactly two rated days
         # got bp[1] = 0 and a first-day variance ~25x too small (17 elo reported
         # against a true 90). n >= 3 was unaffected, since there size == n-1 >= 2.
         bp[n - 1] = sub_diag[n - 2] if n >= 2 else 0
-        ap = np.zeros((n,))
+        ap = [0.0] * n
         for i in range(n - 2, -1, -1):
             ap[i] = sub_diag[i] / dp[i + 1]
             dp[i] = diag[i] - ap[i] * bp[i + 1]
             if i > 0:
                 bp[i] = sub_diag[i - 1]
 
-        v = np.zeros((n,))
+        v = [0.0] * n
         for i in range(n - 1):
             v[i] = dp[i + 1] / (b[i] * bp[i + 1] - d[i] * dp[i + 1])
         v[n - 1] = -1 / d[n - 1]
 
-        mat = np.zeros((n, n))
-        for row in range(n):
-            for col in range(n):
-                if row == col:
-                    mat[row, col] = v[row]
-                elif row == col - 1:
-                    mat[row, col] = -1 * a[col] * v[col]
-                else:
-                    mat[row, col] = 0
+        # cov(day i, day i+1), from the same recursion
+        adjacent = [-a[i] * v[i] for i in range(1, n)]
+        return v, adjacent
 
+    def covariance(self) -> npt.NDArray[np.float64]:
+        """The tridiagonal band of this player's posterior covariance, in nat².
+
+        **This is a band, not the full covariance matrix.** The true ``inv(-H)``
+        is dense: consecutive days are correlated through the Wiener prior, and so
+        are distant ones, just weakly. What this returns is exact on the diagonal
+        and on the two adjacent off-diagonals, and **zero everywhere else** -- the
+        far entries are not computed, not zero. Reading them as covariances would
+        understate every non-adjacent correlation.
+
+        Two consequences worth knowing:
+
+        * Until 3.5.0 the matrix was also *asymmetric*: the super-diagonal was
+          filled and the sub-diagonal left at zero. It is symmetric now.
+        * For a genuine dense covariance in **elo²**, use
+          ``WHR.rating_covariance(name)``, which inverts the Hessian properly.
+          That is what ``WHR.rating_change`` consumes.
+
+        Returns:
+            An ``n x n`` array holding the exact tridiagonal band of the posterior
+            covariance in natural log-gamma units, zero outside it.
+        """
+        v, adjacent = self._banded_covariance()
+        n = len(v)
+        mat = np.zeros((n, n))
+        np.fill_diagonal(mat, v)
+        if n > 1:
+            idx = np.arange(n - 1)
+            mat[idx, idx + 1] = adjacent
+            mat[idx + 1, idx] = adjacent
         return mat
 
     def update_uncertainty(self) -> None:
@@ -270,10 +302,13 @@ class Player:
             return
         for day in self.days:
             day.clear_game_terms_cache()
-        c = self.covariance()
-        u = [c[i, i] for i in range(len(self.days))]  # u = variance
-        for i, d in enumerate(self.days):
-            d.uncertainty = float(u[i])
+        # Only the diagonal is wanted, so take the O(n) band rather than building
+        # the n x n matrix: that used to run an n^2 *Python* double loop, which
+        # cost 0.48 s per pass over the 37 NBA teams (451 rated days each) against
+        # 3.94 s for fifty whole iterations.
+        variances, _adjacent = self._banded_covariance()
+        for day, variance in zip(self.days, variances, strict=True):
+            day.uncertainty = float(variance)
 
     def add_game(self, game: G.Game) -> None:
         """Adds a game to the player's record, updating or creating a new PD.PlayerDay instance as necessary.

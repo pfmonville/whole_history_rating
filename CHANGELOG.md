@@ -5,6 +5,51 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0] - 2026-07-25
+
+### Changed
+- Two **low-level** shapes changed, in service of the fix and the speed-up below.
+  The documented `WHR` API is untouched; this only matters if you reach into
+  `Player` directly.
+  - `Player.hessian` returns two **lists** rather than two numpy arrays. Indexing
+    is unchanged; `.size` and array arithmetic on the result are not.
+  - `Player.covariance()` is now **symmetric**. It was not before — see below.
+
+### Fixed
+- **`Player.covariance()` was not symmetric**, and documented itself as "the
+  covariance matrix" while returning only a band of one. Coulom's
+  forward/backward recursion yields the diagonal and the first off-diagonal
+  exactly; the old code filled the super-diagonal, left the *sub*-diagonal at
+  zero, and zeroed everything beyond — so a caller reading the full matrix got an
+  asymmetric object whose far entries looked like zero covariances when they had
+  simply not been computed (the true ones are non-zero, since the Wiener prior
+  correlates every pair of days). The band is now mirrored, and the docstring
+  states plainly what is exact, what is zero-because-uncomputed, and that
+  `WHR.rating_covariance()` is the way to get a genuine dense covariance in elo².
+
+### Performance
+- **`update_uncertainty` no longer builds an n×n matrix to read n values.** It
+  takes the O(n) band directly, worth **1.26×** on the full ATP 2000–2013 fit
+  (85.4 s → 67.8 s at an unchanged convergence target). The old path ran an n² *Python* double loop, which
+  is what actually hurt: 0.7 ms at 50 rated days but 317 ms at 2,000, i.e. 88×
+  slower than needed. On the real NBA base (37 teams, a median of 451 rated days
+  each) one pass drops from **0.48 s to 0.07 s**, from 10.9% of a `batch_size=50`
+  batch to 1.6% — and it would have been 38% under the old `batch_size=10`
+  default. Values are unchanged: the band diagonal is the same recursion output,
+  pinned against a dense inverse at every day count.
+- **The tridiagonal recursions drop numpy for plain Python lists**, worth a
+  further **1.34×** (67.8 s → 50.6 s on that same ATP fit, and 145.2 s → 100.8 s
+  in the benchmark's own configuration, at an identical held-out log-loss of
+  0.613533). Bringing the total since 3.4.0 to **3.68×** (186.4 s → 50.6 s).
+
+  `Player.hessian`, the Newton solve and the covariance band all walk their arrays
+  one scalar at a time — a tridiagonal recursion cannot be vectorised — so numpy
+  contributed per-element indexing cost and no vectorisation at all: measured
+  2.0× slower at one rated day, 3.4× at four, 4.7× at forty, for **bit-identical**
+  arithmetic (the operations and their order are unchanged). `Player.hessian` now
+  returns two lists rather than two arrays; `covariance()` still returns an
+  ndarray.
+
 ## [3.5.0] - 2026-07-25
 
 A maths audit (every analytic derivative checked against finite differences of
