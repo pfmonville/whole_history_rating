@@ -62,5 +62,6 @@ def test_ci_has_fast_smoke_and_manual_full_benchmarks():
     ).read_text(encoding="utf-8")
     assert "benchmarks/smoke.py" in ci
     assert "workflow_dispatch:" in full
+    assert "benchmarks/download_data.py all" in full
     for dataset in ("tennis", "nba", "football"):
         assert f"benchmarks/versus.py {dataset}" in full

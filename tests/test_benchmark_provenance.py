@@ -6,11 +6,27 @@ import subprocess
 import sys
 from pathlib import Path
 
+from benchmarks.download_data import download_plan
 from benchmarks.provenance import build_provenance
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "benchmarks" / "results"
+
+
+def test_download_plan_covers_every_benchmark_dataset():
+    nba = download_plan("nba")
+    tennis = download_plan("tennis")
+    football = download_plan("football")
+
+    assert len(nba) == 1
+    assert nba[0].destination.name == "nba_elo.csv"
+    assert len(tennis) == 16
+    assert tennis[0].destination.name == "atp_matches_2000.csv"
+    assert tennis[-1].destination.name == "atp_matches_2015.csv"
+    assert len(football) == 50
+    assert football[0].destination.name == "2014-15_de.1.json"
+    assert football[-1].destination.name == "2023-24_it.1.json"
 
 
 def test_build_provenance_records_source_runtime_packages_and_dataset(tmp_path):
