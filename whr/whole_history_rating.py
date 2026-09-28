@@ -2077,6 +2077,8 @@ class WHR:
                     "handicap_gamma": dict(self.handicap_gamma),
                     "komi_gamma": dict(self.komi_gamma),
                     "nu": self.nu,
+                    "ever_fitted": self._ever_fitted,
+                    "games_since_fit": self._games_since_fit,
                 },
                 f,
             )
@@ -2146,6 +2148,8 @@ class WHR:
         # with .get so a base saved before this fix (lacking the key) keeps
         # whatever the replay seeded.
         result.nu = data.get("nu", result.nu)
+        result._ever_fitted = data.get("ever_fitted", result._ever_fitted)
+        result._games_since_fit = data.get("games_since_fit", result._games_since_fit)
         return result
 
 
