@@ -7,6 +7,7 @@
 """
 
 import math
+import pickle
 import warnings
 
 import pytest
@@ -112,6 +113,79 @@ def test_a_never_fitted_base_does_not_warn_about_staleness():
     with warnings.catch_warnings():
         warnings.simplefilter("error", StaleFitWarning)
         w.probability_future_match("a", "b", 0)
+
+
+def test_save_load_preserves_a_fresh_fit(tmp_path):
+    w = _fitted()
+    path = tmp_path / "fresh.pkl"
+    w.save_base(path)
+    loaded = WHR.load_base(path)
+
+    assert loaded.games_since_last_fit == 0
+    assert loaded.ratings_for_player("a") == w.ratings_for_player("a")
+
+
+def test_loaded_fit_warns_when_games_are_added(tmp_path):
+    w = _fitted()
+    path = tmp_path / "fresh.pkl"
+    w.save_base(path)
+    loaded = WHR.load_base(path)
+
+    loaded.create_game("a", "b", "W", 19, 0)
+    with pytest.warns(StaleFitWarning, match=r"1 game\(s\)"):
+        loaded.ratings_for_player("a")
+    assert loaded.games_since_last_fit == 1
+
+
+def test_save_load_preserves_a_stale_fit(tmp_path):
+    w = _fitted()
+    for _ in range(2):
+        w.create_game("a", "b", "W", 19, 0)
+    with pytest.warns(StaleFitWarning):
+        w.ratings_for_player("a")
+    path = tmp_path / "stale.pkl"
+    w.save_base(path)
+    loaded = WHR.load_base(path)
+
+    assert loaded.games_since_last_fit == 2
+    with pytest.warns(StaleFitWarning, match=r"2 game\(s\)"):
+        loaded.ratings_for_player("a")
+    loaded.iterate(50)
+    assert loaded.games_since_last_fit == 0
+    loaded.ratings_for_player("a")
+
+
+@pytest.mark.parametrize("game_count", [0, 2])
+def test_save_load_preserves_an_unfitted_history(tmp_path, game_count):
+    w = WHR()
+    for _ in range(game_count):
+        w.create_game("a", "b", "B", 1, 0)
+    path = tmp_path / "unfitted.pkl"
+    w.save_base(path)
+    loaded = WHR.load_base(path)
+
+    assert loaded.games_since_last_fit == game_count
+    loaded.create_game("a", "b", "W", 1, 0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", StaleFitWarning)
+        loaded.probability_future_match("a", "b", 0)
+
+
+def test_load_base_without_fit_metadata(tmp_path):
+    w = _fitted()
+    path = tmp_path / "older.pkl"
+    w.save_base(path)
+    with path.open("rb") as f:
+        data = pickle.load(f)
+    data.pop("ever_fitted", None)
+    data.pop("games_since_fit", None)
+    with path.open("wb") as f:
+        pickle.dump(data, f)
+
+    loaded = WHR.load_base(path)
+    assert loaded.ratings_for_player("a") == w.ratings_for_player("a")
+    loaded.iterate(50)
+    assert loaded.games_since_last_fit == 0
 
 
 def test_the_stale_read_really_is_wrong_not_merely_out_of_date():
