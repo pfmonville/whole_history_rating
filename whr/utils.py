@@ -84,9 +84,10 @@ class UncomputedUncertaintyWarning(UserWarning):
     ``PlayerDay.uncertainty`` starts at the sentinel ``-1.0``, which is not a
     real standard deviation -- it means "not computed yet". ``ratings_for_player``
     returns it as-is rather than raising, so an un-rated base can still be
-    inspected, but a ``-1`` reaching a calculation is a bug. Its siblings
-    (``rating_difference``, ``rating_covariance``, ``rating_change``) raise a
-    ``ValueError`` in the same state.
+    inspected, but a ``-1`` reaching a calculation is a bug. In the same state
+    ``rating_difference`` raises a ``ValueError``, while ``rating_covariance``
+    and ``rating_change`` return values computed from the un-fitted starting
+    state and emit this warning too.
 
     Call ``iterate()`` or ``auto_iterate()`` first.
     """

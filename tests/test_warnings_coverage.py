@@ -113,6 +113,12 @@ def test_a_covariance_read_before_any_fit_warns_that_it_means_nothing(read):
         read(_unfitted())
 
 
+def test_the_uncomputed_uncertainty_warning_class_describes_the_reads_truly():
+    doc = UncomputedUncertaintyWarning.__doc__
+    assert "``rating_covariance``, ``rating_change``) raise" not in doc
+    assert "``rating_difference`` raises" in doc
+
+
 def test_the_uncomputed_uncertainty_warning_describes_the_other_reads_truly():
     with pytest.warns(UncomputedUncertaintyWarning) as record:
         _unfitted().ratings_for_player("a")
