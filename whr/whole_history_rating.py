@@ -11,7 +11,7 @@ import shutil
 import time
 import uuid
 import warnings
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Collection, Iterator
 from typing import IO, Any
 
 import numpy as np
@@ -121,6 +121,18 @@ def _validated_time_step(time_step: Any) -> int | float:
     if value.is_integer():
         return int(value)
     return value
+
+
+def _rated_time_step(
+    time_step: int | float, known_days: Collection[int | float]
+) -> int | float:
+    """Resolve a query using an exact saved day before its rounded spelling.
+
+    Legacy object-graph saves retain their original dates. Prefer those exact
+    keys; games created or replayed from flat saves use the rounded fallback.
+    """
+    normalized = _validated_time_step(time_step)
+    return time_step if time_step in known_days else normalized
 
 
 def _validated_w2(w2: Any, what: str = "w2") -> float:
@@ -867,7 +879,7 @@ class WHR:
         None. Raises ValueError if ``day`` is given but not a rated day."""
         if day is None:
             return player.days[-1]
-        day = _validated_time_step(day)
+        day = _rated_time_step(day, [d.day for d in player.days])
         for d in player.days:
             if d.day == day:
                 return d
@@ -979,9 +991,9 @@ class WHR:
             raise ValueError(f"No ratings available for player {name!r}")
         self._warn_if_uncertainty_uncomputed(player, "rating_change")
         days, cov = self.rating_covariance(name)
-        day_from = _validated_time_step(day_from)
-        day_to = _validated_time_step(day_to)
         index = {d: i for i, d in enumerate(days)}
+        day_from = _rated_time_step(day_from, index)
+        day_to = _rated_time_step(day_to, index)
         if day_from not in index or day_to not in index:
             raise ValueError(f"player {name!r} has no rated day {day_from} / {day_to}")
         i, j = index[day_from], index[day_to]
@@ -1122,7 +1134,7 @@ class WHR:
             pday = self._player_day(existing, day)
             return target - pday.elo
         anchor_day = (
-            _validated_time_step(day)
+            _rated_time_step(day, [d.day for d, _ in rated])
             if day is not None
             else max(d.day for d, _ in rated)
         )
@@ -1283,7 +1295,8 @@ class WHR:
 
         Returns the normalized ``(black, white, winner, time_step, handicap,
         extras)``. Raising here leaves the base untouched, which is what lets
-        ``load_games`` check a whole batch before adding any of it.
+        ``load_games`` check a whole batch before adding any of it. Its optional
+        tables include keys from earlier lines without changing the base.
         """
         extras = dict(extras) if extras else {}
         if komi is not None:
@@ -2167,7 +2180,8 @@ class WHR:
             AttributeError: Raised if name1 and name2 are equal, or if a
                 supplied category key resolves to a non-finite/non-positive
                 advantage gamma.
-            ValueError: Raised if ``account_for_uncertainty`` is ``True`` and
+            ValueError: Raised if ``handicap`` is not finite, or if
+                ``account_for_uncertainty`` is ``True`` and
                 ``uncertainty_steps`` is less than 1.
 
         Warns:
