@@ -44,7 +44,7 @@ def test_build_provenance_records_source_runtime_packages_and_dataset(tmp_path):
     assert isinstance(provenance["source"]["dirty"], bool)
     assert provenance["runtime"]["python"]
     assert provenance["runtime"]["platform"]
-    assert provenance["packages"]["whole-history-rating"] == "3.6.1"
+    assert provenance["packages"]["whole-history-rating"] == "3.6.2"
     assert provenance["packages"]["numpy"]
     assert provenance["dataset"]["source"] == "https://example.test/matches.csv"
     assert provenance["dataset"]["files"] == [
