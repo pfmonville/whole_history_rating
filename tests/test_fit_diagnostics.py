@@ -15,6 +15,7 @@ import random
 
 import pytest
 
+from whr import DrawModelWarning
 from whr.whole_history_rating import WHR
 
 
@@ -77,6 +78,11 @@ def test_log_likelihood_of_a_single_game_counts_it_once():
     assert w.log_likelihood() == pytest.approx(game + priors, rel=1e-12)
 
 
+def _fitted_declared_drawless():
+    with pytest.warns(DrawModelWarning, match="left out of the fit"):
+        return _fitted("BWD", pinned_draw=0.0)
+
+
 def _derivative(w, get, put, h=1e-6):
     """Central finite difference of log_likelihood along one fitted value."""
     x = get()
@@ -94,7 +100,7 @@ BASES = {
     "handicap_komi": lambda: _fitted("BW", handicap=True),
     # draws in the data, but "no draws" declared: nu stays 0 and the fit
     # carries no draw term, so neither may the log-posterior
-    "draws_declared_absent": lambda: _fitted("BWD", pinned_draw=0.0),
+    "draws_declared_absent": lambda: _fitted_declared_drawless(),
 }
 
 
