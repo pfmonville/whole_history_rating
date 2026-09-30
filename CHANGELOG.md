@@ -43,6 +43,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   created both players before failing, and left them in the base with no
   games. Every check now runs before anything is created. The error is now a
   `TypeError` that names the argument.
+- numpy and pandas day values (`np.int64`, `np.int32`, `np.float32`...) were
+  rejected by `create_game`: only `np.float64` got through, because it
+  subclasses `float`. They are now accepted and stored as plain Python
+  numbers. Saves written before 3.4.0 that hold such days load again; they
+  used to fail with a `TypeError`. `np.bool_` is rejected, like `bool`.
+- `w2` is checked when the base is created, and so is each candidate given to
+  `fit_w2`: it must be a finite number > 0. A `w2` of 0 used to crash inside
+  `iterate` with a bare `ZeroDivisionError`. A negative `w2` raised a math
+  error that did not mention it. `fit_w2` scored an infinite candidate.
+- `auto_iterate(precision=0)`, or with a negative precision, looped forever,
+  since the target can never be reached. `batch_size=0` spun without
+  iterating. These arguments, and a negative `time_limit`, now raise.
+- `iterate()` rejects a count that is not an integer >= 0. `iterate(0)` still
+  refreshes the uncertainties, but no longer marks a stale base as freshly
+  fitted.
+- A handicap or komi of `"0"` (text, typically read from a CSV) was a separate
+  category from the pinned baseline `0`. It was estimated freely, and every
+  rating shifted without a warning. A key that reads as the same number as an
+  existing key of another type now raises a `ValueError` explaining the clash.
+- The `pinned_handicap` / `pinned_komi` dicts were shared with the caller.
+  Editing the caller's dict afterwards changed `.config` but not the model.
+  They are now copied.
+- `display_uncertainty` is checked each time it is read, not only in the
+  constructor. The user guide invites changing it on a live instance, and a
+  typo there used to switch silently to elo.
+
+### Added
+- A config key that looks like a misspelled setting (`"W2"`, `"draw_rates"`)
+  raises a `UserWarning` naming the setting it resembles; it used to be
+  ignored without a word. Other extra keys are still accepted as your own
+  metadata and saved with the base.
 
 ## [3.6.2] - 2026-09-30
 

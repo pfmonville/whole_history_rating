@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import difflib
 import math
+import numbers
 import os
 import pickle
 import shutil
@@ -67,22 +69,115 @@ def _validated_time_step(time_step: Any) -> int | float:
     day are the *same* playing day rather than two, which is what a caller
     building days from arithmetic almost always means.
     """
-    if isinstance(time_step, bool):
+    if isinstance(time_step, (bool, np.bool_)):
         raise TypeError(
             f"time_step must be a number, got a bool ({time_step!r}). "
             "A bool would silently be read as day 0 or 1."
         )
-    if not isinstance(time_step, (int, float)):
+    # numpy and pandas hand out np.int64 / np.float32 and friends: they are
+    # registered as numbers.Integral / numbers.Real, and are stored as the
+    # plain Python number they stand for.
+    if isinstance(time_step, numbers.Integral):
+        return int(time_step)
+    if not isinstance(time_step, numbers.Real):
         raise TypeError(
             f"time_step must be an int or a float, got "
             f"{type(time_step).__name__} ({time_step!r}). It is a day index "
             "counted from an origin of your choosing."
         )
-    if not math.isfinite(time_step):
+    value = float(time_step)
+    if not math.isfinite(value):
         raise ValueError(f"time_step must be finite, got {time_step!r}")
-    if isinstance(time_step, float) and time_step.is_integer():
-        return int(time_step)
-    return time_step
+    if value.is_integer():
+        return int(value)
+    return value
+
+
+def _validated_w2(w2: Any, what: str = "w2") -> float:
+    """``w2`` as a float, or an error naming it: it must be finite and > 0.
+
+    It is the variance of rating drift per time step. 0 used to crash deep in
+    the Hessian with a bare ``ZeroDivisionError``, and a negative value with a
+    math-domain error that did not mention w2.
+    """
+    if isinstance(w2, (bool, np.bool_)) or not isinstance(w2, numbers.Real):
+        raise TypeError(f"{what} must be a number, got {type(w2).__name__} {w2!r}")
+    value = float(w2)
+    if not math.isfinite(value) or value <= 0.0:
+        raise ValueError(
+            f"{what} must be a finite number > 0 (the variance of rating drift "
+            f"per time step, in elo^2), got {w2!r}"
+        )
+    return value
+
+
+def _natural_number(value: Any, what: str, minimum: int) -> int:
+    """``value`` as an int >= ``minimum``, or an error naming it."""
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, numbers.Integral):
+        raise TypeError(
+            f"{what} must be an integer, got {type(value).__name__} {value!r}"
+        )
+    if value < minimum:
+        raise ValueError(f"{what} must be >= {minimum}, got {value!r}")
+    return int(value)
+
+
+def _numeric_value(key: Any) -> float | None:
+    """The number a handicap/komi key reads as, if any (``"6.5"`` -> 6.5)."""
+    if isinstance(key, str):
+        try:
+            return float(key)
+        except ValueError:
+            return None
+    if isinstance(key, numbers.Real) and not isinstance(key, (bool, np.bool_)):
+        return float(key)
+    return None
+
+
+# Every config key, with its default. The single source for the defaults, for
+# telling a misspelled key from a real one, and for what save_base keeps when
+# the config holds a value that cannot be pickled.
+_CONFIG_DEFAULTS: dict[str, Any] = {
+    "w2": 300.0,
+    "uncased": False,
+    "initial_prior_wins": 0.5,
+    "hessian_damping": 1.0,
+    "drift_kernel_radius": 100,
+    "pinned_handicap": {},
+    "pinned_komi": {},
+    "estimate_handicap_zero": False,
+    "pinned_draw": None,
+    "draw_rate": None,
+    "display_offset": 0.0,
+    "display_uncertainty": "variance",
+}
+# Keys older versions used and may still sit in old saves: ignored quietly.
+_REMOVED_CONFIG_KEYS = frozenset({"debug"})
+
+
+def _warn_about_unknown_config_keys(config: dict[str, Any]) -> None:
+    """Warn about a key that looks like a misspelled setting.
+
+    Other keys are the caller's own metadata, which the config carries and
+    save_base keeps. But a key such as ``"W2"`` or ``"draw_rates"`` was simply
+    ignored: WHR({"W2": 14}) ran with the default w2 without a word.
+    """
+    by_lower = {key.lower(): key for key in _CONFIG_DEFAULTS}
+    for key in config:
+        if key in _CONFIG_DEFAULTS or key in _REMOVED_CONFIG_KEYS:
+            continue
+        name = str(key)
+        match = by_lower.get(name.lower()) or next(
+            iter(difflib.get_close_matches(name, list(_CONFIG_DEFAULTS), n=1)), None
+        )
+        if match is None:
+            continue
+        warnings.warn(
+            f"Config key {key!r} is not a setting; did you mean {match!r}? "
+            f"As written it sets nothing, and {match!r} keeps its current value.",
+            UserWarning,
+            stacklevel=3,
+        )
 
 
 def _hashable_key(what: str, key: Any) -> Any:
@@ -144,24 +239,15 @@ class WHR:
         # Copy the caller's dict so we never mutate it and instances never
         # share the same config object.
         self.config = dict(config) if config is not None else {}
-        self.config.setdefault("w2", 300.0)
-        self.config.setdefault("uncased", False)
-        self.config.setdefault("initial_prior_wins", 0.5)
-        self.config.setdefault("hessian_damping", 1.0)
-        self.config.setdefault("drift_kernel_radius", 100)
-        self.config.setdefault("pinned_handicap", {})
-        self.config.setdefault("pinned_komi", {})
-        self.config.setdefault("estimate_handicap_zero", False)
-        self.config.setdefault("pinned_draw", None)
-        self.config.setdefault("draw_rate", None)
-        self.config.setdefault("display_offset", 0.0)
-        self.config.setdefault("display_uncertainty", "variance")
-        if self.config["display_uncertainty"] not in ("variance", "elo"):
-            raise ValueError(
-                "display_uncertainty must be 'variance' (nat^2, the default and "
-                "the historical behaviour) or 'elo' (a standard error in elo), "
-                f"got {self.config['display_uncertainty']!r}"
-            )
+        _warn_about_unknown_config_keys(self.config)
+        for key, default in _CONFIG_DEFAULTS.items():
+            self.config.setdefault(key, default)
+        # The pin tables are copied too: shared with the caller, a later edit
+        # of their dict would show in .config while the model kept the old pin.
+        self.config["pinned_handicap"] = dict(self.config["pinned_handicap"])
+        self.config["pinned_komi"] = dict(self.config["pinned_komi"])
+        self.config["w2"] = _validated_w2(self.config["w2"])
+        self._display_uncertainty()
         self._has_draws = False
         self._warned_no_draws = False
         self._warned_baseline = False
@@ -571,6 +657,7 @@ class WHR:
             candidates = [10.0, 30.0, 100.0, 300.0, 1000.0, 3000.0]
         if not candidates:
             raise ValueError("candidates must be a non-empty list of w2 values")
+        candidates = [_validated_w2(w2, "each w2 candidate") for w2 in candidates]
         folds = self._temporal_folds(n_splits)
         eps = 1e-15
 
@@ -895,9 +982,22 @@ class WHR:
         converts it. The default stays ``"variance"`` for backward compatibility.
         The ``-1`` sentinel for "not computed yet" is passed through unchanged.
         """
-        if variance < 0.0 or self.config["display_uncertainty"] == "variance":
+        if variance < 0.0 or self._display_uncertainty() == "variance":
             return variance
         return math.sqrt(variance) * _ELO_PER_NAT
+
+    def _display_uncertainty(self) -> str:
+        """The ``display_uncertainty`` setting, checked where it is read: the
+        guide invites changing it on a live instance, where a typo used to
+        silently switch to elo."""
+        mode = self.config["display_uncertainty"]
+        if mode not in ("variance", "elo"):
+            raise ValueError(
+                "display_uncertainty must be 'variance' (nat^2, the default and "
+                "the historical behaviour) or 'elo' (a standard error in elo), "
+                f"got {mode!r}"
+            )
+        return mode
 
     @property
     def display_offset(self) -> float:
@@ -1126,6 +1226,8 @@ class WHR:
             )
         _hashable_key("handicap", handicap)
         _hashable_key("komi", extras.get("komi"))
+        self._check_no_lookalike_key("handicap", handicap, self.handicap_gamma)
+        self._check_no_lookalike_key("komi", extras.get("komi"), self.komi_gamma)
         return black, white, winner, time_step, handicap, extras
 
     def _setup_game(
@@ -1191,8 +1293,10 @@ class WHR:
             TypeError: If ``time_step`` is not a real number (a ``bool`` is
                 rejected too: ``True`` silently meant day 1), or if
                 ``handicap`` or ``komi`` is not hashable.
-            ValueError: If ``time_step`` is NaN or infinite, or if ``winner``
-                is not one of "B", "W", "D".
+            ValueError: If ``time_step`` is NaN or infinite, if ``winner``
+                is not one of "B", "W", "D", or if ``handicap`` or ``komi``
+                reads as the same number as an existing key of another type
+                (``"0"`` next to ``0``).
             AttributeError: If ``black`` and ``white`` are the same player.
 
         A rejected game leaves the base unchanged.
@@ -1210,6 +1314,33 @@ class WHR:
         game = self._setup_game(*validated)
         self._ensure_advantage_keys(game.handicap, game.extras.get("komi"))
         return self._add_game(game)
+
+    @staticmethod
+    def _check_no_lookalike_key(what: str, key: Any, table: dict[Any, float]) -> None:
+        """Refuse a key that reads as the same number as an existing key of
+        another type, such as ``"0"`` next to ``0``.
+
+        They are two separate categories to the model. The usual cause is a
+        column read from a CSV as text: ``"0"`` is then not the pinned
+        baseline ``0``, is estimated freely, and quietly shifts every rating.
+        """
+        if key is None or key in table:
+            return
+        value = _numeric_value(key)
+        if value is None:
+            return
+        for other in table:
+            if (
+                isinstance(other, str) != isinstance(key, str)
+                and _numeric_value(other) == value
+            ):
+                raise ValueError(
+                    f"{what} {key!r} ({type(key).__name__}) reads as the same "
+                    f"value as the existing {what} {other!r} "
+                    f"({type(other).__name__}), but they would be two different "
+                    "categories. Pass one type consistently, e.g. convert a "
+                    "column read as text with int() or float()."
+                )
 
     def _add_game(self, game: Game) -> Game:
         game.white_player.add_game(game)
@@ -1442,18 +1573,27 @@ class WHR:
         """Performs a specified number of iterations of the algorithm.
 
         Args:
-            count (int): The number of iterations to perform.
+            count (int): The number of iterations to perform, >= 0. ``0`` only
+                refreshes the uncertainties: the fit status is left as it was.
+
+        Raises:
+            TypeError, ValueError: If ``count`` is not an integer >= 0.
 
         Warns:
             HandicapBaselineWarning: Once per instance, if
                 ``estimate_handicap_zero`` is on while colour assignment is too
                 one-sided to identify the freed baseline. See the warning class.
         """
+        count = _natural_number(count, "count", 0)
         self._warn_if_baseline_unidentified()
         for _ in range(count):
             self._run_one_iteration()
         for player in self.players.values():
             player.update_uncertainty()
+        if count == 0:
+            # Uncertainties refreshed, nothing fitted: the base is exactly as
+            # stale (or unfitted) as it was.
+            return
         self._games_since_fit = 0
         self._warned_stale_fit = False
         self._ever_fitted = True
@@ -1503,7 +1643,25 @@ class WHR:
 
         Returns:
             (iterations performed, whether convergence was reached).
+
+        Raises:
+            TypeError, ValueError: If ``precision`` is not a finite number > 0
+                (0 or less can never be reached, so the loop never ended),
+                ``batch_size`` is not an integer >= 1, or ``time_limit`` is
+                negative.
         """
+        batch_size = _natural_number(batch_size, "batch_size", 1)
+        if (
+            isinstance(precision, bool)
+            or not isinstance(precision, numbers.Real)
+            or not math.isfinite(precision)
+            or precision <= 0
+        ):
+            raise ValueError(
+                f"precision must be a finite number > 0, got {precision!r}"
+            )
+        if time_limit is not None and not time_limit >= 0:
+            raise ValueError(f"time_limit must be None or >= 0, got {time_limit!r}")
         start = time.time()
         i = 0
         while True:
@@ -2173,31 +2331,11 @@ class WHR:
         try:
             pickle.dumps(config)
         except Exception:
-            config = {
-                k: v
-                for k, v in self.config.items()
-                if k
-                in [
-                    "w2",
-                    "uncased",
-                    "initial_prior_wins",
-                    "hessian_damping",
-                    "drift_kernel_radius",
-                    "pinned_handicap",
-                    "pinned_komi",
-                    "estimate_handicap_zero",
-                    "pinned_draw",
-                    "draw_rate",
-                    "display_offset",
-                    "display_uncertainty",
-                ]
-            }
+            config = {k: v for k, v in self.config.items() if k in _CONFIG_DEFAULTS}
             warnings.warn(
-                "Some elements in config cannot be pickled; only 'w2', "
-                "'uncased', 'initial_prior_wins', 'hessian_damping', "
-                "'drift_kernel_radius', 'pinned_handicap', 'pinned_komi', "
-                "'estimate_handicap_zero', 'pinned_draw', 'draw_rate', "
-                "'display_offset' and 'display_uncertainty' will be saved.",
+                "Some elements in config cannot be pickled; only "
+                + ", ".join(repr(k) for k in _CONFIG_DEFAULTS)
+                + " will be saved.",
                 stacklevel=2,
             )
         state = {
