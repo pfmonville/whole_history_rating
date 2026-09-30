@@ -190,6 +190,25 @@ class Player:
             for d1, d2 in zip(self.days, self.days[1:], strict=False)
         ]
 
+    def _pivot(self, value: float, index: int) -> float:
+        """A pivot of the tridiagonal elimination, or an
+        ``UnstableRatingException`` if it cancelled to 0 (or overflowed).
+
+        That happens when the drift prior between two days is so tight -- a
+        tiny w2, or days almost on top of each other -- that its precision
+        swamps the game terms and the subtraction loses every digit. It used
+        to surface as a bare ``ZeroDivisionError``.
+        """
+        if value == 0.0 or not math.isfinite(value):
+            day = self.days[index].day
+            raise UnstableRatingException(
+                f"Cannot solve the ratings of {self.name} around day {day}: the "
+                f"drift prior between its days is too tight for the games to "
+                f"register (w2 = {self._config['w2']!r} elo^2 per time step). "
+                "Use a larger w2, or merge days that are almost identical."
+            )
+        return value
+
     def update_by_ndim_newton(self) -> None:
         """Updates the player's ratings using a multidimensional Newton-Raphson method."""
         # r
@@ -208,10 +227,11 @@ class Player:
         b[0] = sub_diag[0] if n > 1 else 0.0
 
         for i in range(1, n):
-            a[i] = sub_diag[i - 1] / d[i - 1]
+            a[i] = sub_diag[i - 1] / self._pivot(d[i - 1], i - 1)
             d[i] = diag[i] - a[i] * b[i - 1]
             if i < n - 1:
                 b[i] = sub_diag[i]
+        self._pivot(d[n - 1], n - 1)
 
         y = [0.0] * n
         y[0] = g[0]
@@ -258,10 +278,11 @@ class Player:
         b[0] = sub_diag[0] if n > 1 else 0.0
 
         for i in range(1, n):
-            a[i] = sub_diag[i - 1] / d[i - 1]
+            a[i] = sub_diag[i - 1] / self._pivot(d[i - 1], i - 1)
             d[i] = diag[i] - a[i] * b[i - 1]
             if i < n - 1:
                 b[i] = sub_diag[i]
+        self._pivot(d[n - 1], n - 1)
 
         dp = [0.0] * n
         dp[n - 1] = diag[n - 1]
@@ -274,14 +295,14 @@ class Player:
         bp[n - 1] = sub_diag[n - 2] if n >= 2 else 0
         ap = [0.0] * n
         for i in range(n - 2, -1, -1):
-            ap[i] = sub_diag[i] / dp[i + 1]
+            ap[i] = sub_diag[i] / self._pivot(dp[i + 1], i + 1)
             dp[i] = diag[i] - ap[i] * bp[i + 1]
             if i > 0:
                 bp[i] = sub_diag[i - 1]
 
         v = [0.0] * n
         for i in range(n - 1):
-            v[i] = dp[i + 1] / (b[i] * bp[i + 1] - d[i] * dp[i + 1])
+            v[i] = dp[i + 1] / self._pivot(b[i] * bp[i + 1] - d[i] * dp[i + 1], i)
         v[n - 1] = -1 / d[n - 1]
 
         # cov(day i, day i+1), from the same recursion
