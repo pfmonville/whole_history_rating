@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `load_games` skips blank and whitespace-only lines instead of rejecting
   them. `text.split("\n")` on a file that ends with a newline used to fail on
   its empty last line.
+- `Game.white_win_probability()` / `black_win_probability()` are documented
+  for what they are: the probability given a decisive result. They always sum
+  to 1; `win_draw_loss_probabilities` gives the three-way split.
 
 ### Fixed
 - `rating_covariance()`, `rating_change()` and `log_likelihood()` could read
@@ -90,12 +93,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   paired `draw_rate=0.25` "or" `pinned_draw=0.79`, which are two different
   rates; the matching nu is 0.67. The `one_sided_game_share` docstring said
   "at most 5%" where the code excludes exactly 5%.
+- When every game is a draw, the draw tendency `nu` grew with every
+  iteration: 4e4 after 1000 iterations, 2e5 after 5000. Meanwhile
+  `auto_iterate` reported convergence, because the gradient decays like 1/nu.
+  Its maximum-likelihood value is infinite on such data. It is now left at its
+  starting value and kept out of the convergence gauge, and a new
+  `DrawModelWarning` says so.
+- With draws declared impossible (`pinned_draw=0` / `draw_rate=0`) but present
+  in the data, the player updates ignored drawn games while the handicap and
+  komi update counted them as half-wins. In one repro, 30 draws moved a
+  handicap from 0.33 to 1.08. Drawn games are now left out of every update,
+  and `DrawModelWarning` reports how many.
+- `probability_future_match` and `win_draw_loss_probabilities` raised
+  `OverflowError` for a raw `handicap` beyond about ±123,000 elo, and the two
+  did not fail on the same values. The handicap is now clamped at ±60,000 elo,
+  where the underdog's probability is already 1e-150. Ordinary handicaps give
+  bit-identical results.
+- Players copied `w2`, `initial_prior_wins` and `hessian_damping` when they
+  were created. Changing one of these on a live base reached only the players
+  created afterwards, and a save/load round trip then rebuilt everyone with
+  the new value, which is a different model. Players now read them from the
+  base's config.
+- A day inserted before a player's first day started from their *last* day's
+  rating: index -1 wrapped around. It now starts from the first day. Only the
+  starting point was affected; the fit corrects it.
+- `Game.prediction_score()` scored a drawn game as a wrong prediction (0.0).
+  It now scores 0.5, since there was no winner to predict.
 
 ### Added
 - A config key that looks like a misspelled setting (`"W2"`, `"draw_rates"`)
   raises a `UserWarning` naming the setting it resembles; it used to be
   ignored without a word. Other extra keys are still accepted as your own
   metadata and saved with the base.
+- `DrawModelWarning`, exported from `whr`.
 
 ## [3.6.2] - 2026-09-30
 

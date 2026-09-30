@@ -571,6 +571,19 @@ declared** emits a `NoDrawsWarning` once per instance, naming both fixes. It is 
 `UserWarning` subclass, so `warnings.simplefilter("ignore", NoDrawsWarning)`
 targets just this one.
 
+Two kinds of draw data cannot be fitted as configured. The first `iterate()`
+reports either one with a `DrawModelWarning`:
+
+- **Every game is a draw.** The draw tendency then has no finite estimate: the
+  data says a draw is infinitely more likely than a decisive result. `nu` is
+  left at its starting value (1, i.e. a third of even matchups drawn) instead
+  of growing with every iteration. Declare the rate you expect with
+  `draw_rate`.
+- **Draws were declared impossible (`draw_rate=0` / `pinned_draw=0`) but the
+  data contains some.** Under that declaration a draw carries no information,
+  so drawn games are left out of every update: player ratings, handicap and
+  komi.
+
 `draw_rate` is usually the friendlier of the two, because it is expressed in the
 unit you actually have — a draw percentage — rather than in Davidson's `nu`:
 

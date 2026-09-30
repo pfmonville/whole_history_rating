@@ -14,6 +14,7 @@ from whr.player import Player
 from whr.playerday import PlayerDay
 from whr.utils import (
     DisconnectedPlayersWarning,
+    DrawModelWarning,
     HandicapBaselineWarning,
     NoDrawsWarning,
     StaleFitWarning,
@@ -31,6 +32,7 @@ __all__ = [
     "WHR",
     "Base",
     "DisconnectedPlayersWarning",
+    "DrawModelWarning",
     "Game",
     "HandicapBaselineWarning",
     "NoDrawsWarning",
