@@ -82,6 +82,11 @@ def _validated_time_step(time_step: Any) -> int | float:
 
 
 class WHR:
+    #: Version of the file written by :meth:`save_base`. 1 is the flat format
+    #: of 2.0.0 - 3.6.1, which carried no version; the list-shaped format
+    #: before it is read as legacy. Bump it whenever the saved state changes.
+    SAVE_FORMAT_VERSION = 2
+
     def __init__(self, config: dict[str, Any] | None = None):
         # Copy the caller's dict so we never mutate it and instances never
         # share the same config object.
@@ -114,9 +119,9 @@ class WHR:
         self._components: list[frozenset[str]] | None = None
         self._adv_layout: tuple[Any, ...] | None = None
         self._component_of: dict[str, int] = {}
-        self.nu = self._resolve_pinned_draw()
         self.games: list[Game] = []
         self.players: dict[str, Player] = {}
+        self.nu = self._resolve_pinned_draw()
         self.handicap_gamma: dict[Any, float] = {}
         self.komi_gamma: dict[Any, float] = {}
         self._pinned_handicap_keys: set[Any] = set()
@@ -661,7 +666,9 @@ class WHR:
         if self.config["uncased"]:
             name = name.lower()
         if self.players.get(name, None) is None:
-            self.players[name] = Player(name, self.config)
+            player = Player(name, self.config)
+            player.draw_tendency = self.nu
+            self.players[name] = player
         return self.players[name]
 
     def _existing_player(self, name: str) -> Player | None:
@@ -1327,6 +1334,22 @@ class WHR:
     def draw_tendency(self) -> float:
         return self.nu
 
+    @property
+    def nu(self) -> float:
+        """The global draw tendency (Davidson's nu); 0 means no draw model."""
+        return self._nu
+
+    @nu.setter
+    def nu(self, value: float) -> None:
+        # Every player computes its likelihood, gradient and covariance with
+        # its own copy of nu. Pushing each new value to all of them here keeps
+        # those copies from ever lagging: they used to be refreshed only at the
+        # start of an iteration, so after a fit (and after load_base) the
+        # uncertainties and diagnostics used a stale or zero nu.
+        self._nu = value
+        for player in self.players.values():
+            player.draw_tendency = value
+
     def iterate(self, count: int) -> None:
         """Performs a specified number of iterations of the algorithm.
 
@@ -1921,7 +1944,6 @@ class WHR:
     def _run_one_iteration(self) -> None:
         """Runs one iteration of the WHR algorithm."""
         for player in self.players.values():
-            player.draw_tendency = self.nu
             player.run_one_newton_iteration()
         self._newton_handicap_komi()
         self._newton_draw()
@@ -2079,6 +2101,7 @@ class WHR:
                     "nu": self.nu,
                     "ever_fitted": self._ever_fitted,
                     "games_since_fit": self._games_since_fit,
+                    "format_version": self.SAVE_FORMAT_VERSION,
                 },
                 f,
             )
@@ -2092,6 +2115,10 @@ class WHR:
 
         Returns:
             WHR: The loaded base.
+
+        Raises:
+            ValueError: If the file was written by a newer version of the
+                package in a save format this version cannot read in full.
         """
         with open(path, "rb") as f:
             data = pickle.load(f)
@@ -2125,7 +2152,19 @@ class WHR:
                 game.handicap_gamma = result.handicap_gamma
                 game.komi_gamma = result.komi_gamma
                 result._ensure_advantage_keys(game.handicap, game.extras.get("komi"))
+            # Players pickled before draws existed have no draw_tendency at
+            # all; give every player the instance's nu.
+            result.nu = result.nu
             return result
+        version = data.get("format_version", 1)
+        if version > WHR.SAVE_FORMAT_VERSION:
+            raise ValueError(
+                f"{path} was saved in format {version} by a newer version of "
+                "whole-history-rating; this version reads formats up to "
+                f"{WHR.SAVE_FORMAT_VERSION}. Loading it anyway would silently "
+                "drop the state that newer format added, so upgrade the package "
+                "to load it."
+            )
         result = WHR(data["config"])
         for black, white, winner, time_step, handicap, extras in data["games"]:
             # extras carries komi (when set); pass it by keyword since `komi`

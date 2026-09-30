@@ -442,6 +442,24 @@ def test_load_base_legacy_format_backfills_new_attributes(tmp_path):
             assert math.isfinite(elo)
 
 
+def test_load_base_legacy_format_predating_draws_can_score_the_fit(tmp_path):
+    # Legacy pickles predate draws: their Player objects have no draw_tendency,
+    # which the likelihood and gradient read before any iteration sets it.
+    whr = whole_history_rating.WHR()
+    whr.load_games(["a b B 1", "a b W 2", "a c B 3"])
+    whr.iterate(10)
+    for player in whr.players.values():
+        del player.draw_tendency
+
+    path = str(tmp_path / "legacy_predates_draws.pkl")
+    with open(path, "wb") as f:
+        pickle.dump([whr.players, whr.games, whr.config], f)
+
+    loaded = whole_history_rating.WHR.load_base(path)
+    assert math.isfinite(loaded.log_likelihood())  # must not raise AttributeError
+    assert math.isfinite(loaded.max_gradient_norm())
+
+
 # re-baselined for phase-1 (anchor 0.5, damping 1.0): precision is now a
 # gradient-norm tolerance, so the old fixed iteration-count assertions are
 # replaced with property assertions that hold regardless of the exact values.

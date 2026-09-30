@@ -640,10 +640,16 @@ whr.save_base('path_to_save.whr')
 whr2 = WHR.load_base('path_to_save.whr')
 ```
 
-The state is serialized as a flat description (config, games and computed
-ratings) rather than the raw object graph, so saving and loading works for a
-history of any size and the computed ratings are preserved on reload. Files
-written by older versions are still readable.
+The state is serialized as a flat description (config, games, computed
+ratings, estimated advantages and draw tendency, and whether the fit is up to
+date) rather than the raw object graph, so saving and loading works for a
+history of any size. A reloaded base behaves exactly like the one that was
+saved: same ratings, predictions and diagnostics, and a `StaleFitWarning` if it
+was saved with games added since its last fit.
+
+Files written by older versions are still readable. A file written by a
+*newer* version, in a save format this version does not know, is refused with
+a `ValueError` rather than loaded with part of its state silently dropped.
 
 ## Optional Configuration
 

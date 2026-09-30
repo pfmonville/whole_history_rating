@@ -91,7 +91,10 @@ def test_equivalence_draws_tendency_wdl_and_log_likelihood():
         0.49914605655153316,
         0.02301113729297449,
     )
-    expected_log_likelihood = -5.341776751124541
+    # Re-frozen in 3.6.2: the old -5.341776751124541 was read while every
+    # player still held nu from before the fit's last draw step. This is the
+    # old code's value once the players are given the fitted nu.
+    expected_log_likelihood = -5.341774414258928
 
     assert w.draw_tendency == pytest.approx(expected_draw_tendency, rel=1e-9, abs=1e-9)
     got_wdl = w.win_draw_loss_probabilities("p", "q")
