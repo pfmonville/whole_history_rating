@@ -326,11 +326,14 @@ ratings = whr.get_ordered_ratings(current=False, compact=False)  # Set `compact=
 
 ### Inspecting the Fit
 
-`log_likelihood()` returns the model's total log-posterior (game likelihood + the first-day prior + the Gaussian Wiener prior over time, and the Davidson draw term when draws are present). It **increases** as `iterate()` converges, so it is a handy convergence/diagnostic signal:
+`log_likelihood()` returns the model's joint log-posterior: each game's log-probability once (with the Davidson draw term when draws are present), plus the first-day prior and the Gaussian Wiener prior over time. It is the quantity the fit maximizes, so it **increases** as `iterate()` converges and is a handy convergence/diagnostic signal:
 
 ```python
-whr.log_likelihood()  # -> 0.33010610615918456  (three-game example, after iterate(50))
+whr.log_likelihood()  # -> 2.231636202997457  (three-game example, after iterate(50))
 ```
+
+Before 3.7.0 it counted every game twice (once for each player), so its values
+differ from earlier versions.
 
 Only the *direction* is meaningful: higher is a better fit. Note the value is a
 log **density**, not a log probability, so it is not bounded above by 0 and can

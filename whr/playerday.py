@@ -224,6 +224,7 @@ class PlayerDay:
         Args:
             game (G.Game): The game to add.
         """
+        self.clear_game_terms_cache()
         if game.winner == "D":
             self.drawn_games.append(game)
         elif (game.winner == "W" and game.white_player == self.player) or (

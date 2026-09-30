@@ -123,6 +123,22 @@ class Game:
             return self.black_player
         return self.white_player
 
+    def log_likelihood(self, nu: float) -> float:
+        """Log-probability of this game's recorded outcome under the model.
+
+        Bradley-Terry at ``nu == 0``, Davidson (win/draw/loss) at ``nu > 0``,
+        with handicap and komi folded in as in the fit. At ``nu == 0`` a drawn
+        game contributes 0: the fit then carries no draw term either.
+        """
+        s, o = self.effective_gammas(self.black_player)
+        if self.winner == "D":
+            if nu <= 0.0:
+                return 0.0
+            t = nu * math.sqrt(s * o)
+            return math.log(t) - math.log(s + o + t)
+        t = nu * math.sqrt(s * o) if nu > 0.0 else 0.0
+        return math.log(s if self.winner == "B" else o) - math.log(s + o + t)
+
     def prediction_score(self) -> float:
         """
         Calculates the accuracy of the prediction for the game's outcome.

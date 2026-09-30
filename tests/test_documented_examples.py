@@ -54,7 +54,8 @@ def test_readme_player_by_name_elos():
 def test_readme_inspecting_the_fit():
     whr = _running_example()
     # A log *density*: legitimately positive, which the user guide now says.
-    assert whr.log_likelihood() == pytest.approx(0.33010610615918456, rel=1e-9)
+    # 3.7.0: each game counted once (it was counted for both players before)
+    assert whr.log_likelihood() == pytest.approx(2.231636202997457, rel=1e-9)
     assert whr.log_likelihood() > 0.0
     assert whr.max_gradient_norm() == pytest.approx(9.54e-05, abs=1e-7)
 

@@ -641,17 +641,20 @@ class WHR:
         return result
 
     def log_likelihood(self) -> float:
-        """Calculates the likelihood of the current state.
+        """The joint log-posterior of the current state: what the fit maximizes.
 
-        The likelihood increases with more iterations.
+        Each game's log-probability once (Bradley-Terry, or Davidson when the
+        base has a draw tendency, with handicap and komi folded in), plus every
+        player's first-day prior and Wiener prior over time. Like Coulom's
+        ``GetLogLikelihood``. It increases as ``iterate()`` converges, and at a
+        converged fit its derivative in every fitted direction is zero.
 
         Returns:
-            float: The likelihood.
+            float: The log-posterior, up to an additive constant.
         """
-        score = 0.0
-        for p in self.players.values():
-            if len(p.days) > 0:
-                score += p.log_likelihood()
+        score = sum(p.log_prior() for p in self.players.values())
+        for game in self.games:
+            score += game.log_likelihood(self.nu)
         return score
 
     def player_by_name(self, name: str) -> Player:
@@ -750,6 +753,7 @@ class WHR:
         if player is None or not player.days:
             raise ValueError(f"No ratings available for player {name!r}")
         n = len(player.days)
+        player.refresh_game_terms()
         sigma2 = player.compute_sigma2()
         diagonal, sub_diagonal = Player.hessian(
             player.days, sigma2, player.hessian_damping

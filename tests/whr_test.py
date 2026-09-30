@@ -282,10 +282,8 @@ def test_loading_several_games_at_once(capsys, tmp_path):
     )
     assert capsys.readouterr().out == ""
     assert "nobody2" not in whr.players
-    # test getting log likelihood of base
-    assert whr.log_likelihood() == pytest.approx(
-        -1.0823205441339732, rel=1e-9, abs=1e-9
-    )
+    # test getting log likelihood of base (3.7.0: each game counted once)
+    assert whr.log_likelihood() == pytest.approx(1.101666280333054, rel=1e-9, abs=1e-9)
     # test printing ordered ratings
     whr.print_ordered_ratings()
     captured = capsys.readouterr()
