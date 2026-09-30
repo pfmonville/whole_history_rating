@@ -69,6 +69,10 @@ complete pairwise histories.
 Lower log-loss is better. All systems below are trained, tuned, and evaluated
 under the same temporal protocol.
 
+These scores measure predictions on held-out matches. They are distinct from
+`log_likelihood()`, which reports the training log-posterior and changed in
+3.7.0 when duplicate game contributions were removed.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/bench_comparison_dark.png">
   <img alt="Predictive log-loss of WHR, KickScore and TrueSkill Through Time on NBA, ATP tennis and European football data." src="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/bench_comparison_light.png">

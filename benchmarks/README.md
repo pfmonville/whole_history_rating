@@ -122,7 +122,9 @@ It is not run on every commit because the full sweeps can take hours.
   analogue of FiveThirtyEight's per-game-updated Elo. `versus.py` is frozen-only,
   for comparability.
 - **Metrics.** Predictive log-loss (KickScore's primary metric) and accuracy
-  (TrueSkill Through Time's), plus a calibration curve.
+  (TrueSkill Through Time's), plus a calibration curve. These scores are
+  calculated from held-out predictions, not `WHR.log_likelihood()`. The 3.7.0
+  correction to that training diagnostic does not rescale benchmark log-loss.
 
 ## Honest caveats
 

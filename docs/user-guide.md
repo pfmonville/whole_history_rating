@@ -140,7 +140,7 @@ whr.create_game("shusaku", "shusai", "W", 3, 0)
 ```
 
 - `handicap` is a **category key**, not a fixed elo bonus — its advantage is learned from the data (or pinned). See "Handicap and komi" below; use `0` for an even game. (This changed in 3.0.0 — in 2.x it was a raw elo constant.)
-- The day is a **day index counted from an origin you choose**, and it defines a player's *playing days*: two games with the same value share one rated day. Fractional values are allowed (the time prior uses `|Δdays| · w2`), and an integral float is narrowed to `int`, so `1.0` and `1` are the same day rather than two. Non-numbers, booleans and NaN/infinity are rejected at this call. Keep the span compact — see the note under "Removing Rating Drift" about epoch timestamps.
+- The day is a **day index counted from an origin you choose**, and it defines a player's *playing days*: two games with the same value share one rated day. Fractional values are allowed (the time prior uses `|Δdays| · w2`). Floats are rounded to 12 significant digits, so `0.1 + 0.2` and `0.3` share one day, and integral floats are narrowed to `int`. Date-based reads apply the same normalization. Non-numbers, booleans and NaN/infinity are rejected at this call. Keep the span compact — see the note under "Removing Rating Drift" about epoch timestamps.
 - `"D"` records a draw — see "Draws".
 - `komi` is **opt-in** (as of 3.1.0): the default `None` models no komi at all. Pass a value to model a white-side (komi) advantage for that game, whose category is learned like the handicap:
 
@@ -157,6 +157,8 @@ other.create_game("alice", "bob", "B", 1, 0, komi=7.5)
 > from exactly the three games just created, followed by `whr.iterate(50)` — so
 > you can paste those four lines and reproduce them. Ratings changed in 3.0.0 and
 > again in 3.1.0, so numbers copied from older docs will not match.
+> The `log_likelihood()` diagnostic also changed in 3.7.0; its new value is
+> explained in [Inspecting the Fit](#inspecting-the-fit).
 
 
 ### Refining Ratings Towards Stability
@@ -338,10 +340,30 @@ whr.log_likelihood()  # -> 2.231636202997457  (three-game example, after iterate
 Before 3.7.0 it counted every game twice (once for each player), so its values
 differ from earlier versions.
 
+For this example, the contributions are:
+
+| Contribution | Value (nats) |
+|---|---:|
+| Log-probabilities of the three recorded results | −1.901530 |
+| First-day anchor priors | −1.406956 |
+| Gaussian Wiener priors between consecutive days | +5.540122 |
+| **Joint log-posterior** | **+2.231636** |
+
+The priors sum to `4.133166`. The old calculation was
+`2 × (−1.901530) + 4.133166 = 0.330106`; the corrected calculation is
+`−1.901530 + 4.133166 = 2.231636`. The increase of `1.901530` removes a
+duplicate penalty. It does not mean that ratings or predictions improved:
+this correction changes the reported objective, not the fitting updates.
+
 Only the *direction* is meaningful: higher is a better fit. Note the value is a
 log **density**, not a log probability, so it is not bounded above by 0 and can
 legitimately be positive (as here) — compare it across iterations of the same
-base, never across different bases.
+base with the same configuration, never across different bases or across
+the 3.7.0 change. A Gaussian density can exceed 1 when concentrated in a
+narrow range of natural-rating units, making its logarithm positive. The
+posterior's overall normalizing constant is omitted, so neither this value
+nor its exponential is a confidence percentage. The predictive log-loss in
+the benchmark tables is a different quantity, calculated on held-out games.
 
 `max_gradient_norm()` returns the largest gradient infinity-norm across all player-days (plus the estimated handicap/komi and draw-tendency parameters) — the exact quantity `auto_iterate(precision=...)` tests. It is the most direct convergence gauge; near 0 means converged:
 
@@ -352,13 +374,17 @@ whr.max_gradient_norm()  # -> 9.54e-05  (well under the default 1e-3 precision)
 For the win probability of a *specific recorded game* (rather than a hypothetical match-up), use the `Game` object returned by `create_game`:
 
 ```python
-game = whr.create_game("shusaku", "shusai", "B", 1, 0)
-whr.iterate(50)
+game_model = WHR()  # standalone illustration; keep the three-game example intact
+game = game_model.create_game("shusaku", "shusai", "B", 1, 0)
+game_model.iterate(50)
 game.white_win_probability()  # and game.black_win_probability()
-game.prediction_score()       # 1.0 if the model's favourite actually won, 0.0 if not, 0.5 on a coin-flip
+game.prediction_score()       # 1.0 if the favourite won, 0.0 if not, 0.5 for a draw or an even prediction
 ```
 
-In normal use ratings always converge to finite values. Only a genuinely non-finite result (e.g. a pathological input) raises `whr.utils.UnstableRatingException`; it is exported for `except` handling but should not occur in practice.
+`UnstableRatingException`, exported from `whr`, reports a non-finite rating or
+a drift prior too tight to solve numerically, for example with an extremely
+small `w2` or nearly identical days. Its message identifies the affected
+player and the setting to adjust.
 
 ### Predicting Match Outcomes
 
@@ -398,9 +424,11 @@ gap between the two players' latest ratings (-51.69 and +52.05):
 ### Uncertainty
 
 Beyond the per-day `uncertainty` from `ratings_for_player`, three methods turn
-that raw variance into comparisons and predictions. All of them report **elo**
-and require `iterate()`/`auto_iterate()` to have run first (an unrated player
-raises `ValueError`).
+that raw variance into comparisons and predictions. Rating comparisons report
+**elo**; predictions report probabilities. Fit first for meaningful results.
+Before uncertainties are computed, `rating_difference` raises `ValueError`,
+while `rating_covariance` and `rating_change` return values at the starting
+state with an `UncomputedUncertaintyWarning`.
 
 **Comparing two players.** A player's own elo doesn't by itself say how
 confidently they're ahead of a rival — the *difference* between the two is
@@ -494,6 +522,10 @@ finer integral at some extra compute cost.
 Pass `"D"` as the `winner` to `create_game`/`load_games` to record a draw:
 
 ```python
+# Start from the guide's three-game example:
+whr = WHR()
+whr.load_games(["shusaku shusai B 1", "shusaku shusai W 2", "shusaku shusai W 3"])
+whr.iterate(50)
 whr.create_game("shusaku", "shusai", "D", 4, 0)
 whr.load_games(["shusaku shusai D 5"])
 ```
@@ -604,17 +636,16 @@ overall.
 Treat `draw_rate` as a sensible prior to run on until you have real draws to fit,
 not as a substitute for fitting.
 
-Two further caveats:
+With `nu > 0`, both drawn and decisive games contribute to the player and
+handicap/komi updates under the Davidson model. With `nu == 0`, drawn games
+are excluded from those updates and from `log_likelihood()`, consistent with
+the warning above. To model observed draws, pin a positive value or leave
+both settings unset and fit `nu` from a mix of drawn and decisive results.
 
-- **When draws are present, the handicap/komi advantages (see "Handicap
-  and komi" below) are estimated from decisive games only** — draws are
-  skipped by that accumulator rather than mis-counted as a win for either
-  side.
-- **Pinning to `0.0` disables draw modelling even if draws are present in the
-  data** — every draw is then treated as a plain Bradley-Terry
-  half-win/half-loss instead of contributing to a learned draw tendency. To
-  actually model draws, pin a positive value or leave both keys unset so `nu`
-  is estimated.
+`Game.white_win_probability()` and `Game.black_win_probability()` give
+probabilities **conditional on a decisive result**, so they sum to 1 even
+when the model allows draws. Use `win_draw_loss_probabilities()` for all
+three outcomes.
 
 ### Enhanced Batch Loading of Games
 
@@ -678,6 +709,12 @@ an interrupt) leaves the previous file intact.
 Files written by older versions are still readable. A file written by a
 *newer* version, in a save format this version does not know, is refused with
 a `ValueError` rather than loaded with part of its state silently dropped.
+
+Fractional dates in older flat-format saves are rounded the same way as new
+game dates. Saved ratings and uncertainties are preserved unless two distinct
+days of a player become the same rounded day. In that case every game is kept,
+but player ratings and uncertainties are reset and a `UserWarning` asks you
+to call `iterate()` or `auto_iterate()` to refit before using the results.
 
 ## Optional Configuration
 
@@ -750,7 +787,11 @@ corrections = whr.remove_drift()  # optional, after convergence; call last
 
 This step is opt-in: it does not run automatically and does not change what `iterate()`/`auto_iterate()` compute. It mutates the stored ratings in place, shifting every player-day's rating by that day's negated drift, and returns the applied corrections as `{day: correction_elo}`. Because the shift is uniform within a day, the relative rating (and thus win probability, e.g. `Game.white_win_probability()`) of two players active on the *same* day is unchanged; `probability_future_match` is only invariant when the two players' last recorded days happen to coincide, and generally is not, since it compares each player's own last day, which typically receive different corrections. Uncertainties (from `ratings_for_player`) are not recomputed by this step; this is only approximate, since the first-day anchor curvature is not exactly invariant under the shift, but the effect is output-only and has no downstream effect on iteration.
 
-`time_step` must be a compact day index counted from some origin (e.g. a day number), not an epoch timestamp: `remove_drift()`'s cost scales with the CALENDAR SPAN of day values (`max_day - min_day`), not with the number of games, so an epoch timestamp will silently hang or exhaust memory.
+Use a compact day index for `time_step`: `remove_drift()`'s cost scales with
+the span `max_day - min_day`, not the number of games. A span above the
+library's limit raises `ValueError` before allocating the smoothing arrays.
+Convert epoch seconds to days or another suitable unit and adjust `w2` to
+match. Fractional days are floored into integer bins for this smoothing step.
 
 ### Handicap and komi
 
@@ -759,9 +800,9 @@ Every game carries a `handicap` key (the `handicap` argument to `create_game`/`l
 The `handicap` key `0` (no handicap) is a pinned no-advantage baseline (gamma `1.0`, i.e. `0` elo) by default and is never moved by estimation — this resolves an identifiability confound between the black/white baseline and the komi advantage. Set `estimate_handicap_zero=True` if you want it estimated instead.
 
 > **Advantage keys are dictionary keys.** `handicap` and `komi` values are used
-> as-is, so `komi=6.5` and `komi="6.5"` are **two different categories** and each
-> gets its own estimated advantage — a data pipeline mixing string and numeric
-> komi silently fits the same real komi twice. Conversely `0`, `0.0` and `False`
+> as-is, so `komi=6.5` and `komi="6.5"` would be **two different categories**.
+> Mixing such numeric and string lookalikes raises `ValueError`, including
+> when they appear in the same `load_games` batch. Conversely `0`, `0.0` and `False`
 > all collapse to the one key `0` (Python dict semantics), which is what you want
 > for "no handicap". Normalise the type before passing it. Note too that
 > `extras={"komi": …}` is matched by exact name: a misspelled key is kept in
