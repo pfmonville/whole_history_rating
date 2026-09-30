@@ -1,0 +1,1826 @@
+{
+  "schema_version": 1,
+  "release": "3.7.1",
+  "generated_at": "2026-09-30T19:43:21.995757+00:00",
+  "source_commit": "e8ff4f1756d3d43a50e5aa4758098cb8bd22af26",
+  "baseline_commit": "d9944001ca219cc38b9e7de37921a1d46a58fb86",
+  "environment": {
+    "python": "3.13.13 (main, Apr  7 2026, 20:37:34) [Clang 22.1.1 ]",
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "packages": {
+      "mkdocs": "1.6.1",
+      "mergedeep": "1.3.4",
+      "kiwisolver": "1.5.1",
+      "fonttools": "4.66.1",
+      "iniconfig": "2.3.0",
+      "click": "8.4.2",
+      "trueskillthroughtime": "1.1.0",
+      "pytest-cov": "7.1.0",
+      "mypy": "2.3.0",
+      "ghp-import": "2.1.0",
+      "whole-history-rating": "3.7.1",
+      "kickscore": "0.2.0",
+      "contourpy": "1.4.0",
+      "Pygments": "2.20.0",
+      "mkdocs-get-deps": "0.2.2",
+      "python-dateutil": "2.9.0.post0",
+      "PyYAML": "6.0.3",
+      "matplotlib": "3.11.2",
+      "llvmlite": "0.50.0",
+      "coverage": "7.15.2",
+      "ruff": "0.15.22",
+      "cycler": "0.12.1",
+      "Jinja2": "3.1.6",
+      "pyyaml_env_tag": "1.1",
+      "pytest": "9.0.3",
+      "MarkupSafe": "3.0.3",
+      "numba": "0.68.0",
+      "pandas": "3.0.6",
+      "pluggy": "1.6.0",
+      "pathspec": "1.1.1",
+      "packaging": "26.0",
+      "typing_extensions": "4.16.0",
+      "numpy": "2.4.4",
+      "platformdirs": "4.11.0",
+      "watchdog": "6.0.0",
+      "ast_serialize": "0.6.0",
+      "pillow": "12.3.0",
+      "pyparsing": "3.3.3",
+      "Markdown": "3.10.2",
+      "mypy_extensions": "1.1.0",
+      "six": "1.17.0",
+      "scipy": "1.18.1",
+      "librt": "0.13.0"
+    },
+    "baseline_tag": "v3.7.0",
+    "source_reference": "codex/fix-3.7.0-regressions",
+    "hash_seed": "0",
+    "blas_threads": 1
+  },
+  "execution": {
+    "hash_seed": 0,
+    "thread_environment": {
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "VECLIB_MAXIMUM_THREADS": "1",
+      "NUMBA_NUM_THREADS": "1"
+    },
+    "benchmark_lanes": 4,
+    "comparison_lanes": 2,
+    "timings_are_comparable_speed_benchmark": false,
+    "inputs": "Existing cached input bytes, identified by SHA-256 in each result; no dataset refresh.",
+    "protocol": "Three full versus grids, three WHR deep dives, six regenerated figures. Original fitting settings unchanged.",
+    "convergence_scope": "The audit covers auto_iterate calls. NBA online updates retain the protocol of six iterate sweeps per time bin, without claiming per-bin convergence. Competitor iteration budgets are unchanged.",
+    "historical_results_caveat": "Previous committed artifacts predate 3.7.0 and lack runtime versions and data hashes. Release regression claims use the controlled 3.7.0 comparison."
+  },
+  "jobs": {
+    "versus_nba": {
+      "state": "completed",
+      "started_at": "2026-09-30T18:47:24.991137+00:00",
+      "elapsed_seconds": 1218.918524980545,
+      "whr_fit_count": 5,
+      "fits": [
+        {
+          "w2": 100.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 200,
+          "converged": true,
+          "options": {
+            "time_limit": 180,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 19.050569208993693,
+          "gradient": 0.0007074943661962152,
+          "log_posterior": 316.04053669587694,
+          "nu": 0.0
+        },
+        {
+          "w2": 300.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 200,
+          "converged": true,
+          "options": {
+            "time_limit": 180,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 19.87074849999044,
+          "gradient": 0.0009367194587230898,
+          "log_posterior": -6200.90199402145,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 250,
+          "converged": true,
+          "options": {
+            "time_limit": 180,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 24.90759104199242,
+          "gradient": 0.0008990931920953571,
+          "log_posterior": -13351.859588440302,
+          "nu": 0.0
+        },
+        {
+          "w2": 3000.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 300,
+          "converged": true,
+          "options": {
+            "time_limit": 180,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 30.235638833008124,
+          "gradient": 0.0009745589129457333,
+          "log_posterior": -19783.983574839975,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 41279,
+          "players": 37,
+          "iterations": 250,
+          "converged": true,
+          "options": {
+            "time_limit": 180,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 28.652389250011765,
+          "gradient": 0.0008989578408620247,
+          "log_posterior": -13819.503212137084,
+          "nu": 0.0
+        }
+      ]
+    },
+    "versus_tennis": {
+      "state": "completed",
+      "started_at": "2026-09-30T18:47:24.312664+00:00",
+      "elapsed_seconds": 3280.377645969391,
+      "whr_fit_count": 6,
+      "fits": [
+        {
+          "w2": 0.3,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 700,
+          "converged": true,
+          "options": {
+            "time_limit": 400,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 140.81780633299786,
+          "gradient": 0.0009756964998208772,
+          "log_posterior": 116799.4831754204,
+          "nu": 0.0
+        },
+        {
+          "w2": 1.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 700,
+          "converged": true,
+          "options": {
+            "time_limit": 400,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 148.59909004200017,
+          "gradient": 0.0009890737257616244,
+          "log_posterior": 91632.21779620936,
+          "nu": 0.0
+        },
+        {
+          "w2": 3.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 750,
+          "converged": true,
+          "options": {
+            "time_limit": 400,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 160.95825429201068,
+          "gradient": 0.0008342541131129977,
+          "log_posterior": 68786.59428943315,
+          "nu": 0.0
+        },
+        {
+          "w2": 10.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 750,
+          "converged": true,
+          "options": {
+            "time_limit": 400,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 153.58469474999583,
+          "gradient": 0.0009066217913309416,
+          "log_posterior": 43897.46800192002,
+          "nu": 0.0
+        },
+        {
+          "w2": 30.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 800,
+          "converged": true,
+          "options": {
+            "time_limit": 400,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 167.14655695899273,
+          "gradient": 0.0009212081873664069,
+          "log_posterior": 21375.916634779638,
+          "nu": 0.0
+        },
+        {
+          "w2": 3.0,
+          "games": 44405,
+          "players": 1842,
+          "iterations": 750,
+          "converged": true,
+          "options": {
+            "time_limit": 400,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 159.11006887500116,
+          "gradient": 0.0008841088711268874,
+          "log_posterior": 73764.03356251917,
+          "nu": 0.0
+        }
+      ]
+    },
+    "versus_football": {
+      "state": "completed",
+      "started_at": "2026-09-30T18:47:26.163442+00:00",
+      "elapsed_seconds": 896.2183051109314,
+      "whr_fit_count": 8,
+      "fits": [
+        {
+          "w2": 1.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 300,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 55.81476875000226,
+          "gradient": 0.0004107269279509662,
+          "log_posterior": 80525.36814221133,
+          "nu": 0.786012750879478
+        },
+        {
+          "w2": 3.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 300,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 56.91349112500029,
+          "gradient": 0.0004075345144489706,
+          "log_posterior": 68211.06278571946,
+          "nu": 0.7861439546481845
+        },
+        {
+          "w2": 10.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 300,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 58.61458812499768,
+          "gradient": 0.0004312043114422792,
+          "log_posterior": 54734.75694443429,
+          "nu": 0.7870332973192496
+        },
+        {
+          "w2": 30.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 300,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 59.27739774998918,
+          "gradient": 0.0005709915938827415,
+          "log_posterior": 42467.04438569472,
+          "nu": 0.7899686735240568
+        },
+        {
+          "w2": 100.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 150,
+          "converged": true,
+          "options": {
+            "time_limit": 300,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 88.59801699999662,
+          "gradient": 0.0005397309660377658,
+          "log_posterior": 29063.307582841007,
+          "nu": 0.7968611880990905
+        },
+        {
+          "w2": 300.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 150,
+          "converged": true,
+          "options": {
+            "time_limit": 300,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 89.44717216599383,
+          "gradient": 0.0009384251186819181,
+          "log_posterior": 16879.252165783964,
+          "nu": 0.8068154414961324
+        },
+        {
+          "w2": 1000.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 150,
+          "converged": true,
+          "options": {
+            "time_limit": 300,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 90.46350995799003,
+          "gradient": 0.0009156377101563473,
+          "log_posterior": 3608.1728538181787,
+          "nu": 0.8229879404016661
+        },
+        {
+          "w2": 30.0,
+          "games": 14507,
+          "players": 188,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 300,
+            "precision": 0.001
+          },
+          "elapsed_seconds": 66.37375691600027,
+          "gradient": 0.0009935302326384843,
+          "log_posterior": 48620.04084241274,
+          "nu": 0.7929445798489151
+        }
+      ]
+    },
+    "nba": {
+      "state": "completed",
+      "started_at": "2026-09-30T18:52:38.011580+00:00",
+      "elapsed_seconds": 88.58038282394409,
+      "whr_fit_count": 8,
+      "fits": [
+        {
+          "w2": 100.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.215787000008277,
+          "gradient": 0.0035646009859418015,
+          "log_posterior": 315.86596151393576,
+          "nu": 0.0
+        },
+        {
+          "w2": 300.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.2254880410037,
+          "gradient": 0.004061727937712978,
+          "log_posterior": -6201.068846875525,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.198012208013097,
+          "gradient": 0.0033456477765057002,
+          "log_posterior": -13352.041853707913,
+          "nu": 0.0
+        },
+        {
+          "w2": 3000.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.18642270800774,
+          "gradient": 0.0027483106139212232,
+          "log_posterior": -19784.184661385676,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 41279,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.06254991699825,
+          "gradient": 0.0033443972934232846,
+          "log_posterior": -13819.685053434343,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 41279,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.137996083998587,
+          "gradient": 0.0032910277488604756,
+          "log_posterior": -15096.570502253966,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 41279,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 4.787019291994511,
+          "gradient": 0.0033443972934232846,
+          "log_posterior": -13819.685053434343,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 69377,
+          "players": 102,
+          "iterations": 150,
+          "converged": true,
+          "options": {
+            "time_limit": 120,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 28.4635631669953,
+          "gradient": 0.0039303077761951855,
+          "log_posterior": -26125.83195449883,
+          "nu": 0.0
+        }
+      ]
+    },
+    "tennis": {
+      "state": "completed",
+      "started_at": "2026-09-30T18:54:07.135679+00:00",
+      "elapsed_seconds": 466.56277990341187,
+      "whr_fit_count": 6,
+      "fits": [
+        {
+          "w2": 1.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 76.87590545800049,
+          "gradient": 0.004115666023960518,
+          "log_posterior": 91618.05226077819,
+          "nu": 0.0
+        },
+        {
+          "w2": 3.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 72.17647562500497,
+          "gradient": 0.004195111974195864,
+          "log_posterior": 68771.49190530284,
+          "nu": 0.0
+        },
+        {
+          "w2": 10.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 68.46174641700054,
+          "gradient": 0.004388601602676179,
+          "log_posterior": 43880.29323231422,
+          "nu": 0.0
+        },
+        {
+          "w2": 30.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 71.64447866700357,
+          "gradient": 0.004817997466806556,
+          "log_posterior": 21353.16715914243,
+          "nu": 0.0
+        },
+        {
+          "w2": 3.0,
+          "games": 44405,
+          "players": 1842,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 79.78096512499906,
+          "gradient": 0.0043049337658152,
+          "log_posterior": 73746.64806185938,
+          "nu": 0.0
+        },
+        {
+          "w2": 3.0,
+          "games": 48335,
+          "players": 1948,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 87.59120379200613,
+          "gradient": 0.00443659541217345,
+          "log_posterior": 80428.35483911888,
+          "nu": 0.0
+        }
+      ]
+    },
+    "football": {
+      "state": "completed",
+      "started_at": "2026-09-30T18:47:27.395087+00:00",
+      "elapsed_seconds": 310.26685976982117,
+      "whr_fit_count": 6,
+      "fits": [
+        {
+          "w2": 30.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 55.87955108299502,
+          "gradient": 0.0005709915938827415,
+          "log_posterior": 42467.04438569472,
+          "nu": 0.7899686735240568
+        },
+        {
+          "w2": 100.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 56.84210987499682,
+          "gradient": 0.0011478389319616866,
+          "log_posterior": 29063.225580951377,
+          "nu": 0.7968260294216002
+        },
+        {
+          "w2": 300.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 58.07709587500722,
+          "gradient": 0.0015842537290717829,
+          "log_posterior": 16879.130042950306,
+          "nu": 0.8067744436082676
+        },
+        {
+          "w2": 1000.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 60.71326216700254,
+          "gradient": 0.0013099715738122963,
+          "log_posterior": 3608.0701785613146,
+          "nu": 0.8229520801180047
+        },
+        {
+          "w2": 30.0,
+          "games": 14507,
+          "players": 188,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 150,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 66.94776291699964,
+          "gradient": 0.0009935302326384843,
+          "log_posterior": 48620.04084241274,
+          "nu": 0.7929445798489151
+        },
+        {
+          "w2": 30.0,
+          "games": 10863,
+          "players": 188,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 150,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 6.706644124991726,
+          "gradient": 0.0009650167871837478,
+          "log_posterior": 40351.466432597495,
+          "nu": 0.0
+        }
+      ]
+    },
+    "baseline_nba": {
+      "state": "completed",
+      "started_at": "2026-09-30T18:58:20.478451+00:00",
+      "elapsed_seconds": 91.71127009391785,
+      "whr_fit_count": 8,
+      "fits": [
+        {
+          "w2": 100.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.246359500000835,
+          "gradient": 0.0035646009859418015,
+          "log_posterior": 315.86596151393576,
+          "nu": 0.0
+        },
+        {
+          "w2": 300.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.377116292002029,
+          "gradient": 0.004061727937712978,
+          "log_posterior": -6201.068846875525,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.261323707993142,
+          "gradient": 0.0033456477765057002,
+          "log_posterior": -13352.041853707913,
+          "nu": 0.0
+        },
+        {
+          "w2": 3000.0,
+          "games": 39967,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.183445208997,
+          "gradient": 0.0027483106139212232,
+          "log_posterior": -19784.184661385676,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 41279,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.580429667010321,
+          "gradient": 0.0033443972934232846,
+          "log_posterior": -13819.685053434343,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 41279,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 5.386998249989119,
+          "gradient": 0.0032910277488604756,
+          "log_posterior": -15096.570502253966,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 41279,
+          "players": 37,
+          "iterations": 50,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 6.348360208008671,
+          "gradient": 0.0033443972934232846,
+          "log_posterior": -13819.685053434343,
+          "nu": 0.0
+        },
+        {
+          "w2": 1000.0,
+          "games": 69377,
+          "players": 102,
+          "iterations": 150,
+          "converged": true,
+          "options": {
+            "time_limit": 120,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 27.946444166998845,
+          "gradient": 0.0039303077761951855,
+          "log_posterior": -26125.83195449883,
+          "nu": 0.0
+        }
+      ]
+    },
+    "baseline_tennis": {
+      "state": "completed",
+      "started_at": "2026-09-30T19:04:52.215918+00:00",
+      "elapsed_seconds": 363.8624339103699,
+      "whr_fit_count": 6,
+      "fits": [
+        {
+          "w2": 1.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 56.8723060409975,
+          "gradient": 0.004115666023960518,
+          "log_posterior": 91618.05226077819,
+          "nu": 0.0
+        },
+        {
+          "w2": 3.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 55.33838754199678,
+          "gradient": 0.004195111974195864,
+          "log_posterior": 68771.49190530284,
+          "nu": 0.0
+        },
+        {
+          "w2": 10.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 53.898141833997215,
+          "gradient": 0.004388601602676179,
+          "log_posterior": 43880.29323231422,
+          "nu": 0.0
+        },
+        {
+          "w2": 30.0,
+          "games": 41446,
+          "players": 1748,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 51.16258333300357,
+          "gradient": 0.004817997466806556,
+          "log_posterior": 21353.16715914243,
+          "nu": 0.0
+        },
+        {
+          "w2": 3.0,
+          "games": 44405,
+          "players": 1842,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 61.43705270899227,
+          "gradient": 0.0043049337658152,
+          "log_posterior": 73746.64806185938,
+          "nu": 0.0
+        },
+        {
+          "w2": 3.0,
+          "games": 48335,
+          "players": 1948,
+          "iterations": 350,
+          "converged": true,
+          "options": {
+            "time_limit": 240,
+            "precision": 0.005
+          },
+          "elapsed_seconds": 78.65353108399722,
+          "gradient": 0.00443659541217345,
+          "log_posterior": 80428.35483911888,
+          "nu": 0.0
+        }
+      ]
+    },
+    "baseline_football": {
+      "state": "completed",
+      "started_at": "2026-09-30T18:59:52.693823+00:00",
+      "elapsed_seconds": 299.16938614845276,
+      "whr_fit_count": 6,
+      "fits": [
+        {
+          "w2": 30.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 57.41394158299954,
+          "gradient": 0.0005709915938827415,
+          "log_posterior": 42467.04438569472,
+          "nu": 0.7899686735240568
+        },
+        {
+          "w2": 100.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 62.090848375009955,
+          "gradient": 0.0011478389319616866,
+          "log_posterior": 29063.225580951377,
+          "nu": 0.7968260294216002
+        },
+        {
+          "w2": 300.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 53.93435995800246,
+          "gradient": 0.0015842537290717829,
+          "log_posterior": 16879.130042950306,
+          "nu": 0.8067744436082676
+        },
+        {
+          "w2": 1000.0,
+          "games": 12681,
+          "players": 179,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 90,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 53.124133707999135,
+          "gradient": 0.0013099715738122963,
+          "log_posterior": 3608.0701785613146,
+          "nu": 0.8229520801180047
+        },
+        {
+          "w2": 30.0,
+          "games": 14507,
+          "players": 188,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 150,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 63.018019165989244,
+          "gradient": 0.0009935302326384843,
+          "log_posterior": 48620.04084241274,
+          "nu": 0.7929445798489151
+        },
+        {
+          "w2": 30.0,
+          "games": 10863,
+          "players": 188,
+          "iterations": 100,
+          "converged": true,
+          "options": {
+            "time_limit": 150,
+            "precision": 0.003
+          },
+          "elapsed_seconds": 5.242519417006406,
+          "gradient": 0.0009650167871837478,
+          "log_posterior": 40351.466432597495,
+          "nu": 0.0
+        }
+      ]
+    }
+  },
+  "controlled_comparison": {
+    "nba": {
+      "params": {
+        "w2": 1000.0,
+        "predict_uncertainty": true
+      },
+      "metrics": {
+        "log_loss": 0.665980331840368,
+        "accuracy": 0.6364329268292683,
+        "n": 1312
+      },
+      "identical": {
+        "predictions": true,
+        "ratings_sha256": true,
+        "metrics": true,
+        "advantages": true,
+        "nu": true,
+        "log_posterior": true
+      },
+      "predictions_sha256": "c9d54ab578a0d2576808e9ec11f7c084264d90f8977097af21e5265aac775587",
+      "ratings_sha256": "f50cbaa8ba9f44adc6aaae335779471615f9e15c47c0f2c9fe65ac5aad954746",
+      "advantages": {
+        "handicap": {
+          "0": 1.0,
+          "home": 1.7597847143199636
+        },
+        "komi": {}
+      },
+      "nu": 0.0,
+      "log_posterior": -13819.503212137084,
+      "fits": {
+        "3.7.0": [
+          {
+            "iterations": 250,
+            "converged": true,
+            "elapsed_seconds": 27.964275042002555,
+            "gradient": 0.0008989578408620247
+          }
+        ],
+        "3.7.1": [
+          {
+            "iterations": 250,
+            "converged": true,
+            "elapsed_seconds": 31.512505124992458,
+            "gradient": 0.0008989578408620247
+          }
+        ]
+      }
+    },
+    "tennis": {
+      "params": {
+        "w2": 3.0,
+        "predict_uncertainty": true
+      },
+      "metrics": {
+        "log_loss": 0.6135333003257805,
+        "accuracy": 0.6708096590909091,
+        "n": 2816
+      },
+      "identical": {
+        "predictions": true,
+        "ratings_sha256": true,
+        "metrics": true,
+        "advantages": true,
+        "nu": true,
+        "log_posterior": true
+      },
+      "predictions_sha256": "a4ff032d989a1655bb943727d7364238223e78819d15c7d86d20d8ea6795f1f1",
+      "ratings_sha256": "f83eb488afdffd1c03fde25901ddd3c0fbf68fd0ef54ed9ffb474a310009271c",
+      "advantages": {
+        "handicap": {
+          "0": 1.0
+        },
+        "komi": {}
+      },
+      "nu": 0.0,
+      "log_posterior": 73764.03356251917,
+      "fits": {
+        "3.7.0": [
+          {
+            "iterations": 750,
+            "converged": true,
+            "elapsed_seconds": 175.0912060420087,
+            "gradient": 0.0008841088711268874
+          }
+        ],
+        "3.7.1": [
+          {
+            "iterations": 750,
+            "converged": true,
+            "elapsed_seconds": 164.51928366700304,
+            "gradient": 0.0008841088711268874
+          }
+        ]
+      }
+    },
+    "football": {
+      "params": {
+        "w2": 30.0,
+        "predict_uncertainty": true
+      },
+      "metrics": {
+        "log_loss": 1.0084885729671038,
+        "accuracy": 0.5142387732749178,
+        "n": 1826
+      },
+      "identical": {
+        "predictions": true,
+        "ratings_sha256": true,
+        "metrics": true,
+        "advantages": true,
+        "nu": true,
+        "log_posterior": true
+      },
+      "predictions_sha256": "8ad58cba9fc211a97aa6a8ec7b52ef56f71317c7193dccf8e99067883b8324f9",
+      "ratings_sha256": "68207471a2deb5cf9b99d35783148b3fd6a1dd9a59406dc32d7575c1b71a2d20",
+      "advantages": {
+        "handicap": {
+          "0": 1.0,
+          "home": 1.5793408884026527
+        },
+        "komi": {}
+      },
+      "nu": 0.7929445798489151,
+      "log_posterior": 48620.04084241274,
+      "fits": {
+        "3.7.0": [
+          {
+            "iterations": 100,
+            "converged": true,
+            "elapsed_seconds": 65.32154591700237,
+            "gradient": 0.0009935302326384843
+          }
+        ],
+        "3.7.1": [
+          {
+            "iterations": 100,
+            "converged": true,
+            "elapsed_seconds": 64.85320754200802,
+            "gradient": 0.0009935302326384843
+          }
+        ]
+      }
+    }
+  },
+  "controlled_deep_comparison": {
+    "nba_results": {
+      "all_non_provenance_fields_identical": true,
+      "data_sha256": "56d6287262b82cd07951a477085b53f6ea8b73cdf6cb22435852309bd768161d"
+    },
+    "nba_curves": {
+      "all_non_provenance_fields_identical": true,
+      "data_sha256": "83c5c41573442862a41ca6e730af1d75e8f060723942e4c82b9ddc0b57880d6b"
+    },
+    "tennis_results": {
+      "all_non_provenance_fields_identical": true,
+      "data_sha256": "f3e096c5a7a9be81a2748710c18e462e7396f79d859c510a521ce4d4cae394c1"
+    },
+    "tennis_curves": {
+      "all_non_provenance_fields_identical": true,
+      "data_sha256": "388d1aeb1056f874c9c5dd917e26132771e96add1b45e95126f5b140c9987fe7"
+    },
+    "football_results": {
+      "all_non_provenance_fields_identical": true,
+      "data_sha256": "bbbb40a6c328309c7d58c4112fb4ff3836ddb966cac1cbe9c8e17c0485a3bc93"
+    }
+  },
+  "historical_result_comparison": {
+    "versus_nba": {
+      "previous_source": {
+        "commit": "27a90fdc0afacf58b3274605ae831e61d89ba537",
+        "dirty": null
+      },
+      "n_test": 1312,
+      "models": {
+        "whr": {
+          "previous": {
+            "log_loss": 0.665980331840368,
+            "accuracy": 0.6364329268292683,
+            "n": 1312,
+            "params": {
+              "w2": 1000.0,
+              "predict_uncertainty": true
+            },
+            "valid_log_loss": 0.6548714976944945,
+            "grid_size": 8,
+            "on_grid_edge": {
+              "w2": false
+            },
+            "flat_axes": []
+          },
+          "current": {
+            "log_loss": 0.665980331840368,
+            "accuracy": 0.6364329268292683,
+            "n": 1312,
+            "params": {
+              "w2": 1000.0,
+              "predict_uncertainty": true
+            },
+            "valid_log_loss": 0.6548714976944945,
+            "grid_size": 8,
+            "on_grid_edge": {
+              "w2": false
+            },
+            "flat_axes": []
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "ttt": {
+          "previous": {
+            "log_loss": 0.6882392213638757,
+            "accuracy": 0.6364329268292683,
+            "n": 1312,
+            "params": {
+              "gamma": 0.1,
+              "beta": 0.5
+            },
+            "valid_log_loss": 0.6661009184585982,
+            "grid_size": 30,
+            "on_grid_edge": {
+              "gamma": false,
+              "beta": false
+            },
+            "flat_axes": []
+          },
+          "current": {
+            "log_loss": 0.6882392213638757,
+            "accuracy": 0.6364329268292683,
+            "n": 1312,
+            "params": {
+              "gamma": 0.1,
+              "beta": 0.5
+            },
+            "valid_log_loss": 0.6661009184585982,
+            "grid_size": 30,
+            "on_grid_edge": {
+              "gamma": false,
+              "beta": false
+            },
+            "flat_axes": []
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "kickscore": {
+          "previous": {
+            "log_loss": 0.6619763027790228,
+            "accuracy": 0.6394817073170732,
+            "n": 1312,
+            "params": {
+              "wiener_var": 0.01,
+              "prior_var": 0.05
+            },
+            "valid_log_loss": 0.6546941341669518,
+            "grid_size": 30,
+            "on_grid_edge": {
+              "wiener_var": false,
+              "prior_var": false
+            },
+            "flat_axes": [
+              "prior_var"
+            ]
+          },
+          "current": {
+            "log_loss": 0.6619763027790228,
+            "accuracy": 0.6394817073170732,
+            "n": 1312,
+            "params": {
+              "wiener_var": 0.01,
+              "prior_var": 0.05
+            },
+            "valid_log_loss": 0.6546941341669518,
+            "grid_size": 30,
+            "on_grid_edge": {
+              "wiener_var": false,
+              "prior_var": false
+            },
+            "flat_axes": [
+              "prior_var"
+            ]
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "fte_elo": {
+          "previous": {
+            "log_loss": 0.6191566139425054,
+            "accuracy": 0.6532012195121951,
+            "n": 1312
+          },
+          "current": {
+            "log_loss": 0.6191566139425054,
+            "accuracy": 0.6532012195121951,
+            "n": 1312
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "fte_raptor": {
+          "previous": {
+            "log_loss": 0.6152437499264416,
+            "accuracy": 0.65625,
+            "n": 1312
+          },
+          "current": {
+            "log_loss": 0.6152437499264416,
+            "accuracy": 0.65625,
+            "n": 1312
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "base_rate": {
+          "previous": {
+            "log_loss": 0.6776615591266049,
+            "accuracy": 0.5907012195121951,
+            "n": 1312
+          },
+          "current": {
+            "log_loss": 0.6776615591266049,
+            "accuracy": 0.5907012195121951,
+            "n": 1312
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        }
+      }
+    },
+    "versus_tennis": {
+      "previous_source": {
+        "commit": "27a90fdc0afacf58b3274605ae831e61d89ba537",
+        "dirty": null
+      },
+      "n_test": 2816,
+      "models": {
+        "whr": {
+          "previous": {
+            "log_loss": 0.6135333003257805,
+            "accuracy": 0.6708096590909091,
+            "n": 2816,
+            "params": {
+              "w2": 3.0,
+              "predict_uncertainty": true
+            },
+            "valid_log_loss": 0.6094009391434498,
+            "grid_size": 10,
+            "on_grid_edge": {
+              "w2": false
+            },
+            "flat_axes": []
+          },
+          "current": {
+            "log_loss": 0.6135333003257805,
+            "accuracy": 0.6708096590909091,
+            "n": 2816,
+            "params": {
+              "w2": 3.0,
+              "predict_uncertainty": true
+            },
+            "valid_log_loss": 0.6094009391434498,
+            "grid_size": 10,
+            "on_grid_edge": {
+              "w2": false
+            },
+            "flat_axes": []
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "ttt": {
+          "previous": {
+            "log_loss": 0.6042912030245834,
+            "accuracy": 0.6658380681818182,
+            "n": 2816,
+            "params": {
+              "gamma": 0.3,
+              "beta": 32.0
+            },
+            "valid_log_loss": 0.6014698780758033,
+            "grid_size": 48,
+            "on_grid_edge": {
+              "gamma": false,
+              "beta": false
+            },
+            "flat_axes": []
+          },
+          "current": {
+            "log_loss": 0.6042912030245834,
+            "accuracy": 0.6658380681818182,
+            "n": 2816,
+            "params": {
+              "gamma": 0.3,
+              "beta": 32.0
+            },
+            "valid_log_loss": 0.6014698780758033,
+            "grid_size": 48,
+            "on_grid_edge": {
+              "gamma": false,
+              "beta": false
+            },
+            "flat_axes": []
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "kickscore": {
+          "previous": {
+            "log_loss": 0.6056635202734209,
+            "accuracy": 0.6637073863636364,
+            "n": 2816,
+            "params": {
+              "wiener_var": 1e-05,
+              "prior_var": 0.125
+            },
+            "valid_log_loss": 0.6029408170095063,
+            "grid_size": 42,
+            "on_grid_edge": {
+              "wiener_var": false,
+              "prior_var": false
+            },
+            "flat_axes": []
+          },
+          "current": {
+            "log_loss": 0.6056635202734209,
+            "accuracy": 0.6637073863636364,
+            "n": 2816,
+            "params": {
+              "wiener_var": 1e-05,
+              "prior_var": 0.125
+            },
+            "valid_log_loss": 0.6029408170095063,
+            "grid_size": 42,
+            "on_grid_edge": {
+              "wiener_var": false,
+              "prior_var": false
+            },
+            "flat_axes": []
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "coin_flip": {
+          "previous": {
+            "log_loss": 0.6931471805599052,
+            "accuracy": 0.4737215909090909,
+            "n": 2816
+          },
+          "current": {
+            "log_loss": 0.6931471805599052,
+            "accuracy": 0.4737215909090909,
+            "n": 2816
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        }
+      }
+    },
+    "versus_football": {
+      "previous_source": {
+        "commit": "27a90fdc0afacf58b3274605ae831e61d89ba537",
+        "dirty": null
+      },
+      "n_test": 1826,
+      "models": {
+        "whr": {
+          "previous": {
+            "log_loss": 1.0084885729743096,
+            "accuracy": 0.5142387732749178,
+            "n": 1826,
+            "params": {
+              "w2": 30.0,
+              "predict_uncertainty": true
+            },
+            "valid_log_loss": 1.0082713028066037,
+            "grid_size": 14,
+            "on_grid_edge": {
+              "w2": false
+            },
+            "flat_axes": []
+          },
+          "current": {
+            "log_loss": 1.0084885729671038,
+            "accuracy": 0.5142387732749178,
+            "n": 1826,
+            "params": {
+              "w2": 30.0,
+              "predict_uncertainty": true
+            },
+            "valid_log_loss": 1.0082713028035581,
+            "grid_size": 14,
+            "on_grid_edge": {
+              "w2": false
+            },
+            "flat_axes": []
+          },
+          "log_loss_delta": -7.205791519027116e-12,
+          "accuracy_delta": 0.0
+        },
+        "ttt": {
+          "previous": {
+            "log_loss": 1.022831899895824,
+            "accuracy": 0.52026286966046,
+            "n": 1826,
+            "params": {
+              "gamma": 0.03,
+              "p_draw": 0.3
+            },
+            "valid_log_loss": 1.0306902949815167,
+            "grid_size": 20,
+            "on_grid_edge": {
+              "gamma": false,
+              "p_draw": false
+            },
+            "flat_axes": []
+          },
+          "current": {
+            "log_loss": 1.022831899895824,
+            "accuracy": 0.52026286966046,
+            "n": 1826,
+            "params": {
+              "gamma": 0.03,
+              "p_draw": 0.3
+            },
+            "valid_log_loss": 1.0306902949815167,
+            "grid_size": 20,
+            "on_grid_edge": {
+              "gamma": false,
+              "p_draw": false
+            },
+            "flat_axes": []
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "kickscore": {
+          "previous": {
+            "log_loss": 1.0134357434570254,
+            "accuracy": 0.5153340635268346,
+            "n": 1826,
+            "params": {
+              "wiener_var": 0.0001,
+              "margin": 0.3
+            },
+            "valid_log_loss": 1.0225453970771194,
+            "grid_size": 21,
+            "on_grid_edge": {
+              "wiener_var": false,
+              "margin": false
+            },
+            "flat_axes": []
+          },
+          "current": {
+            "log_loss": 1.0134357434570254,
+            "accuracy": 0.5153340635268346,
+            "n": 1826,
+            "params": {
+              "wiener_var": 0.0001,
+              "margin": 0.3
+            },
+            "valid_log_loss": 1.0225453970771194,
+            "grid_size": 21,
+            "on_grid_edge": {
+              "wiener_var": false,
+              "margin": false
+            },
+            "flat_axes": []
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "base_rate": {
+          "previous": {
+            "log_loss": 1.0630247108973352,
+            "accuracy": 0.45728368017524645,
+            "n": 1826
+          },
+          "current": {
+            "log_loss": 1.0630247108973352,
+            "accuracy": 0.45728368017524645,
+            "n": 1826
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        }
+      }
+    },
+    "nba_results": {
+      "previous_source": {
+        "commit": "7441cf89aec2d19d402d87714737fef2a003cd29",
+        "dirty": null
+      },
+      "n_test": 1312,
+      "models": {
+        "base_rate": {
+          "previous": {
+            "log_loss": 0.6782852290781489,
+            "accuracy": 0.5907012195121951,
+            "n": 1312
+          },
+          "current": {
+            "log_loss": 0.6782852290781489,
+            "accuracy": 0.5907012195121951,
+            "n": 1312
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "whr_plain": {
+          "previous": {
+            "log_loss": 0.6839437892062263,
+            "accuracy": 0.6028963414634146,
+            "n": 1312
+          },
+          "current": {
+            "log_loss": 0.6839505793334205,
+            "accuracy": 0.6028963414634146,
+            "n": 1312
+          },
+          "log_loss_delta": 6.790127194178375e-06,
+          "accuracy_delta": 0.0
+        },
+        "whr_home_frozen": {
+          "previous": {
+            "log_loss": 0.6698922395063889,
+            "accuracy": 0.6364329268292683,
+            "n": 1312
+          },
+          "current": {
+            "log_loss": 0.6698991297422507,
+            "accuracy": 0.6364329268292683,
+            "n": 1312
+          },
+          "log_loss_delta": 6.890235861867211e-06,
+          "accuracy_delta": 0.0
+        },
+        "whr_home_online": {
+          "previous": {
+            "log_loss": 0.6342791756507508,
+            "accuracy": 0.6425304878048781,
+            "n": 1312
+          },
+          "current": {
+            "log_loss": 0.6342797598646998,
+            "accuracy": 0.6425304878048781,
+            "n": 1312
+          },
+          "log_loss_delta": 5.842139489953269e-07,
+          "accuracy_delta": 0.0
+        },
+        "fte_elo": {
+          "previous": {
+            "log_loss": 0.6191566139425054,
+            "accuracy": 0.6532012195121951,
+            "n": 1312
+          },
+          "current": {
+            "log_loss": 0.6191566139425054,
+            "accuracy": 0.6532012195121951,
+            "n": 1312
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "fte_raptor": {
+          "previous": {
+            "log_loss": 0.6152437499264416,
+            "accuracy": 0.65625,
+            "n": 1312
+          },
+          "current": {
+            "log_loss": 0.6152437499264416,
+            "accuracy": 0.65625,
+            "n": 1312
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        }
+      }
+    },
+    "tennis_results": {
+      "previous_source": {
+        "commit": "7441cf89aec2d19d402d87714737fef2a003cd29",
+        "dirty": null
+      },
+      "n_test": 2816,
+      "models": {
+        "base_rate_0.5": {
+          "previous": {
+            "log_loss": 0.6931471805599052,
+            "accuracy": 0.5,
+            "n": 2816
+          },
+          "current": {
+            "log_loss": 0.6931471805599052,
+            "accuracy": 0.5,
+            "n": 2816
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "whr": {
+          "previous": {
+            "log_loss": 0.6164406921109764,
+            "accuracy": 0.6697443181818182,
+            "n": 2816
+          },
+          "current": {
+            "log_loss": 0.6163056096948242,
+            "accuracy": 0.6697443181818182,
+            "n": 2816
+          },
+          "log_loss_delta": -0.00013508241615223238,
+          "accuracy_delta": 0.0
+        }
+      }
+    },
+    "football_results": {
+      "previous_source": {
+        "commit": "7441cf89aec2d19d402d87714737fef2a003cd29",
+        "dirty": null
+      },
+      "n_test": 1826,
+      "models": {
+        "base_rate": {
+          "previous": {
+            "log_loss": 1.0630247108973352,
+            "accuracy": 0.45728368017524645,
+            "n": 1826
+          },
+          "current": {
+            "log_loss": 1.0630247108973352,
+            "accuracy": 0.45728368017524645,
+            "n": 1826
+          },
+          "log_loss_delta": 0.0,
+          "accuracy_delta": 0.0
+        },
+        "whr_bt_constdraw": {
+          "previous": {
+            "log_loss": 1.013241775257274,
+            "accuracy": 0.5169769989047097,
+            "n": 1826
+          },
+          "current": {
+            "log_loss": 1.0131751505019286,
+            "accuracy": 0.5164293537787513,
+            "n": 1826
+          },
+          "log_loss_delta": -6.662475534535695e-05,
+          "accuracy_delta": -0.0005476451259583959
+        },
+        "whr_davidson": {
+          "previous": {
+            "log_loss": 1.008869673827301,
+            "accuracy": 0.5153340635268346,
+            "n": 1826
+          },
+          "current": {
+            "log_loss": 1.0088313154802349,
+            "accuracy": 0.5142387732749178,
+            "n": 1826
+          },
+          "log_loss_delta": -3.835834706622521e-05,
+          "accuracy_delta": -0.0010952902519167917
+        }
+      }
+    }
+  },
+  "result_sha256": {
+    "versus_nba.json": "478dedb034bbfd55cd775ae0b24c466a81833ae9a578cde5c816f86c15f46ff2",
+    "versus_tennis.json": "9c8c5a3b441a46d91d480b9af8cdc1b6ab20af33e15062fd8bc1b66b48cb2e70",
+    "versus_football.json": "82bce3fc502fefa2e41350159017c74fb7bc8d0f672bd5d822fba17b52fa9c09",
+    "nba_results.json": "22c04f711413ec069368daa15f5e19ffa1966fea27eb644c2ec46c2e113a484c",
+    "tennis_results.json": "3027806746732734fa451b1987e45a00c9a0286bd2a4ff397a7fdcffb32e3eeb",
+    "football_results.json": "7ef8e4416e2186b4ef1495222f6aa9a7cc61a83d5a7dddb65686311bf8304336",
+    "nba_curves.json": "b7b7706eacbf5ed0cd1190114902726338471162078c5ea971d8a822d3b5349e",
+    "tennis_curves.json": "15da404ded17505f2dd824d4252b55ad3d40566b91fd8d213107eda4e87a910c",
+    "bench_comparison_light.png": "ff399f5ddd8d50981df09dfa1675eaa01ff85bb477f8b8dcffb016938aec31f3",
+    "bench_comparison_dark.png": "2d0d91daaba74789b3db683f31b03d419f521944edb18b66f92a4a24d88b054d",
+    "nba_history_light.png": "7e3f329e06c5d5e1f107f6b99f70d2db630d460930ed67cb96810d799dace150",
+    "nba_history_dark.png": "54e94f8a228e0bf31f59652e9ebcc4aa6b1f4549a164af638721faf6495cf474",
+    "tennis_history_light.png": "0702177e9adfd4777019989ace32c6b629dd4e2c6b629606189b004c7de6e860",
+    "tennis_history_dark.png": "ef3f4a87032d2a64241dedf741d7225d1f42202d0eb5aed839d634678bc1e5e7",
+    "versus_nba.log": "ed455d926dbe53f2302325f7795a0d77f8bd9ce9710c8bdae25cbf12faec3c97",
+    "versus_tennis.log": "ff47d2727dce2005262ad31cc6950fbc043884a2859a8c16af50761aa0137f80",
+    "versus_football.log": "dc358d4f927fe06fe9f4d45ea688f51440d3aaf72f5e3b7a17d4d416a4b7d5f1",
+    "nba.log": "dc6f7697889406cd50a7f8ceff8a0fc52dd374dfcf48428a8fed44a40188154b",
+    "tennis.log": "57bcc5d20f6ea6c7bb51b48a676728f4322ecabbc96146c107079ca3dbd58f92",
+    "football.log": "0028f5d59b92cff6ecb2a1a1e6f9707a0eaa7963f3f82385f27633dbcc5619fa"
+  }
+}

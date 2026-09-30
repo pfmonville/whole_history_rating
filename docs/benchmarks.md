@@ -9,6 +9,13 @@ The complete methodology and results live in the repository:
 - [Full report](https://github.com/pfmonville/whole_history_rating/blob/master/benchmarks/REPORT.md)
 - [Committed results](https://github.com/pfmonville/whole_history_rating/tree/master/benchmarks/results)
 
+## Validated results
+
+The complete suite and all figures were regenerated for **3.7.1** on
+30 September 2026. The [release validation](https://github.com/pfmonville/whole_history_rating/blob/master/benchmarks/RELEASE-3.7.1.md)
+includes convergence diagnostics, dependency versions, historical deltas, and a
+controlled comparison against 3.7.0 on the same data and runtime.
+
 ## Quick smoke test
 
 The deterministic smoke test uses only synthetic data and has no optional

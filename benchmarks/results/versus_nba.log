@@ -1,13 +1,19 @@
+RUN versus_nba started 2026-09-30T18:47:24.994156+00:00
 nba: 69377 games | train_v=39967 valid=1312 train_t=41279 test=1312
+FIT_AUDIT {"w2": 100.0, "games": 39967, "players": 37, "iterations": 200, "converged": true, "options": {"time_limit": 180, "precision": 0.001}, "elapsed_seconds": 19.050569208993693, "gradient": 0.0007074943661962152, "log_posterior": 316.04053669587694, "nu": 0.0}
     WHR {'w2': 100.0, 'predict_uncertainty': False} valid log-loss=0.6700  <- best so far
     WHR {'w2': 100.0, 'predict_uncertainty': True} valid log-loss=0.6689  <- best so far
+FIT_AUDIT {"w2": 300.0, "games": 39967, "players": 37, "iterations": 200, "converged": true, "options": {"time_limit": 180, "precision": 0.001}, "elapsed_seconds": 19.87074849999044, "gradient": 0.0009367194587230898, "log_posterior": -6200.90199402145, "nu": 0.0}
     WHR {'w2': 300.0, 'predict_uncertainty': False} valid log-loss=0.6618  <- best so far
     WHR {'w2': 300.0, 'predict_uncertainty': True} valid log-loss=0.6601  <- best so far
+FIT_AUDIT {"w2": 1000.0, "games": 39967, "players": 37, "iterations": 250, "converged": true, "options": {"time_limit": 180, "precision": 0.001}, "elapsed_seconds": 24.90759104199242, "gradient": 0.0008990931920953571, "log_posterior": -13351.859588440302, "nu": 0.0}
     WHR {'w2': 1000.0, 'predict_uncertainty': False} valid log-loss=0.6577  <- best so far
     WHR {'w2': 1000.0, 'predict_uncertainty': True} valid log-loss=0.6549  <- best so far
+FIT_AUDIT {"w2": 3000.0, "games": 39967, "players": 37, "iterations": 300, "converged": true, "options": {"time_limit": 180, "precision": 0.001}, "elapsed_seconds": 30.235638833008124, "gradient": 0.0009745589129457333, "log_posterior": -19783.983574839975, "nu": 0.0}
     WHR {'w2': 3000.0, 'predict_uncertainty': False} valid log-loss=0.6662
     WHR {'w2': 3000.0, 'predict_uncertainty': True} valid log-loss=0.6609
   WHR: selected {'w2': 1000.0, 'predict_uncertainty': True} (valid 0.6549)
+FIT_AUDIT {"w2": 1000.0, "games": 41279, "players": 37, "iterations": 250, "converged": true, "options": {"time_limit": 180, "precision": 0.001}, "elapsed_seconds": 28.652389250011765, "gradient": 0.0008989578408620247, "log_posterior": -13819.503212137084, "nu": 0.0}
   WHR: TEST log-loss=0.6660 acc=63.6%  edge={'w2': False} flat=[]
     TTT {'gamma': 0.003, 'beta': 0.0625} valid log-loss=0.6897  <- best so far
     TTT {'gamma': 0.003, 'beta': 0.125} valid log-loss=0.6922
@@ -76,3 +82,4 @@ nba: 69377 games | train_v=39967 valid=1312 train_t=41279 test=1312
   fte_elo: TEST log-loss=0.6192 acc=65.3%
   fte_raptor: TEST log-loss=0.6152 acc=65.6%
 wrote benchmarks/results/versus_nba.json
+RUN versus_nba completed in 1218.9s

@@ -60,6 +60,10 @@ This implementation provides:
 - convergence and data-connectivity diagnostics;
 - a reproducible comparison with KickScore and TrueSkill Through Time.
 
+The full benchmark protocol was rerun with **WHR 3.7.1** on 30 September
+2026. See the [release validation](https://github.com/pfmonville/whole_history_rating/blob/master/benchmarks/RELEASE-3.7.1.md) for exact scores,
+environment, convergence checks and the controlled comparison with 3.7.0.
+
 The main reason to choose WHR is not that it wins every predictive benchmark—it
 does not. Its strength is an interpretable, relatively lightweight model of
 complete pairwise histories.

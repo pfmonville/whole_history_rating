@@ -5,14 +5,14 @@
   "draw_rate_overall": 0.251589715233619,
   "models": {
     "whr": {
-      "log_loss": 1.0084885729743096,
+      "log_loss": 1.0084885729671038,
       "accuracy": 0.5142387732749178,
       "n": 1826,
       "params": {
         "w2": 30.0,
         "predict_uncertainty": true
       },
-      "valid_log_loss": 1.0082713028066037,
+      "valid_log_loss": 1.0082713028035581,
       "grid_size": 14,
       "on_grid_edge": {
         "w2": false
@@ -59,27 +59,276 @@
   },
   "provenance": {
     "schema_version": 1,
-    "generated_at": "2026-07-28T09:23:55Z",
+    "generated_at": "2026-09-30T19:02:22.117441Z",
     "source": {
-      "commit": "27a90fdc0afacf58b3274605ae831e61d89ba537",
-      "dirty": null
+      "commit": "e8ff4f1756d3d43a50e5aa4758098cb8bd22af26",
+      "dirty": false
     },
     "runtime": {
-      "python": null,
-      "platform": null,
-      "machine": null
+      "python": "3.13.13",
+      "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+      "machine": "arm64"
     },
     "packages": {
-      "whole-history-rating": null,
-      "kickscore": null,
-      "TrueSkillThroughTime": null
+      "whole-history-rating": "3.7.1",
+      "kickscore": "0.2.0",
+      "TrueSkillThroughTime": "1.1.0"
     },
     "dataset": {
       "source": "https://github.com/openfootball/football.json",
-      "files": []
+      "files": [
+        {
+          "path": "2014-15_de.1.json",
+          "size": 91713,
+          "sha256": "40754d0d77f251a17c47d27095499d83fc3c00904fb1ee5a8b6e82cb1f85870e"
+        },
+        {
+          "path": "2014-15_en.1.json",
+          "size": 113725,
+          "sha256": "2f24151bffd3d377810f3d2e85ead0f1b3dfef00153c6ea31f5e9ced63281a4d"
+        },
+        {
+          "path": "2014-15_es.1.json",
+          "size": 112533,
+          "sha256": "f119fad44a4e1452a6725a2195e3ad8e6fc1b4c14c1882761af8ffebee7e5de7"
+        },
+        {
+          "path": "2014-15_fr.1.json",
+          "size": 112903,
+          "sha256": "b591f6135128249d81c950ccdb5f0d6d6662b63f9b9a8161afff328d3888a6d1"
+        },
+        {
+          "path": "2014-15_it.1.json",
+          "size": 111266,
+          "sha256": "3c9a4b2deec8206115e2ba6289705400157c9d47a287eab7ead6f773136f9a87"
+        },
+        {
+          "path": "2015-16_de.1.json",
+          "size": 92107,
+          "sha256": "dc8d2581ecbdd0752dfb50695c50ff29290e0442f07bf6b46d0d8ad07ac8e843"
+        },
+        {
+          "path": "2015-16_en.1.json",
+          "size": 113631,
+          "sha256": "4d8ab70f5d2c29231320be7404310bc1b0fbc6e6be0284e5ee667f581406fead"
+        },
+        {
+          "path": "2015-16_es.1.json",
+          "size": 113118,
+          "sha256": "a5ded1e65f1e1a3f8fed6617c3287bac91a0855386b12fb236890ab624dec98e"
+        },
+        {
+          "path": "2015-16_fr.1.json",
+          "size": 113093,
+          "sha256": "6b1ffc6d4de265e57b2f6455e4e502e9bef70d7da407c137ba15dc5a49d44de2"
+        },
+        {
+          "path": "2015-16_it.1.json",
+          "size": 111286,
+          "sha256": "641ac43494b76fd2f59845cac3f41c279441ced1e167bfec8fa9691b9a275fa7"
+        },
+        {
+          "path": "2016-17_de.1.json",
+          "size": 92285,
+          "sha256": "56a0d2f20e5050b6eeb0b40f2b32d93f6fe1bda0d52373121b90b6c812a95d4b"
+        },
+        {
+          "path": "2016-17_en.1.json",
+          "size": 113759,
+          "sha256": "9c8cdb27355678ab81aacbbabc34a08d00b399aacc28ef4b733da4954a344f17"
+        },
+        {
+          "path": "2016-17_es.1.json",
+          "size": 112929,
+          "sha256": "e53da5e69849dc41fb5b192f882fe7bc0bc9710aa30f647e2b5b5faea24fbd75"
+        },
+        {
+          "path": "2016-17_fr.1.json",
+          "size": 112889,
+          "sha256": "adc7a228339a57392640851d002b993cd206e3036e771565b9fa90abf5352eda"
+        },
+        {
+          "path": "2016-17_it.1.json",
+          "size": 112044,
+          "sha256": "39eb5e084d421af553b77fd14756fe54bf30c18cdb3ce1c77fd5941344e128c3"
+        },
+        {
+          "path": "2017-18_de.1.json",
+          "size": 91935,
+          "sha256": "bfa1276bef6a5574f504f622a3d41833f65eee00de2c7591dfd375a457dbd311"
+        },
+        {
+          "path": "2017-18_en.1.json",
+          "size": 114087,
+          "sha256": "b635f2442a94aa91d85f282fc5e8f7f5dc4f0d04e3e30c4472102f5708d7548c"
+        },
+        {
+          "path": "2017-18_es.1.json",
+          "size": 112607,
+          "sha256": "6814524c6867e6811f112d8c85e9f01d8ab3b9f26ee01d1c11297a98ff629473"
+        },
+        {
+          "path": "2017-18_fr.1.json",
+          "size": 113289,
+          "sha256": "a7fc528ef12098acd01c5bc5b16df78a17806771e7850a0b23bd12f722e0898e"
+        },
+        {
+          "path": "2017-18_it.1.json",
+          "size": 112024,
+          "sha256": "195b61ec457e597ca149fca429459cb22f803ff400db1c5d63fffa8cff21695e"
+        },
+        {
+          "path": "2018-19_de.1.json",
+          "size": 92533,
+          "sha256": "82cdafdead39129669dbae0368c294ca6372291ed095813157661c263793fac4"
+        },
+        {
+          "path": "2018-19_en.1.json",
+          "size": 114723,
+          "sha256": "e2224d86f0605a5a1b5b019c845cdecb13aca1d88035686d4159b875250d4730"
+        },
+        {
+          "path": "2018-19_es.1.json",
+          "size": 112417,
+          "sha256": "7b10a3922e9ba8a9d85d2828e07438a02d0ea5f675be6a14406921e91f605716"
+        },
+        {
+          "path": "2018-19_fr.1.json",
+          "size": 113091,
+          "sha256": "5add69e52b80732444cf8243a64dcf831e5ea267ee588d0b6996275a70eedd14"
+        },
+        {
+          "path": "2018-19_it.1.json",
+          "size": 111802,
+          "sha256": "b8efba80e794bd3ce5805bf802ac98e0ca9938545e6800b5a8844529b43060d3"
+        },
+        {
+          "path": "2019-20_de.1.json",
+          "size": 92983,
+          "sha256": "76c7f65ef443681515b081e325a38cf0e8b6953b665bbcac20fdf328248e7206"
+        },
+        {
+          "path": "2019-20_en.1.json",
+          "size": 114817,
+          "sha256": "9e1695f85ce5553f762e809dea357ec0a95838939be89569060a83c4e98a302d"
+        },
+        {
+          "path": "2019-20_es.1.json",
+          "size": 112137,
+          "sha256": "8ade2e46a80a646159af590cb6bcca6a3739a6eebc168a4902aabeb0d1ce6c0d"
+        },
+        {
+          "path": "2019-20_fr.1.json",
+          "size": 103330,
+          "sha256": "0c42a7b9ab70c7bd7003bcc7085f3896c95e19965941be2d04976e7bba440205"
+        },
+        {
+          "path": "2019-20_it.1.json",
+          "size": 112416,
+          "sha256": "cb3a8dfd4152a0d1dfa0638b25623a963fda47a35910ecb114517d2e20c4a8e2"
+        },
+        {
+          "path": "2020-21_de.1.json",
+          "size": 93089,
+          "sha256": "74a709c3f800064f26c4d44ec92af9bcd32c6b94ec00ace7cc5b684e8c3c8e74"
+        },
+        {
+          "path": "2020-21_en.1.json",
+          "size": 115947,
+          "sha256": "21ddf26b48469da530c51ccc4857bf1a534bda3aed08766b55185efb142e9a20"
+        },
+        {
+          "path": "2020-21_es.1.json",
+          "size": 113635,
+          "sha256": "817a41df564a1790147e97fc417922f6e9354b142b2baf6d376d809da2bd24b6"
+        },
+        {
+          "path": "2020-21_fr.1.json",
+          "size": 113541,
+          "sha256": "27eceef1ea5b9b3b601074c3bfbb6a80f7e969d73d513f9dba104b688003c4e2"
+        },
+        {
+          "path": "2020-21_it.1.json",
+          "size": 113906,
+          "sha256": "0e00abb3f9d03675c4bdde14b3bde34fed5713727282f82ed095b49e60fbcfea"
+        },
+        {
+          "path": "2021-22_de.1.json",
+          "size": 93609,
+          "sha256": "f1b9901cffb6b073f389e730213b5f8efe6a9a73b2f86058794f2d0f1dcc54dc"
+        },
+        {
+          "path": "2021-22_en.1.json",
+          "size": 115863,
+          "sha256": "fbdfd426fa18fa2f8630b77de87c082734da495ac4668d6d72f29f76b73b9564"
+        },
+        {
+          "path": "2021-22_es.1.json",
+          "size": 113895,
+          "sha256": "7beb67dd49d7132bf9f7baea540342439b97ed4a7b21ffb90d3231a402c54d02"
+        },
+        {
+          "path": "2021-22_fr.1.json",
+          "size": 113767,
+          "sha256": "8abb493061d32faaf413c403b440c043723d9743a9e69d6472bf5410e2d4e039"
+        },
+        {
+          "path": "2021-22_it.1.json",
+          "size": 113576,
+          "sha256": "a3e94b23cac768e4191e99312f4d48471c4000c5c2fe766b0325cee935754061"
+        },
+        {
+          "path": "2022-23_de.1.json",
+          "size": 93189,
+          "sha256": "b0c052dc75836dfc6b0d3781d35b828851db7377c9f6ccb39643dbbe1964f3bd"
+        },
+        {
+          "path": "2022-23_en.1.json",
+          "size": 116149,
+          "sha256": "8d09f0f9846981626cdfec48903e1f21e7c79aabe6f92535c9e092e8e79b808b"
+        },
+        {
+          "path": "2022-23_es.1.json",
+          "size": 114885,
+          "sha256": "0204c66c919c2cd5cc3d1ba26be4f68592e4e173843162a9e6755182ccf83778"
+        },
+        {
+          "path": "2022-23_fr.1.json",
+          "size": 113237,
+          "sha256": "6301ac1ba1fa0f5b72345759711beac3b3be3c989725cc1c6ef9307ffef692c7"
+        },
+        {
+          "path": "2022-23_it.1.json",
+          "size": 113460,
+          "sha256": "d775fdd375af6998233fbfcd5b33d176cb9d016a981682626c5ce2f95b0c2f88"
+        },
+        {
+          "path": "2023-24_de.1.json",
+          "size": 93743,
+          "sha256": "d104edde48a5e254545eac3d3ed379a09801e1ebcef5c6480e28bc36fcfa202d"
+        },
+        {
+          "path": "2023-24_en.1.json",
+          "size": 116669,
+          "sha256": "03e13eafbf78dfe00d7e89dd3bf6643986eb6e8fd86c7664aeb8c5bc0bed88d0"
+        },
+        {
+          "path": "2023-24_es.1.json",
+          "size": 114187,
+          "sha256": "e4c1e1a958f224ba3c815c898982ab495b9577315cc58ee7a5e7b532960f738b"
+        },
+        {
+          "path": "2023-24_fr.1.json",
+          "size": 92104,
+          "sha256": "fa328cecf4c12232ac77a5d477059eebe16b68b3712ec87800b89efda8ddfb70"
+        },
+        {
+          "path": "2023-24_it.1.json",
+          "size": 113014,
+          "sha256": "47734fc8d2ec34c5529ca814c97d1c86ecddc4a2c8095506d9b12f29cb283308"
+        }
+      ]
     },
-    "random_seed": null,
-    "legacy": true,
-    "note": "This result predates automatic provenance; runtime, package versions, and dataset hashes were not recorded."
+    "random_seed": null
   }
 }

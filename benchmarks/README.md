@@ -21,6 +21,15 @@ ablations, and the rating-history figures.
 | `tennis.py` | ATP singles 2000–2015 (Jeff Sackmann) | WHR over ~1950 players / many days; skill-vs-time curves |
 | `football.py` | Big-five European leagues 2014–2024 (openfootball) | the **Davidson draw model** (`win_draw_loss_probabilities`) on ~25%-draw data |
 
+## Latest validated release
+
+The complete protocol was rerun for **3.7.1** on 30 September 2026: all three
+head-to-head grids, all three WHR deep dives, and all six figures.
+[Release validation](RELEASE-3.7.1.md) records the exact environment, convergence
+checks, changes from the previous artifacts, and a controlled 3.7.0 comparison.
+The cached datasets were reused, with their actual bytes identified by SHA-256
+in each result.
+
 ## Running
 
 Download the public inputs first (files already present are left untouched):
@@ -74,9 +83,10 @@ Every newly generated JSON result includes a `provenance` object containing:
 - generation time and the random-seed policy (`null`, because these runners are
   deterministic).
 
-Older committed results are marked `legacy: true`: their original result commit
-is known, but runtime versions and dataset hashes were not captured at the time
-and are deliberately left `null` rather than reconstructed.
+Historical results in Git history may be marked `legacy: true`: their original
+result commit is known, but runtime versions and dataset hashes were not
+captured at the time. All six current result files have fresh provenance from
+the 3.7.1 rerun.
 
 ### CI levels
 

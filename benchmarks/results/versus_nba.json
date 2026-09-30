@@ -71,27 +71,32 @@
   },
   "provenance": {
     "schema_version": 1,
-    "generated_at": "2026-07-28T09:23:55Z",
+    "generated_at": "2026-09-30T19:07:43.639332Z",
     "source": {
-      "commit": "27a90fdc0afacf58b3274605ae831e61d89ba537",
-      "dirty": null
+      "commit": "e8ff4f1756d3d43a50e5aa4758098cb8bd22af26",
+      "dirty": false
     },
     "runtime": {
-      "python": null,
-      "platform": null,
-      "machine": null
+      "python": "3.13.13",
+      "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+      "machine": "arm64"
     },
     "packages": {
-      "whole-history-rating": null,
-      "kickscore": null,
-      "TrueSkillThroughTime": null
+      "whole-history-rating": "3.7.1",
+      "pandas": "3.0.6",
+      "kickscore": "0.2.0",
+      "TrueSkillThroughTime": "1.1.0"
     },
     "dataset": {
       "source": "https://lum-public.s3.eu-west-1.amazonaws.com/nba_elo.csv",
-      "files": []
+      "files": [
+        {
+          "path": "nba_elo.csv",
+          "size": 9491222,
+          "sha256": "d796959f9952b10540cada846b199e9c1e930edf2e4bbe611be0fa98f72b04ea"
+        }
+      ]
     },
-    "random_seed": null,
-    "legacy": true,
-    "note": "This result predates automatic provenance; runtime, package versions, and dataset hashes were not recorded."
+    "random_seed": null
   }
 }

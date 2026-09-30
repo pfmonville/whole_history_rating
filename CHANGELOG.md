@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   change from 0.330106 to 2.231636 and distinguish it from benchmark log-loss.
   The API reference now correctly marks `create_game`'s handicap as required.
 
+### Benchmarks
+- Rerun all three WHR/KickScore/TrueSkill Through Time grids and all three WHR
+  deep dives; regenerate all six figures and refresh the README, user guide and
+  report. Capture current versions and SHA-256 input hashes in all results.
+- Add release validation with every automatic WHR fit's convergence diagnostics and a
+  controlled 3.7.0/3.7.1 comparison on identical inputs and dependencies.
+  Historical artifacts are compared separately from the release baseline.
+
 ### Tests
 - Extend the joint log-posterior derivative check to a fit that estimates
   draw tendency, handicap and komi together. The 3.7.0 likelihood correction

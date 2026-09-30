@@ -16,6 +16,10 @@ pip install whole-history-rating
 
 ## How well does it actually work?
 
+The tables and figures below were regenerated with **WHR 3.7.1** on
+30 September 2026. The [release validation](https://github.com/pfmonville/whole_history_rating/blob/master/benchmarks/RELEASE-3.7.1.md)
+records the environment, convergence checks and comparison with 3.7.0.
+
 WHR is benchmarked against the two reference implementations it is usually
 compared to — [KickScore](https://github.com/lucasmaystre/kickscore) and
 [TrueSkill Through Time](https://github.com/glandfried/TrueSkillThroughTime) —
@@ -27,7 +31,7 @@ the full write-up, method and caveats are in the
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/bench_comparison_dark.png">
-  <img alt="Predictive log-loss of WHR, KickScore and TrueSkill Through Time on NBA 2018-19, ATP tennis 2014 and European football 2022-23, all three fitted and scored identically. The three systems land within one to two percent of each other on every sport: KickScore leads the NBA, TrueSkill Through Time leads the tennis, and WHR leads the three-outcome football benchmark. FiveThirtyEight's published NBA probabilities beat all three." src="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/bench_comparison_light.png">
+  <img alt="Predictive log-loss of WHR, KickScore and TrueSkill Through Time on NBA 2018-19, ATP tennis 2014 and European football 2022-23, all three fitted and scored identically. The spread between the three systems stays below four percent on each sport: KickScore leads the NBA, TrueSkill Through Time leads the tennis, and WHR leads the three-outcome football benchmark. FiveThirtyEight's published NBA probabilities beat all three." src="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/bench_comparison_light.png">
 </picture>
 
 Each system is fitted **only on matches played before the test season**, and
@@ -182,6 +186,11 @@ For a more hands-off approach, the algorithm can automatically iterate until the
 ```python
 whr.auto_iterate(time_limit=10, precision=1e-3, batch_size=50)
 ```
+
+The batch-size timings and precision/insertion-order experiments below are
+historical measurements from the 3.4–3.5 development cycle. They are separate
+from the six real-data benchmark runs refreshed for 3.7.1; their timings were
+not remeasured for this release.
 
 - `time_limit` (optional): Sets a maximum duration (in seconds) for the iteration process. If `None` (the default), the algorithm will run indefinitely until the specified precision is achieved.
 - `precision` (optional): Defines the desired level of accuracy for the ratings' stability. The default value is `0.001`. Convergence is measured on the gradient infinity-norm (the largest absolute gradient component across all player-days, in natural-rating units); iteration stops once that value drops below this threshold.

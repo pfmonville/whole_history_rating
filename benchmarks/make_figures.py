@@ -179,7 +179,7 @@ PANELS = [
     {
         "key": "tennis",
         "title": "ATP tennis 2014  ·  2,816 matches, trained on 44,405  ·  2-way log-loss",
-        "note": "the setup TrueSkill Through Time was published on",
+        "note": "same ATP window and frozen-test protocol for all three systems",
         "rows": [
             ("whr", "WHR", "flagship"),
             ("kickscore", "KickScore", "variant"),

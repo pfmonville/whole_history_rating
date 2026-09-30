@@ -12,17 +12,17 @@
       "n": 1312
     },
     "whr_plain": {
-      "log_loss": 0.6839437892062263,
+      "log_loss": 0.6839505793334205,
       "accuracy": 0.6028963414634146,
       "n": 1312
     },
     "whr_home_frozen": {
-      "log_loss": 0.6698922395063889,
+      "log_loss": 0.6698991297422507,
       "accuracy": 0.6364329268292683,
       "n": 1312
     },
     "whr_home_online": {
-      "log_loss": 0.6342791756507508,
+      "log_loss": 0.6342797598646998,
       "accuracy": 0.6425304878048781,
       "n": 1312
     },
@@ -39,78 +39,83 @@
   },
   "calibration_whr_home": [
     [
-      0.09370025950975362,
+      0.09368795915510202,
       0.2,
       5
     ],
     [
-      0.15541075976522617,
+      0.15539738287793192,
       0.3333333333333333,
       36
     ],
     [
-      0.25471340530624337,
+      0.2547009062965046,
       0.41509433962264153,
       106
     ],
     [
-      0.35029349159558104,
+      0.3502805005556868,
       0.4344262295081967,
       122
     ],
     [
-      0.4509266451879184,
+      0.4509169456010978,
       0.460431654676259,
       139
     ],
     [
-      0.5546493086578512,
+      0.5546449828752331,
       0.5798816568047337,
       169
     ],
     [
-      0.6514774825912849,
+      0.6514785769234657,
       0.5929203539823009,
       226
     ],
     [
-      0.75104769287548,
+      0.7510531950892797,
       0.6648936170212766,
       188
     ],
     [
-      0.8511357240696037,
+      0.851143848228686,
       0.7342342342342343,
       222
     ],
     [
-      0.9253559123324316,
+      0.9253619689531511,
       0.8181818181818182,
       99
     ]
   ],
-  "home_advantage_elo": 98.18231484567681,
+  "home_advantage_elo": 98.18277123614972,
   "provenance": {
     "schema_version": 1,
-    "generated_at": "2026-07-24T15:31:11Z",
+    "generated_at": "2026-09-30T18:53:34.906629Z",
     "source": {
-      "commit": "7441cf89aec2d19d402d87714737fef2a003cd29",
-      "dirty": null
+      "commit": "e8ff4f1756d3d43a50e5aa4758098cb8bd22af26",
+      "dirty": false
     },
     "runtime": {
-      "python": null,
-      "platform": null,
-      "machine": null
+      "python": "3.13.13",
+      "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+      "machine": "arm64"
     },
     "packages": {
-      "whole-history-rating": null
+      "whole-history-rating": "3.7.1",
+      "pandas": "3.0.6"
     },
     "dataset": {
       "source": "https://lum-public.s3.eu-west-1.amazonaws.com/nba_elo.csv",
-      "files": []
+      "files": [
+        {
+          "path": "nba_elo.csv",
+          "size": 9491222,
+          "sha256": "d796959f9952b10540cada846b199e9c1e930edf2e4bbe611be0fa98f72b04ea"
+        }
+      ]
     },
-    "random_seed": null,
-    "legacy": true,
-    "note": "This result predates automatic provenance; runtime, package versions, and dataset hashes were not recorded."
+    "random_seed": null
   }
 }
