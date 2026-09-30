@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import math
+import os
 import pickle
+import shutil
 import time
+import uuid
 import warnings
-from collections.abc import Iterator
-from typing import Any
+from collections.abc import Callable, Iterator
+from typing import IO, Any
 
 import numpy as np
 
@@ -79,6 +83,55 @@ def _validated_time_step(time_step: Any) -> int | float:
     if isinstance(time_step, float) and time_step.is_integer():
         return int(time_step)
     return time_step
+
+
+def _hashable_key(what: str, key: Any) -> Any:
+    """``key`` itself, or a ``TypeError`` naming it if it cannot be a dict key.
+
+    Handicap and komi values are category keys of the advantage tables, so a
+    list or a dict cannot be one. Checked before anything is created, so the
+    rejected game leaves no player behind.
+    """
+    try:
+        hash(key)
+    except TypeError:
+        raise TypeError(
+            f"{what} must be hashable: it is a category key, not a value "
+            f"(got {type(key).__name__} {key!r})"
+        ) from None
+    return key
+
+
+def _replace_file(
+    path: str | os.PathLike[str], write: Callable[[IO[bytes]], None]
+) -> None:
+    """Write a file so that it is either fully replaced or left untouched.
+
+    ``write`` fills a temporary file next to the target, which then replaces
+    the target in one ``os.replace``. If anything fails on the way (a value
+    that cannot be pickled, a full disk, an interrupt), the previous file is
+    still there and the temporary file is removed. The temporary file is
+    created with the usual umask permissions, then given the target's own if
+    it already exists; a symlink is written through, as a plain ``open`` would.
+    """
+    target = os.path.realpath(os.fspath(path))
+    temporary = os.path.join(
+        os.path.dirname(target),
+        f".{os.path.basename(target)}.{uuid.uuid4().hex}.tmp",
+    )
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            write(f)
+            f.flush()
+            os.fsync(f.fileno())
+        with contextlib.suppress(FileNotFoundError):
+            shutil.copymode(target, temporary)
+        os.replace(temporary, target)
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(temporary)
+        raise
 
 
 class WHR:
@@ -1041,17 +1094,29 @@ class WHR:
             stacklevel=3,
         )
 
-    def _setup_game(
+    def _validated_game(
         self,
         black: str,
         white: str,
         winner: str,
         time_step: int | float,
         handicap: float,
+        komi: Any = None,
         extras: dict[str, Any] | None = None,
-    ) -> Game:
-        if extras is None:
-            extras = {}
+    ) -> tuple[str, str, str, int | float, Any, dict[str, Any]]:
+        """Every check ``create_game`` makes, and nothing it changes.
+
+        Returns the normalized ``(black, white, winner, time_step, handicap,
+        extras)``. Raising here leaves the base untouched, which is what lets
+        ``load_games`` check a whole batch before adding any of it.
+        """
+        extras = dict(extras) if extras else {}
+        if komi is not None:
+            extras["komi"] = komi
+        if self.config["uncased"]:
+            black = black.lower()
+            white = white.lower()
+        time_step = _validated_time_step(time_step)
         if black == white:
             raise AttributeError("Invalid game (black player == white player)")
         if winner.upper() not in ("B", "W", "D"):
@@ -1059,6 +1124,19 @@ class WHR:
                 f"Invalid winner {winner!r}: must be 'B', 'W', or 'D' "
                 "(case-insensitive)"
             )
+        _hashable_key("handicap", handicap)
+        _hashable_key("komi", extras.get("komi"))
+        return black, white, winner, time_step, handicap, extras
+
+    def _setup_game(
+        self,
+        black: str,
+        white: str,
+        winner: str,
+        time_step: int | float,
+        handicap: float,
+        extras: dict[str, Any],
+    ) -> Game:
         white_player = self.player_by_name(white)
         black_player = self.player_by_name(black)
         game = Game(
@@ -1111,19 +1189,25 @@ class WHR:
 
         Raises:
             TypeError: If ``time_step`` is not a real number (a ``bool`` is
-                rejected too: ``True`` silently meant day 1).
-            ValueError: If ``time_step`` is NaN or infinite.
-            AttributeError: If ``black`` and ``white`` are the same player, or
-                if ``winner`` is not one of "B", "W", "D".
+                rejected too: ``True`` silently meant day 1), or if
+                ``handicap`` or ``komi`` is not hashable.
+            ValueError: If ``time_step`` is NaN or infinite, or if ``winner``
+                is not one of "B", "W", "D".
+            AttributeError: If ``black`` and ``white`` are the same player.
+
+        A rejected game leaves the base unchanged.
         """
-        extras = dict(extras) if extras else {}
-        if komi is not None:
-            extras["komi"] = komi
-        if self.config["uncased"]:
-            black = black.lower()
-            white = white.lower()
-        time_step = _validated_time_step(time_step)
-        game = self._setup_game(black, white, winner, time_step, handicap, extras)
+        return self._add_validated_game(
+            self._validated_game(
+                black, white, winner, time_step, handicap, komi, extras
+            )
+        )
+
+    def _add_validated_game(
+        self, validated: tuple[str, str, str, int | float, Any, dict[str, Any]]
+    ) -> Game:
+        """Add a game already checked by ``_validated_game``."""
+        game = self._setup_game(*validated)
         self._ensure_advantage_keys(game.handicap, game.extras.get("komi"))
         return self._add_game(game)
 
@@ -1962,77 +2046,99 @@ class WHR:
             games (list[str]): A list of strings representing games.
             separator (str, optional): The separator used between elements of a game, defaulting to a space.
 
+        Blank lines are skipped. Every line is checked before any game is added,
+        so a bad line loads nothing and the call can simply be retried once the
+        input is fixed; the error carries a note naming the line.
+
         Raises:
             ValueError: If any game string does not comply with the expected format or if parsing fails.
         """
-        for line in games:
-            # strip the line before splitting, so a stray leading/trailing space
-            # is not read as an extra (empty) field
-            parts = [part.strip() for part in line.strip().split(separator)]
-            if len(parts) < 4 or len(parts) > 6:
-                raise ValueError(
-                    f"Invalid game format: '{line}' -- expected 4 to 6 "
-                    f"{separator!r}-separated fields "
-                    "(black white winner time_step [handicap] [extras]), "
-                    f"got {len(parts)}"
+        parsed = []
+        for number, line in enumerate(games, start=1):
+            if not line.strip():
+                continue
+            try:
+                parsed.append(
+                    self._validated_game(*self._parse_game_line(line, separator))
                 )
-            if any(part == "" for part in parts):
-                raise ValueError(
-                    f"Empty field in: '{line}' -- a repeated {separator!r} "
-                    "separator leaves a blank field and shifts every field "
-                    "after it. Collapse the repeat, or pass a separator that "
-                    "does not occur inside your names."
+            except (ValueError, TypeError, AttributeError) as error:
+                error.add_note(
+                    f"in line {number} of the games passed to load_games; "
+                    "no game was loaded"
                 )
+                raise
+        for validated in parsed:
+            self._add_validated_game(validated)
 
-            black, white, winner, time_step, *rest = parts
-            handicap = 0
-            extras = {}
+    @staticmethod
+    def _parse_game_line(
+        line: str, separator: str
+    ) -> tuple[str, str, str, int | float, int, None, dict[str, Any]]:
+        """One ``load_games`` line as ``create_game`` arguments (komi rides in
+        extras). Raises ``ValueError`` on a malformed line; the game itself is
+        checked by ``_validated_game``."""
+        # strip the line before splitting, so a stray leading/trailing space
+        # is not read as an extra (empty) field
+        parts = [part.strip() for part in line.strip().split(separator)]
+        if len(parts) < 4 or len(parts) > 6:
+            raise ValueError(
+                f"Invalid game format: '{line}' -- expected 4 to 6 "
+                f"{separator!r}-separated fields "
+                "(black white winner time_step [handicap] [extras]), "
+                f"got {len(parts)}"
+            )
+        if any(part == "" for part in parts):
+            raise ValueError(
+                f"Empty field in: '{line}' -- a repeated {separator!r} "
+                "separator leaves a blank field and shifts every field "
+                "after it. Collapse the repeat, or pass a separator that "
+                "does not occur inside your names."
+            )
 
-            if len(rest) == 1:
-                try:
-                    handicap = int(rest[0])
-                except ValueError:
-                    try:
-                        extras = ast.literal_eval(rest[0])
-                        if not isinstance(extras, dict):
-                            raise ValueError()
-                    except (ValueError, SyntaxError):
-                        raise ValueError(
-                            f"Invalid handicap or extra value in: '{line}'"
-                        ) from None
+        black, white, winner, time_step, *rest = parts
+        handicap = 0
+        extras = {}
 
-            if len(rest) == 2:
+        if len(rest) == 1:
+            try:
+                handicap = int(rest[0])
+            except ValueError:
                 try:
-                    handicap = int(rest[0])
-                except ValueError:
-                    raise ValueError(f"Invalid handicap value in: '{line}'") from None
-                try:
-                    extras = ast.literal_eval(rest[1])
+                    extras = ast.literal_eval(rest[0])
                     if not isinstance(extras, dict):
                         raise ValueError()
                 except (ValueError, SyntaxError):
                     raise ValueError(
-                        f"Invalid extras dictionary in: '{line}'"
+                        f"Invalid handicap or extra value in: '{line}'"
                     ) from None
 
-            if self.config["uncased"]:
-                black, white = black.lower(), white.lower()
-
-            # `create_game` accepts fractional days, so the parser must too --
-            # it used to reject them with a bare int() error while the
-            # programmatic path let them through.
-            day: int | float
+        if len(rest) == 2:
             try:
-                day = int(time_step)
+                handicap = int(rest[0])
             except ValueError:
-                try:
-                    day = float(time_step)
-                except ValueError:
-                    raise ValueError(
-                        f"Invalid time_step {time_step!r} in: '{line}' -- must "
-                        "be a number (a day index counted from an origin)"
-                    ) from None
-            self.create_game(black, white, winner, day, handicap, extras=extras)
+                raise ValueError(f"Invalid handicap value in: '{line}'") from None
+            try:
+                extras = ast.literal_eval(rest[1])
+                if not isinstance(extras, dict):
+                    raise ValueError()
+            except (ValueError, SyntaxError):
+                raise ValueError(f"Invalid extras dictionary in: '{line}'") from None
+
+        # `create_game` accepts fractional days, so the parser must too --
+        # it used to reject them with a bare int() error while the
+        # programmatic path let them through.
+        day: int | float
+        try:
+            day = int(time_step)
+        except ValueError:
+            try:
+                day = float(time_step)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid time_step {time_step!r} in: '{line}' -- must "
+                    "be a number (a day index counted from an origin)"
+                ) from None
+        return black, white, winner, day, handicap, None, extras
 
     def save_base(self, path: str) -> None:
         """Saves the current state of the base to a specified path.
@@ -2094,21 +2200,18 @@ class WHR:
                 "'display_offset' and 'display_uncertainty' will be saved.",
                 stacklevel=2,
             )
-        with open(path, "wb") as f:
-            pickle.dump(
-                {
-                    "config": config,
-                    "games": games,
-                    "ratings": ratings,
-                    "handicap_gamma": dict(self.handicap_gamma),
-                    "komi_gamma": dict(self.komi_gamma),
-                    "nu": self.nu,
-                    "ever_fitted": self._ever_fitted,
-                    "games_since_fit": self._games_since_fit,
-                    "format_version": self.SAVE_FORMAT_VERSION,
-                },
-                f,
-            )
+        state = {
+            "config": config,
+            "games": games,
+            "ratings": ratings,
+            "handicap_gamma": dict(self.handicap_gamma),
+            "komi_gamma": dict(self.komi_gamma),
+            "nu": self.nu,
+            "ever_fitted": self._ever_fitted,
+            "games_since_fit": self._games_since_fit,
+            "format_version": self.SAVE_FORMAT_VERSION,
+        }
+        _replace_file(path, lambda f: pickle.dump(state, f))
 
     @staticmethod
     def load_base(path: str) -> WHR:

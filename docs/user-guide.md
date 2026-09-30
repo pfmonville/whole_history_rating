@@ -620,6 +620,11 @@ batch.load_games([
 These three lines are exactly equivalent to the three `create_game` calls at the
 top, so `batch` fits to the same ratings shown above.
 
+Blank lines are skipped, so `text.split("\n")` on a file that ends with a
+newline works as is. Every line is checked before any game is added: if one
+line is invalid, nothing is loaded, and the error has a note naming the line.
+Fix the input and call `load_games` again; no game is counted twice.
+
 #### Custom Separator for Complex Names
 
 When game details include names with spaces, such as first and last names, utilize the `separator` parameter to define an alternative delimiter, ensuring the integrity of each data point:
@@ -649,6 +654,10 @@ date) rather than the raw object graph, so saving and loading works for a
 history of any size. A reloaded base behaves exactly like the one that was
 saved: same ratings, predictions and diagnostics, and a `StaleFitWarning` if it
 was saved with games added since its last fit.
+
+Saving is atomic. The new file is written next to the target and replaces it
+in one step, so a save that fails (a value that cannot be pickled, a full disk,
+an interrupt) leaves the previous file intact.
 
 Files written by older versions are still readable. A file written by a
 *newer* version, in a save format this version does not know, is refused with
