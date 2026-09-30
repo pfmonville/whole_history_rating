@@ -56,7 +56,9 @@ Returns the convergence quantity used by `auto_iterate()`.
 
 ### `log_likelihood()`
 
-Returns the current total log-posterior density.
+Returns the joint log-posterior density of the current state, the quantity the
+fit maximizes: each game once, plus every player's priors. Values changed in
+3.7.0, which stopped counting each game twice.
 
 ### `fit_w2(candidates, ...)`
 

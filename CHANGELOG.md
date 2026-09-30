@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- `log_likelihood()` now returns the joint log-posterior the fit maximizes:
+  each game's log-probability **once**, plus every player's priors, as in
+  Coulom's `GetLogLikelihood`. It used to sum each player's own log-posterior,
+  which counts every game twice (once per player). That sum is not what the fit
+  maximizes: at a converged fit its derivative was not zero. **Values differ
+  from earlier versions.** Compare them only within one version. The three-game
+  example in the user guide goes from 0.330 to 2.232. `Player.log_likelihood()`
+  keeps its meaning: one player's log-posterior with its opponents held fixed.
+  `Player.log_prior()` and `Game.log_likelihood(nu)` expose the two parts.
+
+### Fixed
+- `rating_covariance()`, `rating_change()` and `log_likelihood()` could read
+  opponents' ratings cached before the last change. That happened after games
+  were added to a day the player already had, and after `remove_drift()`. The
+  result then depended on call order. For example, a variance read as 4754
+  elo² became 2877 once `max_gradient_norm()` had run in between, which
+  happened to clear the cache. Every read now starts from fresh terms, and
+  adding a game clears its day's cache.
+
 ## [3.6.2] - 2026-09-30
 
 ### Fixed

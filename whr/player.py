@@ -21,17 +21,33 @@ class Player:
         self.days: list[PD.PlayerDay] = []
         self.draw_tendency: float = 0.0
 
-    def log_likelihood(self) -> float:
-        """Log-posterior contribution of this player.
+    def refresh_game_terms(self) -> None:
+        """Drop every day's cached opponent gammas.
 
-        Sum of the per-day game log-likelihoods, the first-day anchor prior,
-        and the Gaussian Wiener prior log-density over consecutive days. When
+        The cache only lives for one computation: it spares the gradient and
+        the Hessian of the same Newton step from each re-deriving the
+        opponents' gammas. Anything that moves a rating, adds a game or changes
+        an advantage in between makes it stale, so every entry point that reads
+        game terms starts here rather than trusting what an earlier call left.
+        """
+        for day in self.days:
+            day.clear_game_terms_cache()
+
+    def log_likelihood(self) -> float:
+        """This player's conditional log-posterior: what its own Newton step
+        maximizes, with every opponent held fixed.
+
+        Sum of the per-day game log-likelihoods and :meth:`log_prior`. Every
+        game appears in both players' terms, so summing this over players
+        counts each game twice; ``WHR.log_likelihood`` is the joint
+        log-posterior, and counts each game once. When
         ``draw_tendency > 0`` the game part uses the Davidson (win/draw/loss)
         formula instead of the plain Bradley-Terry win/loss one, so a drawn
         game's contribution isn't silently dropped (a drawn game never
         appears in ``won_games``/``lost_games``, so the BT ``log_likelihood``
         term would otherwise credit it as nothing at all).
         """
+        self.refresh_game_terms()
         result = 0.0
         if self.draw_tendency > 0.0:
             for day in self.days:
@@ -39,8 +55,14 @@ class Player:
         else:
             for day in self.days:
                 result += day.log_likelihood()
-        if self.days:
-            result += self.days[0].anchor_log_likelihood()
+        return result + self.log_prior()
+
+    def log_prior(self) -> float:
+        """Log-density of this player's priors: the first-day anchor and the
+        Gaussian Wiener prior over consecutive days. No game terms."""
+        if not self.days:
+            return 0.0
+        result = self.days[0].anchor_log_likelihood()
         sigma2 = self.compute_sigma2()
         for i, s2 in enumerate(sigma2):
             rd = self.days[i + 1].r - self.days[i].r
@@ -120,8 +142,7 @@ class Player:
 
     def run_one_newton_iteration(self) -> None:
         """Runs a single iteration of Newton's method to update player ratings."""
-        for day in self.days:
-            day.clear_game_terms_cache()
+        self.refresh_game_terms()
         if len(self.days) == 1:
             self.days[0].update_by_1d_newtons_method()
         elif len(self.days) > 1:
@@ -137,8 +158,7 @@ class Player:
         """
         if not self.days:
             return 0.0
-        for day in self.days:
-            day.clear_game_terms_cache()
+        self.refresh_game_terms()
         r = [d.r for d in self.days]
         sigma2 = self.compute_sigma2()
         return max(abs(gi) for gi in self.gradient(r, self.days, sigma2))
@@ -210,6 +230,7 @@ class Player:
         only the diagonal, and ``WHR.rating_covariance`` inverts the Hessian
         densely when the full matrix is genuinely wanted.
         """
+        self.refresh_game_terms()
         sigma2 = self.compute_sigma2()
         diag, sub_diag = Player.hessian(self.days, sigma2, self.hessian_damping)
         n = len(self.days)
@@ -290,18 +311,15 @@ class Player:
         matrix and stored as that day's uncertainty. Players with no recorded
         day are left untouched.
 
-        The per-day game-term caches are cleared first, for the same reason
-        ``gradient_infinity_norm`` does it: a cache populated during this
-        player's own Newton step holds opponent gammas from *before* the
-        opponents were updated later in the same iteration. Reading it left the
-        stored variance a whisker off the true posterior variance (~2e-5
-        relative, i.e. well under a thousandth of an elo, but needlessly
-        inexact).
+        The band starts from fresh game terms (see ``refresh_game_terms``): a
+        cache populated during this player's own Newton step holds opponent
+        gammas from *before* the opponents were updated later in the same
+        iteration. Reading it left the stored variance a whisker off the true
+        posterior variance (~2e-5 relative, i.e. well under a thousandth of an
+        elo, but needlessly inexact).
         """
         if len(self.days) == 0:
             return
-        for day in self.days:
-            day.clear_game_terms_cache()
         # Only the diagonal is wanted, so take the O(n) band rather than building
         # the n x n matrix: that used to run an n^2 *Python* double loop, which
         # cost 0.48 s per pass over the 37 NBA teams (451 rated days each) against
