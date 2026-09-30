@@ -5,7 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.7.0] - 2026-09-30
+
+A correctness release from a systematic bug hunt. The ratings from an ordinary
+fit are unchanged. The fixes are in the diagnostics, the warnings, persistence
+and input handling. Before upgrading, check four things:
+
+- `log_likelihood()` values change: each game is now counted once.
+- Some inputs that were accepted and then failed later, or silently skewed the
+  model, now raise where they enter. Examples are `w2 <= 0`,
+  `auto_iterate(precision=0)` and a handicap `"0"` next to `0`.
+- A few new warnings can fire, and a test suite that turns warnings into
+  errors will catch them. They are a `StaleFitWarning` on four more reads, a
+  `DrawModelWarning`, and a `UserWarning` for a misspelled config key.
+- `load_games` skips blank lines instead of rejecting them.
 
 ### Changed
 - `log_likelihood()` now returns the joint log-posterior the fit maximizes:

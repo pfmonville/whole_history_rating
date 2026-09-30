@@ -32,7 +32,7 @@ def test_pypi_readme_uses_portable_links_and_real_ci_badge():
 def test_documentation_and_citation_files_are_configured():
     citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
     assert "cff-version: 1.2.0" in citation
-    assert 'version: "3.6.2"' in citation
+    assert 'version: "3.7.0"' in citation
     assert "doi: 10.1007/978-3-540-87608-3_11" in citation
     assert "type: conference-paper" in citation
 

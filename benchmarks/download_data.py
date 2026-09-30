@@ -74,7 +74,7 @@ def download(spec: Download, *, force: bool = False) -> str:
     spec.destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = spec.destination.with_suffix(spec.destination.suffix + ".part")
     request = urllib.request.Request(
-        spec.url, headers={"User-Agent": "whole-history-rating-benchmark/3.6.2"}
+        spec.url, headers={"User-Agent": "whole-history-rating-benchmark/3.7.0"}
     )
     try:
         with urllib.request.urlopen(request, timeout=120) as response:

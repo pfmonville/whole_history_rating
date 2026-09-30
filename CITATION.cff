@@ -5,7 +5,7 @@ type: software
 authors:
   - family-names: "Monville"
     given-names: "Pierre-François"
-version: "3.6.2"
+version: "3.7.0"
 date-released: "2026-09-30"
 repository-code: "https://github.com/pfmonville/whole_history_rating"
 url: "https://pypi.org/project/whole-history-rating/"
