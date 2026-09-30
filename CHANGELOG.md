@@ -68,6 +68,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `display_uncertainty` is checked each time it is read, not only in the
   constructor. The user guide invites changing it on a live instance, and a
   typo there used to switch silently to elo.
+- `rating_difference`, `rating_change`, `rating_covariance` and
+  `display_offset_for` now raise `StaleFitWarning` on a stale fit, like every
+  other rating read. The 3.5.0 notes said every surface did; these four did
+  not. `rating_difference` between two pools that never played each other
+  also raises `DisconnectedPlayersWarning`. It used to return a confident
+  interval, possibly excluding 0, with no warning. A new test classifies every
+  public name of `WHR` as a rating read, which must warn, or as exempt with a
+  reason. A method added later cannot be forgotten.
+- Before any fit, `rating_covariance` and `rating_change` returned numbers
+  computed from the starting state without a word, while the user guide and
+  the warning text said they raised. They still return a value, as their
+  docstrings promise, but now raise `UncomputedUncertaintyWarning`. The guide
+  and the warning text describe what really happens.
+- `ratings_for_player` rounded the default variance to 2 decimals, so a
+  well-measured player (about 10 elo of uncertainty) showed 0.0. Values below
+  0.1 now keep 2 significant digits. Larger values are displayed as before.
+- `connected_components()` returned its internal cache, so editing the result
+  changed later calls. It now returns a copy.
+- Docs: `draws_declared` is a property, not `draws_declared()`. The guide
+  paired `draw_rate=0.25` "or" `pinned_draw=0.79`, which are two different
+  rates; the matching nu is 0.67. The `one_sided_game_share` docstring said
+  "at most 5%" where the code excludes exactly 5%.
 
 ### Added
 - A config key that looks like a misspelled setting (`"W2"`, `"draw_rates"`)

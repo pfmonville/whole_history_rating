@@ -408,7 +408,8 @@ def test_display_offset_for_rejects_an_unrated_day():
 def test_uncertainty_defaults_to_the_stored_variance():
     w = _fitted()
     _day, _elo, unc = w.ratings_for_player("a")[0]
-    assert unc == pytest.approx(round(w.player_by_name("a").days[0].uncertainty, 2))
+    # shown with at least 2 significant digits (3.7.0), so within 5%
+    assert unc == pytest.approx(w.player_by_name("a").days[0].uncertainty, rel=0.05)
 
 
 def test_display_uncertainty_elo_reports_a_standard_error():

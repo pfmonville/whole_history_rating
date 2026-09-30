@@ -240,7 +240,9 @@ print(whr.ratings_for_player("shusai"))
 ```
 
 Shusaku lost two of the three games, so he settles ~100 elo below Shusai. The
-elo values are **rounded to integers** and the uncertainty to two decimals.
+elo values are **rounded to integers** and the uncertainty to two decimals, or
+to two significant digits when it is smaller than 0.1 (so a well-measured
+player's 0.0036 does not show as 0.0).
 
 > **Why are the ratings centred on 0, and can I make them look like "real" elo?**
 > WHR estimates *relative* strength: every player's first day is softly anchored
@@ -286,8 +288,9 @@ elo values are **rounded to integers** and the uncertainty to two decimals.
 Querying an unknown player raises a `ValueError`. Before `iterate()` has run,
 uncertainties are the sentinel **`-1`** — not a standard deviation, but "not
 computed yet"; reading them emits an `UncomputedUncertaintyWarning` once per
-instance. (`rating_difference`, `rating_covariance` and `rating_change` raise a
-`ValueError` in that same state rather than returning a sentinel.)
+instance. In that same state `rating_difference` raises a `ValueError`, while
+`rating_covariance` and `rating_change` return values computed from the
+un-fitted starting state, with the same warning.
 
 > **The uncertainty is a variance in natural log units, not elo.** The `0.26`
 > above is not "±0.26 elo": its elo standard error is
@@ -561,7 +564,7 @@ So say which you mean. There are three states:
 |---|---|---|
 | nothing set (default) | estimate the draw tendency from the data | fitted from observed draws |
 | `draw_rate=0.0` or `pinned_draw=0.0` | this domain cannot draw | `0`, `P(draw)` is legitimately `0` |
-| `draw_rate=0.25` or `pinned_draw=0.79` | draws happen at about this rate | fixed, never re-fitted |
+| `draw_rate=0.25` or `pinned_draw=0.67` | draws happen at about this rate (25% between equals, i.e. ν≈0.67) | fixed, never re-fitted |
 
 Calling `win_draw_loss_probabilities` with **no draws observed and nothing
 declared** emits a `NoDrawsWarning` once per instance, naming both fixes. It is a
@@ -710,7 +713,7 @@ whr = WHR({'estimate_handicap_zero': True})
 Declare whether your domain has draws, via `draw_rate` (a draw percentage between equal players) or `pinned_draw` (Davidson's `nu` directly). Both default to `None`, meaning `nu` is estimated from whatever draws the data contains. Setting both is a `ValueError` — they are two spellings of the same decision. Set either to `0` to state that the domain cannot draw. See ["Does your domain have draws at all?"](#does-your-domain-have-draws-at-all) for why the declaration matters and what happens if you skip it.
 
 ```python
-whr = WHR({'draw_rate': 0.25})     # or {'pinned_draw': 0.79}
+whr = WHR({'draw_rate': 0.25})     # or {'pinned_draw': 0.67}, the same rate as a nu
 ```
 
 Choose the **display** scale with `display_offset` (a constant added to every displayed elo, default `0.0`) and `display_uncertainty` (`"variance"`, the default, or `"elo"` for a standard error). Both affect presentation only — never a prediction, a difference or a covariance. See ["Why are the ratings centred on 0"](#viewing-ratings) and `display_offset_for()`.
