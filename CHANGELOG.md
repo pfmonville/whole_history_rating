@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- A base reloaded with `load_base` forgot whether it had been fitted: it
+  reported every game as pending in `games_since_last_fit` and never raised
+  `StaleFitWarning` when new games arrived. The fit status is now saved and
+  restored. Thanks to @bensynapse (#22).
+- On a base with draws, `log_likelihood()`, `max_gradient_norm()` and
+  `rating_covariance()` were computed with a draw tendency of 0 right after
+  `load_base`, so a converged base looked unconverged (and `auto_iterate` ran
+  an extra batch on it). Players now always use the base's current draw
+  tendency.
+- Related: after `iterate()` on a base with draws, the reported uncertainties
+  and diagnostics used the draw tendency from before the fit's last update.
+  They now use the fitted value. Ratings and predictions are unchanged;
+  uncertainties and `log_likelihood()` move by the size of that last update
+  (~1e-6 in the test suite).
+- Bases saved before draws existed, in the legacy list-shaped format, can now
+  compute likelihoods after loading.
+
+### Added
+- Saved files carry a format version, `WHR.SAVE_FORMAT_VERSION`. Loading a file
+  from a newer format raises `ValueError` instead of silently dropping the state
+  that format added. Files without a version (2.0.0 to 3.6.1) load as before.
+- A save/load round-trip test compares everything a caller can read from a base
+  before and after a reload, across bases with draws, handicap and komi, stale
+  and unfitted fits, case-insensitive names and disconnected pools. Every
+  earlier save/load fix was for state the format had forgotten; this catches
+  the next one without a dedicated test.
+
 ## [3.6.1] - 2026-07-28
 
 ### Fixed

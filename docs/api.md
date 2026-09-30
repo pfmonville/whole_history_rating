@@ -113,8 +113,10 @@ Inspect or convert the global Davidson draw parameter.
 
 ### `save_base(path)` and `WHR.load_base(path)`
 
-Serialize and restore a fitted model. Only load pickle files from trusted
-sources.
+Serialize and restore a model, fitted or not; the reloaded base behaves exactly
+like the saved one. Files carry a format version (`WHR.SAVE_FORMAT_VERSION`):
+older formats load, a newer one raises `ValueError`. Only load pickle files
+from trusted sources.
 
 ## Low-level objects
 
