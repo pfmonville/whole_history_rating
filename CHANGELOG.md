@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   example in the user guide goes from 0.330 to 2.232. `Player.log_likelihood()`
   keeps its meaning: one player's log-posterior with its opponents held fixed.
   `Player.log_prior()` and `Game.log_likelihood(nu)` expose the two parts.
+- `load_games` skips blank and whitespace-only lines instead of rejecting
+  them. `text.split("\n")` on a file that ends with a newline used to fail on
+  its empty last line.
 
 ### Fixed
 - `rating_covariance()`, `rating_change()` and `log_likelihood()` could read
@@ -26,6 +29,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   elo² became 2877 once `max_gradient_norm()` had run in between, which
   happened to clear the cache. Every read now starts from fresh terms, and
   adding a game clears its day's cache.
+- `save_base` truncated the target before pickling, so a save that failed
+  part-way (an unpicklable value in a game's `extras`, a full disk, an
+  interrupt) replaced the previous good file with an empty one. It now writes
+  a temporary file next to the target and swaps it in with `os.replace`. On
+  failure the previous file is intact and no temporary file is left. File
+  permissions and symlinks behave as before.
+- `load_games` added each line as soon as it was parsed, so a bad line left
+  the lines before it loaded, and retrying after fixing the input counted them
+  twice. Every line is now checked first, and a bad line loads nothing. The
+  error carries a note naming the line.
+- `create_game` with an unhashable `handicap` or `komi` (a list, a dict)
+  created both players before failing, and left them in the base with no
+  games. Every check now runs before anything is created. The error is now a
+  `TypeError` that names the argument.
 
 ## [3.6.2] - 2026-09-30
 
