@@ -55,6 +55,15 @@ _MAX_HALF_GAP = 700.0
 _MAX_ADVANTAGE_LOG_STEP = 10.0
 
 
+def _rounded_uncertainty(value: float) -> float:
+    """Round a displayed uncertainty to 2 decimals, but keep at least 2
+    significant digits: a well-measured player's variance of ~0.0036 (about 10
+    elo) used to be shown as 0.0. The -1 sentinel and 0 are unchanged."""
+    if value <= 0.0:
+        return round(value, 2)
+    return round(value, max(2, 1 - math.floor(math.log10(value))))
+
+
 def _validated_time_step(time_step: Any) -> int | float:
     """Check a ``time_step`` early, and normalise an integral float to ``int``.
 
@@ -861,6 +870,8 @@ class WHR:
             raise ValueError(f"No ratings available for player {name_a!r}")
         if pb is None or not pb.days:
             raise ValueError(f"No ratings available for player {name_b!r}")
+        self._warn_if_stale()
+        self._warn_if_disconnected(name_a, name_b)
         da = self._player_day(pa, day_a)
         db = self._player_day(pb, day_b)
         if da.uncertainty < 0 or db.uncertainty < 0:
@@ -884,14 +895,17 @@ class WHR:
         Evaluated at the player's CURRENT rating state: call iterate() or
         auto_iterate() first for meaningful values. Unlike rating_difference(),
         this does not raise if uncertainties were never computed (i.e. before
-        any iterate() call) — it will simply invert whatever Hessian the
-        current (possibly un-iterated) state produces. Inverts a dense n x n
+        any iterate() call): it inverts whatever Hessian the current, possibly
+        un-iterated, state produces, and warns (UncomputedUncertaintyWarning)
+        that the result describes no fit. Inverts a dense n x n
         matrix, where n is the player's number of distinct rated days, so the
         cost grows with that count.
         """
+        self._warn_if_stale()
         player = self._existing_player(name)
         if player is None or not player.days:
             raise ValueError(f"No ratings available for player {name!r}")
+        self._warn_if_uncertainty_uncomputed(player, "rating_covariance")
         n = len(player.days)
         player.refresh_game_terms()
         sigma2 = player.compute_sigma2()
@@ -919,13 +933,16 @@ class WHR:
 
         Evaluated at the player's CURRENT rating state: call iterate() or
         auto_iterate() first for meaningful values. Unlike rating_difference(),
-        this does not raise if uncertainties were never computed. It delegates
+        this does not raise if uncertainties were never computed; it warns
+        (UncomputedUncertaintyWarning) instead. It delegates
         to rating_covariance(), which inverts a dense n x n matrix (n = the
         player's number of distinct rated days), so cost grows with that count.
         """
+        self._warn_if_stale()
         player = self._existing_player(name)
         if player is None or not player.days:
             raise ValueError(f"No ratings available for player {name!r}")
+        self._warn_if_uncertainty_uncomputed(player, "rating_change")
         days, cov = self.rating_covariance(name)
         index = {d: i for i, d in enumerate(days)}
         if day_from not in index or day_to not in index:
@@ -965,10 +982,10 @@ class WHR:
         if current:
             return (
                 round(player.days[-1].elo + shift),
-                round(show(player.days[-1].uncertainty), 2),
+                _rounded_uncertainty(show(player.days[-1].uncertainty)),
             )
         return [
-            (d.day, round(d.elo + shift), round(show(d.uncertainty), 2))
+            (d.day, round(d.elo + shift), _rounded_uncertainty(show(d.uncertainty)))
             for d in player.days
         ]
 
@@ -1054,6 +1071,7 @@ class WHR:
             ValueError: If there is nothing rated to anchor on, if ``player`` is
                 unknown, or if ``player`` has no rating on ``day``.
         """
+        self._warn_if_stale()
         rated = [(d, p) for p in self.players.values() for d in p.days]
         if not rated:
             raise ValueError(
@@ -1093,7 +1111,7 @@ class WHR:
         Result is cached and invalidated whenever a game is added.
         """
         if self._components is not None:
-            return self._components
+            return list(self._components)
         parent: dict[str, str] = {}
 
         def find(x: str) -> str:
@@ -1120,7 +1138,7 @@ class WHR:
         self._component_of = {
             name: i for i, group in enumerate(self._components) for name in group
         }
-        return self._components
+        return list(self._components)
 
     def _warn_if_disconnected(self, name1: str, name2: str) -> None:
         """Flag a comparison spanning two groups that never played each other.
@@ -1171,25 +1189,38 @@ class WHR:
             stacklevel=3,
         )
 
-    def _warn_if_uncertainty_uncomputed(self, player: Player) -> None:
-        """Flag the ``-1`` uncertainty sentinel being read as if it were a value.
+    def _warn_if_uncertainty_uncomputed(
+        self, player: Player, reader: str = "ratings_for_player"
+    ) -> None:
+        """Flag a read of uncertainties that were never computed.
 
-        ``rating_difference`` and friends raise in this state; this method has
-        always returned the raw sentinel instead, so an un-rated base stays
-        inspectable. The warning keeps that behaviour while making the ``-1``
-        impossible to mistake for a standard deviation. Once per instance.
+        ``rating_difference`` raises in this state. ``ratings_for_player``
+        returns the raw ``-1`` sentinel, and ``rating_covariance`` /
+        ``rating_change`` invert the un-fitted Hessian, so an un-rated base
+        stays inspectable. The warning keeps that behaviour while making the
+        result impossible to mistake for an estimate. Once per instance.
         """
         if self._warned_uncomputed_uncertainty:
             return
         if not any(day.uncertainty < 0 for day in player.days):
             return
         self._warned_uncomputed_uncertainty = True
+        if reader == "ratings_for_player":
+            what = (
+                "is reporting the uncertainty sentinel -1, which means "
+                "uncertainties have not been computed -- it is not a standard "
+                "deviation."
+            )
+        else:
+            what = (
+                "is computed from a player whose uncertainties have not been "
+                "computed (the -1 sentinel): the result describes the "
+                "un-fitted starting state, not an estimate."
+            )
         warnings.warn(
-            f"ratings_for_player({player.name!r}) is reporting the uncertainty "
-            "sentinel -1, which means uncertainties have not been computed -- it "
-            "is not a standard deviation. Call iterate() or auto_iterate() "
-            "first. (rating_difference/rating_covariance raise a ValueError in "
-            "this same state.)",
+            f"{reader}({player.name!r}) {what} Call iterate() or auto_iterate() "
+            "first. (rating_difference raises a ValueError in this same state; "
+            "ratings_for_player, rating_covariance and rating_change warn.)",
             UncomputedUncertaintyWarning,
             stacklevel=3,
         )
@@ -1455,8 +1486,8 @@ class WHR:
         """Share of games involving a player who almost never changes colour.
 
         The statistic behind :class:`~whr.utils.HandicapBaselineWarning`. A player
-        is "one-sided" when at most ``5%`` of their games are on one side of the
-        board. The fraction returned is games with at least one such player,
+        is "one-sided" when fewer than ``5%`` of their games are on one side of
+        the board (exactly 5% is not). The fraction returned is games with at least one such player,
         over all games -- so a league where every team plays home and away
         scores ~0, while a base where one competitor is always "black" scores 1.
         """

@@ -107,7 +107,7 @@ integrate rating uncertainty into the prediction.
 Returns `(win, draw, loss)` under the Davidson model and supports the same
 uncertainty integration.
 
-### `draw_tendency`, `draws_declared()`, `nu_from_draw_rate()`, and `draw_rate_from_nu()`
+### `draw_tendency`, `draws_declared`, `nu_from_draw_rate()`, and `draw_rate_from_nu()`
 
 Inspect or convert the global Davidson draw parameter.
 
