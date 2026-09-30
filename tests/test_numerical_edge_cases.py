@@ -102,6 +102,24 @@ def test_an_ordinary_handicap_gives_the_same_numbers_as_before():
     assert w.probability_future_match("a", "b", 150)[0] == expected
 
 
+@pytest.mark.parametrize(
+    "method", ["probability_future_match", "win_draw_loss_probabilities"]
+)
+@pytest.mark.parametrize("integrated", [False, True])
+@pytest.mark.parametrize("key", [None, 0])
+@pytest.mark.parametrize("handicap", [float("nan"), float("inf"), -float("inf")])
+def test_nonfinite_prediction_handicaps_are_rejected(method, integrated, key, handicap):
+    w = _fitted()
+    with pytest.raises(ValueError, match="handicap.*finite"):
+        getattr(w, method)(
+            "a",
+            "b",
+            handicap,
+            handicap_key=key,
+            account_for_uncertainty=integrated,
+        )
+
+
 # --------------------------------------------------------------------------- #
 # settings changed on a live base
 # --------------------------------------------------------------------------- #

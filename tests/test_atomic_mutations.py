@@ -143,3 +143,25 @@ def test_blank_lines_are_skipped():
     w = WHR()
     w.load_games("d e B 5\n\n  \nd f W 6\n".split("\n"))
     assert len(w.games) == 2
+
+
+@pytest.mark.parametrize("keys", [(6.5, "6.5"), ("6.5", 6.5)])
+def test_lookalike_keys_within_a_batch_are_rejected_atomically(keys):
+    w = _fitted()
+    before = _state(w)
+    lines = [f"d e B 5 {{'komi': {key!r}}}" for key in keys]
+    with pytest.raises(ValueError, match="komi") as excinfo:
+        w.load_games(lines)
+    assert "line 2" in "\n".join(excinfo.value.__notes__)
+    assert _state(w) == before
+
+
+def test_consistent_new_categories_in_a_batch_roundtrip(tmp_path):
+    w = WHR()
+    w.load_games(["a b B 1 {'komi': 6.5}", "a b W 2 {'komi': 6.5}"])
+    w.iterate(20)
+    path = tmp_path / "base.pkl"
+    w.save_base(path)
+    loaded = WHR.load_base(path)
+    assert loaded.ratings_for_player("a") == w.ratings_for_player("a")
+    assert loaded.komi_gamma == w.komi_gamma

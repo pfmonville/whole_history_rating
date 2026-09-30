@@ -79,3 +79,21 @@ def test_a_player_name_with_braces_is_not_mistaken_for_extras():
 def test_a_line_whose_extras_are_not_a_dict_is_still_rejected():
     with pytest.raises(ValueError, match="extras"):
         WHR().load_games(["a b B 1 0 {'komi': 6.5"])
+
+
+@pytest.mark.parametrize(
+    "reader", ["difference", "change", "player_offset", "mean_offset"]
+)
+def test_readers_accept_the_original_unrounded_day(reader):
+    w = WHR()
+    day = 0.1 + 0.2
+    w.create_game("a", "b", "B", day, 0)
+    w.create_game("a", "b", "W", 1.3, 0)
+    w.iterate(30)
+    readers = {
+        "difference": lambda d: w.rating_difference("a", "b", d, d),
+        "change": lambda d: w.rating_change("a", d, 1.3),
+        "player_offset": lambda d: w.display_offset_for(1500, player="a", day=d),
+        "mean_offset": lambda d: w.display_offset_for(1500, day=d),
+    }
+    assert readers[reader](day) == readers[reader](0.3)
