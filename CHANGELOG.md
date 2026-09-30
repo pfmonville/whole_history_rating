@@ -5,6 +5,41 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.1] - 2026-09-30
+
+### Fixed
+- Saved fractional dates from before 3.7.0 are normalized when restoring
+  ratings as well as when replaying games, avoiding a `KeyError` on dates
+  such as `0.1 + 0.2`. If distinct saved days of a player merge after rounding,
+  all games are retained, player ratings and uncertainties are reset, and a
+  warning asks the caller to refit. Otherwise the saved ratings are preserved.
+- `rating_difference`, `rating_change` and `display_offset_for` apply the
+  same date normalization as `create_game`, so the original input date can
+  be used to read a rating even when its stored value was rounded.
+- `load_games` checks for lookalike category keys across the whole batch,
+  including keys introduced on earlier lines. A batch containing both
+  `komi=6.5` and `komi="6.5"` now fails before adding any games; previously
+  it produced a base that could be saved but not reloaded.
+- Both prediction methods reject non-finite raw handicaps before clamping.
+  A `NaN` handicap previously became +60,000 elo and a certain win.
+- Remove contradictory user-guide passages about draw updates, uncertainty
+  warnings and mixed category keys. Explain the log-posterior's numerical
+  change from 0.330106 to 2.231636 and distinguish it from benchmark log-loss.
+  The API reference now correctly marks `create_game`'s handicap as required.
+
+### Benchmarks
+- Rerun all three WHR/KickScore/TrueSkill Through Time grids and all three WHR
+  deep dives; regenerate all six figures and refresh the README, user guide and
+  report. Capture current versions and SHA-256 input hashes in all results.
+- Add release validation with every automatic WHR fit's convergence diagnostics and a
+  controlled 3.7.0/3.7.1 comparison on identical inputs and dependencies.
+  Historical artifacts are compared separately from the release baseline.
+
+### Tests
+- Extend the joint log-posterior derivative check to a fit that estimates
+  draw tendency, handicap and komi together. The 3.7.0 likelihood correction
+  is unchanged.
+
 ## [3.7.0] - 2026-09-30
 
 A correctness release from a systematic bug hunt. The ratings from an ordinary

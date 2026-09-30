@@ -14,84 +14,164 @@
       "n": 2816
     },
     "whr": {
-      "log_loss": 0.6164406921109764,
+      "log_loss": 0.6163056096948242,
       "accuracy": 0.6697443181818182,
       "n": 2816
     }
   },
   "calibration_whr": [
     [
-      0.06263074985701282,
-      0.1111111111111111,
-      81
+      0.062114572700884774,
+      0.1125,
+      80
     ],
     [
-      0.15365585223729242,
-      0.19662921348314608,
-      178
+      0.1532713518774732,
+      0.19444444444444445,
+      180
     ],
     [
-      0.24928255375667177,
-      0.26851851851851855,
-      216
+      0.24918139242427878,
+      0.27102803738317754,
+      214
     ],
     [
-      0.3498657754902252,
-      0.32450331125827814,
-      302
+      0.3492873936332017,
+      0.31893687707641194,
+      301
     ],
     [
-      0.4504443678086373,
-      0.4540229885057471,
+      0.4502008625435689,
+      0.45689655172413796,
       348
     ],
     [
-      0.5467785612316136,
+      0.5468910699928713,
       0.5283018867924528,
       371
     ],
     [
-      0.6515961437356839,
-      0.5959079283887468,
-      391
+      0.6515631416406276,
+      0.5968992248062015,
+      387
     ],
     [
-      0.7478487821348995,
-      0.6887052341597796,
-      363
+      0.7470554352174048,
+      0.6842105263157895,
+      361
     ],
     [
-      0.8478191618262365,
-      0.7528089887640449,
-      356
+      0.8480651688512754,
+      0.7527472527472527,
+      364
     ],
     [
-      0.9403290336615899,
+      0.9409648907423891,
       0.8428571428571429,
       210
     ]
   ],
   "provenance": {
     "schema_version": 1,
-    "generated_at": "2026-07-24T15:31:11Z",
+    "generated_at": "2026-09-30T19:00:24.423766Z",
     "source": {
-      "commit": "7441cf89aec2d19d402d87714737fef2a003cd29",
-      "dirty": null
+      "commit": "e8ff4f1756d3d43a50e5aa4758098cb8bd22af26",
+      "dirty": false
     },
     "runtime": {
-      "python": null,
-      "platform": null,
-      "machine": null
+      "python": "3.13.13",
+      "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+      "machine": "arm64"
     },
     "packages": {
-      "whole-history-rating": null
+      "whole-history-rating": "3.7.1",
+      "pandas": "3.0.6"
     },
     "dataset": {
       "source": "https://github.com/JeffSackmann/tennis_atp",
-      "files": []
+      "files": [
+        {
+          "path": "atp_matches_2000.csv",
+          "size": 740089,
+          "sha256": "004c2627ea9f903051f05d9392f0618a1638dd2186d2da9f8a953432c4884ce5"
+        },
+        {
+          "path": "atp_matches_2001.csv",
+          "size": 730617,
+          "sha256": "d780b266f79c1385393877a177780fbb73989aec34c9d81abd7c34109a367c11"
+        },
+        {
+          "path": "atp_matches_2002.csv",
+          "size": 713223,
+          "sha256": "19a659f95166f34ae1b7702d05ba0012d22c5488d4d3528403cb9eac9b044542"
+        },
+        {
+          "path": "atp_matches_2003.csv",
+          "size": 708279,
+          "sha256": "3de52554b02c22637b753636025a6c5482e00ef8a7380211bf4a44a46e488651"
+        },
+        {
+          "path": "atp_matches_2004.csv",
+          "size": 721504,
+          "sha256": "16db55f8858217c4be80e6d2cd99723d42956e64147935cb36f9ffe356436ce2"
+        },
+        {
+          "path": "atp_matches_2005.csv",
+          "size": 719110,
+          "sha256": "d6a28569145fa4685e70610a92dda6f3eea4054429703b0e5649ffbd276b641f"
+        },
+        {
+          "path": "atp_matches_2006.csv",
+          "size": 720471,
+          "sha256": "12ea9156e0a663ca7bb4fed52149c99def9d6a7fd2cf7022b9dad1ad3545e10c"
+        },
+        {
+          "path": "atp_matches_2007.csv",
+          "size": 696386,
+          "sha256": "286473b633f8b29311f78c59303e7a06b6462931e1cbaa17eb60bd68f2130ccf"
+        },
+        {
+          "path": "atp_matches_2008.csv",
+          "size": 687829,
+          "sha256": "4cf904cb1e60c78e7f73072bf18edbc15fa9837d462cdf392644108b6d855546"
+        },
+        {
+          "path": "atp_matches_2009.csv",
+          "size": 682659,
+          "sha256": "a7a99716de694ae6beedf87967cd68b7e5cd64f1543e1aab1f0e9c0f9a3deb4b"
+        },
+        {
+          "path": "atp_matches_2010.csv",
+          "size": 677349,
+          "sha256": "cba18c7d2c2419888843a0b8021cda2418c0fda2f438898b1079122f7bfecf6a"
+        },
+        {
+          "path": "atp_matches_2011.csv",
+          "size": 671626,
+          "sha256": "cef324758afd4607ed14e3064443b31acc90ebceeb87bfd3ffb778eb91753ef8"
+        },
+        {
+          "path": "atp_matches_2012.csv",
+          "size": 667014,
+          "sha256": "56b8695e5bab9bea13c3716338269b3c08e9ba098fa603542b0298284ea3259d"
+        },
+        {
+          "path": "atp_matches_2013.csv",
+          "size": 651384,
+          "sha256": "2b43e8777639a5eb075dfea1ecfb6be7781cb53275792a67f4453ba0c0b2c0a1"
+        },
+        {
+          "path": "atp_matches_2014.csv",
+          "size": 638325,
+          "sha256": "b89f6adf9df772660c298f4e3e5b9bec8c6e512dcadf1acac8cffbb9860a0960"
+        },
+        {
+          "path": "atp_matches_2015.csv",
+          "size": 245997,
+          "sha256": "f37e8e1341c9181837bb488a2c69cc628da92340e61853a2a5115f9df6aac105"
+        }
+      ]
     },
-    "random_seed": null,
-    "legacy": true,
-    "note": "This result predates automatic provenance; runtime, package versions, and dataset hashes were not recorded."
+    "random_seed": null
   }
 }

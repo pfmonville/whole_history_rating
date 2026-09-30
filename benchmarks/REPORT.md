@@ -2,9 +2,11 @@
 
 This report puts `whole-history-rating` (WHR) head-to-head with two well-known
 dynamic rating systems — **by running them**, not by quoting their papers — on
-the same data, under the same protocol, scored with the same metric. (Numbers
-were first produced on 3.0.0 and re-verified bit-identical on 3.1.0, which made
-komi opt-in — see §4.)
+the same data, under the same protocol, scored with the same metric. All
+current tables and figures were regenerated with **WHR 3.7.1** on
+30 September 2026. See [release validation](RELEASE-3.7.1.md) for the exact
+environment, convergence audit, and controlled comparison with 3.7.0. Historical
+experiments are identified separately below.
 
 - **KickScore** (Maystre et al., *Pairwise Comparisons with Flexible
   Time-Dynamics*, KDD 2019) — NBA and football.
@@ -33,7 +35,7 @@ that sees rosters and injuries.
 ## Headline
 
 All three systems: same training prefix, same validation season for tuning, same
-test season, same metric, same integer-day time unit.
+test season, same metric, and the same time bins within each dataset.
 
 | Benchmark | Test set | **WHR** | KickScore | TrueSkill Through Time | Leader |
 |---|---|---|---|---|---|
@@ -51,8 +53,11 @@ Every reported optimum is interior to its hyper-parameter grid: grids were
 widened and re-run until no `on_grid_edge` flag remained, so no system is quoted
 at a value its grid merely failed to reach (see §5).
 
-All fits converge (gradient ∞-norm ≈ 3–5·10⁻³) and recover historically correct
-strength curves (see the NBA figure).
+All WHR `auto_iterate` calls returned convergence: gradient ∞-norm below
+`1e-3` in the head-to-head runs and below `5e-3` in the deep dives. The per-fit audit is in
+the [release validation](RELEASE-3.7.1.md). NBA online updates retain six
+fixed sweeps per time bin; they do not use a convergence threshold.
+The rating-history figures also recover recognisable eras (see the NBA figure).
 
 ---
 
@@ -73,7 +78,7 @@ analogue of 538's per-game-updated Elo).
 | Model | log-loss | accuracy |
 |---|---|---|
 | base rate (61.9% home) | 0.6783 | 59.1% |
-| WHR, no home advantage | 0.6839 | 60.3% |
+| WHR, no home advantage | 0.6840 | 60.3% |
 | WHR + home (frozen at season start) | 0.6699 | 63.6% |
 | **WHR + home (online)** | **0.6343** | **64.3%** |
 | FiveThirtyEight Elo (online) | 0.6192 | 65.3% |
@@ -189,7 +194,7 @@ outcomes, trained on 2014-15…2021-22, tuned on 2021-22, scored on 2022-23:
 | base rate (H/D/A frequencies) | — | 1.0630 | 45.7% |
 
 WHR's own draw-blind ablation, for reference: Bradley–Terry with a constant draw
-rate scores **1.0132 / 51.7%** — i.e. roughly KickScore's number, which is a
+rate scores **1.0132 / 51.6%** — i.e. roughly KickScore's number, which is a
 useful sanity check that the Davidson gain is the draw *model* and not the rest
 of the pipeline.
 
@@ -203,7 +208,7 @@ of the pipeline.
   `account_for_uncertainty` parameter, so earlier versions of this table scored
   WHR on bare point estimates while both competitors folded in their posterior
   variance. The parameter now exists and this run sweeps it: the validation
-  season selects it, and it is worth **1.0089 → 1.0085**, roughly a tenth of
+  season selects it, and it is worth **1.0088 → 1.0085**, roughly a tenth of
   what the same flag bought on tennis (0.0023) and a twelfth of the NBA (0.0039).
   The reason is structural rather than incidental: the three-outcome hedge
   compresses the win/loss odds instead of moving mass toward the draw — the
@@ -320,7 +325,7 @@ know where.
    would be neutral.
 3. **Convergence budget** is fixed per library (WHR `auto_iterate` to a gradient
    precision of `1e-3`, KickScore `max_iter=100`, TTT
-   `convergence(epsilon=1e-3)`), not matched on wall-clock. A speed comparison
+   `convergence(epsilon=1e-3, iterations=10)`), not matched on wall-clock. A speed comparison
    would need a different design; this benchmark measures predictive quality
    only. Earlier runs used a looser `5e-3` for WHR, which cost it 0.00057 nats on
    tennis (0.614102 against 0.613530) — a handicap of this harness's own making,

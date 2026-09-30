@@ -204,3 +204,69 @@ def test_a_file_without_a_format_version_still_loads(tmp_path):
     loaded = WHR.load_base(path)
     assert loaded.ratings_for_player("a") == original.ratings_for_player("a")
     assert loaded.log_likelihood() == original.log_likelihood()
+
+
+def _save_pre_rounding_days(path, version, collision=False):
+    """Flat save schema of 2.0.0--3.6.2, before dates were rounded on input.
+
+    Write the old wire format directly so this remains a migration test even
+    when today's create_game/save_base normalizes all its dates.
+    """
+    days = [0.1 + 0.2, 1.3]
+    if collision:
+        days.insert(0, 0.3)
+    state = {
+        "config": {"w2": 300},
+        "games": [
+            ("a", "b", "B" if i % 2 else "W", d, 0, {}) for i, d in enumerate(days)
+        ],
+        "ratings": {
+            "a": [(d, 0.2 + i * 0.1, 0.4) for i, d in enumerate(days)],
+            "b": [(d, -0.2 - i * 0.1, 0.5) for i, d in enumerate(days)],
+            "idle": [],
+        },
+        "nu": 0.0,
+        "handicap_gamma": {0: 1.0},
+        "komi_gamma": {},
+    }
+    if version == 2:
+        state.update(format_version=2, ever_fitted=True, games_since_fit=0)
+    path.write_bytes(pickle.dumps(state))
+    return state
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_pre_rounding_save_preserves_ratings_after_date_migration(tmp_path, version):
+    path = tmp_path / "old.pkl"
+    state = _save_pre_rounding_days(path, version)
+    w = WHR.load_base(path)
+    for name in ("a", "b"):
+        assert [d.day for d in w.players[name].days] == [0.3, 1.3]
+        assert [(d.r, d.uncertainty) for d in w.players[name].days] == [
+            (r, u) for _, r, u in state["ratings"][name]
+        ]
+    assert "idle" in w.players
+    if version == 2:
+        assert w.games_since_last_fit == 0
+    loaded = _roundtrip(w, tmp_path)
+    w.iterate(5)
+    loaded.iterate(5)
+    assert _observe(w) == _observe(loaded)
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_colliding_saved_days_keep_games_but_require_a_new_fit(tmp_path, version):
+    path = tmp_path / "old.pkl"
+    _save_pre_rounding_days(path, version, collision=True)
+    with pytest.warns(UserWarning, match="merged.*refit"):
+        w = WHR.load_base(path)
+    assert len(w.games) == 3
+    assert [d.day for d in w.players["a"].days] == [0.3, 1.3]
+    assert "idle" in w.players
+    assert w.games_since_last_fit == 3
+    assert all(d.uncertainty == -1 for p in w.players.values() for d in p.days)
+    with pytest.raises(ValueError, match="uncertainties not computed"):
+        w.rating_difference("a", "b")
+    w.iterate(30)
+    assert w.games_since_last_fit == 0
+    assert _observe(_roundtrip(w, tmp_path)) == _observe(w)

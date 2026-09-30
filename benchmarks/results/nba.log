@@ -1,24 +1,34 @@
+RUN nba started 2026-09-30T18:52:38.013436+00:00
 loaded 69377 games, 74 seasons (1947-2020)
 home (team1) win rate on non-neutral games: 0.619
 train_v=39967 valid=1312 train_t=41279 test=1312
-    fit: 39967 games, grad_norm=4.59e-03, iters~(40, True)
+FIT_AUDIT {"w2": 100.0, "games": 39967, "players": 37, "iterations": 50, "converged": true, "options": {"time_limit": 90, "precision": 0.005}, "elapsed_seconds": 5.215787000008277, "gradient": 0.0035646009859418015, "log_posterior": 315.86596151393576, "nu": 0.0}
+    fit: 39967 games, grad_norm=3.56e-03, iters~(50, True)
   w2= 100.0: valid log-loss (WHR+home) = 0.6700
+FIT_AUDIT {"w2": 300.0, "games": 39967, "players": 37, "iterations": 50, "converged": true, "options": {"time_limit": 90, "precision": 0.005}, "elapsed_seconds": 5.2254880410037, "gradient": 0.004061727937712978, "log_posterior": -6201.068846875525, "nu": 0.0}
     fit: 39967 games, grad_norm=4.06e-03, iters~(50, True)
   w2= 300.0: valid log-loss (WHR+home) = 0.6618
-    fit: 39967 games, grad_norm=4.39e-03, iters~(30, True)
+FIT_AUDIT {"w2": 1000.0, "games": 39967, "players": 37, "iterations": 50, "converged": true, "options": {"time_limit": 90, "precision": 0.005}, "elapsed_seconds": 5.198012208013097, "gradient": 0.0033456477765057002, "log_posterior": -13352.041853707913, "nu": 0.0}
+    fit: 39967 games, grad_norm=3.35e-03, iters~(50, True)
   w2=1000.0: valid log-loss (WHR+home) = 0.6577
-    fit: 39967 games, grad_norm=4.47e-03, iters~(30, True)
-  w2=3000.0: valid log-loss (WHR+home) = 0.6662
+FIT_AUDIT {"w2": 3000.0, "games": 39967, "players": 37, "iterations": 50, "converged": true, "options": {"time_limit": 90, "precision": 0.005}, "elapsed_seconds": 5.18642270800774, "gradient": 0.0027483106139212232, "log_posterior": -19784.184661385676, "nu": 0.0}
+    fit: 39967 games, grad_norm=2.75e-03, iters~(50, True)
+  w2=3000.0: valid log-loss (WHR+home) = 0.6663
 selected w2=1000.0 (valid log-loss 0.6577)
-    fit: 41279 games, grad_norm=4.39e-03, iters~(30, True)
-    fit: 41279 games, grad_norm=4.16e-03, iters~(30, True)
+FIT_AUDIT {"w2": 1000.0, "games": 41279, "players": 37, "iterations": 50, "converged": true, "options": {"time_limit": 90, "precision": 0.005}, "elapsed_seconds": 5.06254991699825, "gradient": 0.0033443972934232846, "log_posterior": -13819.685053434343, "nu": 0.0}
+    fit: 41279 games, grad_norm=3.34e-03, iters~(50, True)
+FIT_AUDIT {"w2": 1000.0, "games": 41279, "players": 37, "iterations": 50, "converged": true, "options": {"time_limit": 90, "precision": 0.005}, "elapsed_seconds": 5.137996083998587, "gradient": 0.0032910277488604756, "log_posterior": -15096.570502253966, "nu": 0.0}
+    fit: 41279 games, grad_norm=3.29e-03, iters~(50, True)
+FIT_AUDIT {"w2": 1000.0, "games": 41279, "players": 37, "iterations": 50, "converged": true, "options": {"time_limit": 90, "precision": 0.005}, "elapsed_seconds": 4.787019291994511, "gradient": 0.0033443972934232846, "log_posterior": -13819.685053434343, "nu": 0.0}
 TEST SEASON 2018-19 (season=2019):
   base_rate        log-loss=0.6783 acc=0.5907 (n=1312)
-  whr_plain        log-loss=0.6839 acc=0.6029 (n=1312)
+  whr_plain        log-loss=0.6840 acc=0.6029 (n=1312)
   whr_home_frozen  log-loss=0.6699 acc=0.6364 (n=1312)
   whr_home_online  log-loss=0.6343 acc=0.6425 (n=1312)
   fte_elo          log-loss=0.6192 acc=0.6532 (n=1312)
   fte_raptor       log-loss=0.6152 acc=0.6562 (n=1312)
 estimated home advantage: 98.2 elo
-    fit: 69377 games, grad_norm=4.79e-03, iters~(120, True)
-wrote results/nba_results.json and results/nba_history.png
+FIT_AUDIT {"w2": 1000.0, "games": 69377, "players": 102, "iterations": 150, "converged": true, "options": {"time_limit": 120, "precision": 0.005}, "elapsed_seconds": 28.4635631669953, "gradient": 0.0039303077761951855, "log_posterior": -26125.83195449883, "nu": 0.0}
+    fit: 69377 games, grad_norm=3.93e-03, iters~(150, True)
+wrote results/nba_results.json and results/nba_curves.json
+RUN nba completed in 88.6s

@@ -26,15 +26,17 @@ complete configuration discussion.
 
 ## Adding results
 
-### `create_game(black, white, winner, time_step, handicap=0, komi=None)`
+### `create_game(black, white, winner, time_step, handicap, komi=None, extras=None)`
 
 Adds one game and returns its `Game` object. `winner` is `"B"`, `"W"`, or
 `"D"`. Handicap and komi values are learned category keys unless pinned.
+The `handicap` argument is required; use `0` for an even game.
 
 ### `load_games(games, separator=" ")`
 
 Loads compact string records in the form
-`black white result time_step [handicap]`.
+`black white result time_step [handicap] [extras]`. Here the omitted handicap
+defaults to `0`. Blank lines are skipped, and an invalid batch adds no games.
 
 Adding games invalidates the previous fit. Call `iterate()` or `auto_iterate()`
 before reading updated ratings or predictions.
@@ -58,7 +60,9 @@ Returns the convergence quantity used by `auto_iterate()`.
 
 Returns the joint log-posterior density of the current state, the quantity the
 fit maximizes: each game once, plus every player's priors. Values changed in
-3.7.0, which stopped counting each game twice.
+3.7.0, which stopped counting each game twice. The value can be positive
+because it includes continuous prior densities; it is not a probability.
+See the [worked decomposition](user-guide.md#inspecting-the-fit).
 
 ### `fit_w2(candidates, ...)`
 
@@ -107,6 +111,9 @@ integrate rating uncertainty into the prediction.
 Returns `(win, draw, loss)` under the Davidson model and supports the same
 uncertainty integration.
 
+Both prediction methods require a finite raw `handicap`. Very large finite
+values are clamped at ±60,000 elo; NaN and infinity raise `ValueError`.
+
 ### `draw_tendency`, `draws_declared`, `nu_from_draw_rate()`, and `draw_rate_from_nu()`
 
 Inspect or convert the global Davidson draw parameter.
@@ -119,6 +126,11 @@ Serialize and restore a model, fitted or not; the reloaded base behaves exactly
 like the saved one. Files carry a format version (`WHR.SAVE_FORMAT_VERSION`):
 older formats load, a newer one raises `ValueError`. Only load pickle files
 from trusted sources.
+
+Fractional dates in older flat-format saves are normalized on loading. If
+distinct days of a player merge, all games are retained, but player ratings
+and uncertainties are reset and a `UserWarning` asks you to refit. Otherwise
+the saved ratings and uncertainties are preserved.
 
 ## Low-level objects
 

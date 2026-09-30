@@ -11,7 +11,7 @@ import shutil
 import time
 import uuid
 import warnings
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Collection, Iterator
 from typing import IO, Any
 
 import numpy as np
@@ -61,6 +61,13 @@ _MAX_ADVANTAGE_LOG_STEP = 10.0
 # changes nothing a probability can express, and leaves every ordinary
 # handicap's arithmetic untouched.
 _MAX_RAW_HANDICAP_ELO = 60_000.0
+
+
+def _bounded_raw_handicap(handicap: float) -> float:
+    """Clamp extreme finite elo shifts without turning NaN into a sure win."""
+    if not math.isfinite(handicap):
+        raise ValueError(f"handicap must be finite, got {handicap!r}")
+    return max(-_MAX_RAW_HANDICAP_ELO, min(_MAX_RAW_HANDICAP_ELO, handicap))
 
 
 def _rounded_uncertainty(value: float) -> float:
@@ -114,6 +121,18 @@ def _validated_time_step(time_step: Any) -> int | float:
     if value.is_integer():
         return int(value)
     return value
+
+
+def _rated_time_step(
+    time_step: int | float, known_days: Collection[int | float]
+) -> int | float:
+    """Resolve a query using an exact saved day before its rounded spelling.
+
+    Legacy object-graph saves retain their original dates. Prefer those exact
+    keys; games created or replayed from flat saves use the rounded fallback.
+    """
+    normalized = _validated_time_step(time_step)
+    return time_step if time_step in known_days else normalized
 
 
 def _validated_w2(w2: Any, what: str = "w2") -> float:
@@ -860,6 +879,7 @@ class WHR:
         None. Raises ValueError if ``day`` is given but not a rated day."""
         if day is None:
             return player.days[-1]
+        day = _rated_time_step(day, [d.day for d in player.days])
         for d in player.days:
             if d.day == day:
                 return d
@@ -869,8 +889,8 @@ class WHR:
         self,
         name_a: str,
         name_b: str,
-        day_a: int | None = None,
-        day_b: int | None = None,
+        day_a: int | float | None = None,
+        day_b: int | float | None = None,
     ) -> dict[str, Any]:
         """Elo difference (a - b) between two players and its uncertainty.
 
@@ -947,7 +967,9 @@ class WHR:
         days = [d.day for d in player.days]
         return days, cov
 
-    def rating_change(self, name: str, day_from: int, day_to: int) -> dict[str, Any]:
+    def rating_change(
+        self, name: str, day_from: int | float, day_to: int | float
+    ) -> dict[str, Any]:
         """Elo change of one player between two of their days, with uncertainty.
 
         Var(change) = C[to,to] + C[from,from] - 2*C[from,to] from the WITHIN-
@@ -970,6 +992,8 @@ class WHR:
         self._warn_if_uncertainty_uncomputed(player, "rating_change")
         days, cov = self.rating_covariance(name)
         index = {d: i for i, d in enumerate(days)}
+        day_from = _rated_time_step(day_from, index)
+        day_to = _rated_time_step(day_to, index)
         if day_from not in index or day_to not in index:
             raise ValueError(f"player {name!r} has no rated day {day_from} / {day_to}")
         i, j = index[day_from], index[day_to]
@@ -1109,7 +1133,11 @@ class WHR:
                 raise ValueError(f"No ratings available for player {player!r}")
             pday = self._player_day(existing, day)
             return target - pday.elo
-        anchor_day = day if day is not None else max(d.day for d, _ in rated)
+        anchor_day = (
+            _rated_time_step(day, [d.day for d, _ in rated])
+            if day is not None
+            else max(d.day for d, _ in rated)
+        )
         on_day = [d.elo for d, _ in rated if d.day == anchor_day]
         if not on_day:
             raise ValueError(f"no player was rated on day {anchor_day!r}")
@@ -1259,12 +1287,16 @@ class WHR:
         handicap: float,
         komi: Any = None,
         extras: dict[str, Any] | None = None,
+        *,
+        handicap_table: dict[Any, float] | None = None,
+        komi_table: dict[Any, float] | None = None,
     ) -> tuple[str, str, str, int | float, Any, dict[str, Any]]:
         """Every check ``create_game`` makes, and nothing it changes.
 
         Returns the normalized ``(black, white, winner, time_step, handicap,
         extras)``. Raising here leaves the base untouched, which is what lets
-        ``load_games`` check a whole batch before adding any of it.
+        ``load_games`` check a whole batch before adding any of it. Its optional
+        tables include keys from earlier lines without changing the base.
         """
         extras = dict(extras) if extras else {}
         if komi is not None:
@@ -1282,8 +1314,16 @@ class WHR:
             )
         _hashable_key("handicap", handicap)
         _hashable_key("komi", extras.get("komi"))
-        self._check_no_lookalike_key("handicap", handicap, self.handicap_gamma)
-        self._check_no_lookalike_key("komi", extras.get("komi"), self.komi_gamma)
+        self._check_no_lookalike_key(
+            "handicap",
+            handicap,
+            self.handicap_gamma if handicap_table is None else handicap_table,
+        )
+        self._check_no_lookalike_key(
+            "komi",
+            extras.get("komi"),
+            self.komi_gamma if komi_table is None else komi_table,
+        )
         return black, white, winner, time_step, handicap, extras
 
     def _setup_game(
@@ -2001,7 +2041,8 @@ class WHR:
             AttributeError: Raised if name1 and name2 are equal, or if a
                 supplied category key resolves to a non-finite/non-positive
                 advantage gamma.
-            ValueError: Raised if ``account_for_uncertainty`` is ``True`` and
+            ValueError: Raised if ``handicap`` is not finite, or if
+                ``account_for_uncertainty`` is ``True`` and
                 ``uncertainty_steps`` is less than 1.
         """
         self._warn_if_stale()
@@ -2009,7 +2050,7 @@ class WHR:
         player1, player2, bpd_gamma, bpd_elo, wpd_gamma, wpd_elo = (
             self._match_player_days(name1, name2)
         )
-        handicap = max(-_MAX_RAW_HANDICAP_ELO, min(_MAX_RAW_HANDICAP_ELO, handicap))
+        handicap = _bounded_raw_handicap(handicap)
         if handicap_key is None and komi_key is None:
             # Backward-compatible raw-elo path (byte-identical to prior
             # releases): no learned advantages are consulted.
@@ -2139,7 +2180,8 @@ class WHR:
             AttributeError: Raised if name1 and name2 are equal, or if a
                 supplied category key resolves to a non-finite/non-positive
                 advantage gamma.
-            ValueError: Raised if ``account_for_uncertainty`` is ``True`` and
+            ValueError: Raised if ``handicap`` is not finite, or if
+                ``account_for_uncertainty`` is ``True`` and
                 ``uncertainty_steps`` is less than 1.
 
         Warns:
@@ -2157,7 +2199,7 @@ class WHR:
             self._match_player_days(name1, name2)
         )
         gh, gk = self._resolve_advantage_gammas(handicap_key, komi_key)
-        handicap = max(-_MAX_RAW_HANDICAP_ELO, min(_MAX_RAW_HANDICAP_ELO, handicap))
+        handicap = _bounded_raw_handicap(handicap)
         h_shift = 10 ** (handicap / 400.0)
         s1 = bpd_gamma * gh * h_shift
         s2 = wpd_gamma * gk
@@ -2305,13 +2347,24 @@ class WHR:
             ValueError: If any game string does not comply with the expected format or if parsing fails.
         """
         parsed = []
+        # Validate against both existing keys and earlier lines in this batch.
+        # Only these copies change until every line has passed validation.
+        handicap_table = dict(self.handicap_gamma)
+        komi_table = dict(self.komi_gamma)
         for number, line in enumerate(games, start=1):
             if not line.strip():
                 continue
             try:
-                parsed.append(
-                    self._validated_game(*self._parse_game_line(line, separator))
+                validated = self._validated_game(
+                    *self._parse_game_line(line, separator),
+                    handicap_table=handicap_table,
+                    komi_table=komi_table,
                 )
+                handicap_table.setdefault(validated[4], 1.0)
+                komi = validated[5].get("komi")
+                if komi is not None:
+                    komi_table.setdefault(komi, 1.0)
+                parsed.append(validated)
             except (ValueError, TypeError, AttributeError) as error:
                 error.add_note(
                     f"in line {number} of the games passed to load_games; "
@@ -2464,6 +2517,10 @@ class WHR:
     def load_base(path: str) -> WHR:
         """Loads a saved base from a specified path.
 
+        Saved dates are normalized as for new games. If distinct saved days
+        of a player merge, all games are kept but player ratings and
+        uncertainties are reset, with a warning to refit the changed model.
+
         Args:
             path (str): The path to the saved base.
 
@@ -2526,10 +2583,23 @@ class WHR:
             result.create_game(black, white, winner, time_step, handicap, extras=extras)
         result.handicap_gamma.update(data.get("handicap_gamma", {}))
         result.komi_gamma.update(data.get("komi_gamma", {}))
-        for name, days in data["ratings"].items():
+        ratings = {
+            name: [(_validated_time_step(d), r, u) for d, r, u in days]
+            for name, days in data["ratings"].items()
+        }
+        merged_days = any(
+            len({d for d, _, _ in days}) != len(days) for days in ratings.values()
+        )
+        for name, days in ratings.items():
             # player_by_name (re)creates players that have no games, so those
             # queried for predictions are preserved rather than dropped.
             player = result.player_by_name(name)
+            if merged_days:
+                # There is no unique rating/variance to restore for a merged
+                # day, and changing one player's state affects its opponents.
+                # Keep the replay's starting ratings and uncertainty sentinels
+                # throughout the base instead of presenting a partial old fit.
+                continue
             day_by_time_step = {day.day: day for day in player.days}
             for time_step, r, uncertainty in days:
                 player_day = day_by_time_step[time_step]
@@ -2541,8 +2611,19 @@ class WHR:
         # with .get so a base saved before this fix (lacking the key) keeps
         # whatever the replay seeded.
         result.nu = data.get("nu", result.nu)
-        result._ever_fitted = data.get("ever_fitted", result._ever_fitted)
-        result._games_since_fit = data.get("games_since_fit", result._games_since_fit)
+        if merged_days:
+            warnings.warn(
+                "Saved days merged after rounding; player ratings and "
+                "uncertainties were reset. All games were retained; call "
+                "iterate() or auto_iterate() to refit.",
+                UserWarning,
+                stacklevel=2,
+            )
+        else:
+            result._ever_fitted = data.get("ever_fitted", result._ever_fitted)
+            result._games_since_fit = data.get(
+                "games_since_fit", result._games_since_fit
+            )
         return result
 
 

@@ -60,6 +60,10 @@ This implementation provides:
 - convergence and data-connectivity diagnostics;
 - a reproducible comparison with KickScore and TrueSkill Through Time.
 
+The full benchmark protocol was rerun with **WHR 3.7.1** on 30 September
+2026. See the [release validation](https://github.com/pfmonville/whole_history_rating/blob/master/benchmarks/RELEASE-3.7.1.md) for exact scores,
+environment, convergence checks and the controlled comparison with 3.7.0.
+
 The main reason to choose WHR is not that it wins every predictive benchmark—it
 does not. Its strength is an interpretable, relatively lightweight model of
 complete pairwise histories.
@@ -68,6 +72,10 @@ complete pairwise histories.
 
 Lower log-loss is better. All systems below are trained, tuned, and evaluated
 under the same temporal protocol.
+
+These scores measure predictions on held-out matches. They are distinct from
+`log_likelihood()`, which reports the training log-posterior and changed in
+3.7.0 when duplicate game contributions were removed.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pfmonville/whole_history_rating/master/benchmarks/results/bench_comparison_dark.png">

@@ -1,16 +1,46 @@
+RUN tennis started 2026-09-30T18:54:07.138034+00:00
 loaded 48335 matches, 2000-2015, 1948 players
 train_v=41446 valid=2959 train_t=44405 test=2816
-    fit: 41446 games, grad_norm=4.88e-03, iters~(310, True)
-  w2=   1.0: valid log-loss = 0.6132
-    fit: 41446 games, grad_norm=4.96e-03, iters~(310, True)
-  w2=   3.0: valid log-loss = 0.6127
-    fit: 41446 games, grad_norm=4.96e-03, iters~(320, True)
-  w2=  10.0: valid log-loss = 0.6164
+FIT_AUDIT {"w2": 1.0, "games": 41446, "players": 1748, "iterations": 350, "converged": true, "options": {"time_limit": 240, "precision": 0.005}, "elapsed_seconds": 76.87590545800049, "gradient": 0.004115666023960518, "log_posterior": 91618.05226077819, "nu": 0.0}
+    fit: 41446 games, grad_norm=4.12e-03, iters~(350, True)
+benchmarks/common.py:122: DisconnectedPlayersWarning: 'Sebastien Vidal' and 'David Souto' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p1_win, _ = whr.probability_future_match(p1, p2, 0)
+benchmarks/common.py:122: DisconnectedPlayersWarning: 'Di Wu' and 'Liang Chi Huang' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p1_win, _ = whr.probability_future_match(p1, p2, 0)
+benchmarks/common.py:122: DisconnectedPlayersWarning: 'Luis David Martinez' and 'Jorge Brian Panta Herreros' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p1_win, _ = whr.probability_future_match(p1, p2, 0)
+benchmarks/common.py:122: DisconnectedPlayersWarning: 'Olivier Sajous' and 'Sebastien Vidal' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p1_win, _ = whr.probability_future_match(p1, p2, 0)
+benchmarks/common.py:122: DisconnectedPlayersWarning: 'Liang Chi Huang' and 'Wisnu Adi Nugroho' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p1_win, _ = whr.probability_future_match(p1, p2, 0)
+benchmarks/common.py:122: DisconnectedPlayersWarning: 'Christopher Rungkat' and 'Liang Chi Huang' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p1_win, _ = whr.probability_future_match(p1, p2, 0)
+benchmarks/common.py:122: DisconnectedPlayersWarning: 'Michael Lammer' and 'Roberto Quiroz' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p1_win, _ = whr.probability_future_match(p1, p2, 0)
+  w2=   1.0: valid log-loss = 0.6128
+FIT_AUDIT {"w2": 3.0, "games": 41446, "players": 1748, "iterations": 350, "converged": true, "options": {"time_limit": 240, "precision": 0.005}, "elapsed_seconds": 72.17647562500497, "gradient": 0.004195111974195864, "log_posterior": 68771.49190530284, "nu": 0.0}
+    fit: 41446 games, grad_norm=4.20e-03, iters~(350, True)
+  w2=   3.0: valid log-loss = 0.6125
+FIT_AUDIT {"w2": 10.0, "games": 41446, "players": 1748, "iterations": 350, "converged": true, "options": {"time_limit": 240, "precision": 0.005}, "elapsed_seconds": 68.46174641700054, "gradient": 0.004388601602676179, "log_posterior": 43880.29323231422, "nu": 0.0}
+    fit: 41446 games, grad_norm=4.39e-03, iters~(350, True)
+  w2=  10.0: valid log-loss = 0.6162
+FIT_AUDIT {"w2": 30.0, "games": 41446, "players": 1748, "iterations": 350, "converged": true, "options": {"time_limit": 240, "precision": 0.005}, "elapsed_seconds": 71.64447866700357, "gradient": 0.004817997466806556, "log_posterior": 21353.16715914243, "nu": 0.0}
     fit: 41446 games, grad_norm=4.82e-03, iters~(350, True)
   w2=  30.0: valid log-loss = 0.6260
-selected w2=3.0 (valid log-loss 0.6127)
-    fit: 44405 games, grad_norm=4.87e-03, iters~(320, True)
+selected w2=3.0 (valid log-loss 0.6125)
+FIT_AUDIT {"w2": 3.0, "games": 44405, "players": 1842, "iterations": 350, "converged": true, "options": {"time_limit": 240, "precision": 0.005}, "elapsed_seconds": 79.78096512499906, "gradient": 0.0043049337658152, "log_posterior": 73746.64806185938, "nu": 0.0}
+    fit: 44405 games, grad_norm=4.30e-03, iters~(350, True)
+benchmarks/common.py:122: DisconnectedPlayersWarning: 'Gilles Muller' and 'Hicham Khaddari' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p1_win, _ = whr.probability_future_match(p1, p2, 0)
+benchmarks/common.py:122: DisconnectedPlayersWarning: 'Hicham Khaddari' and 'Ugo Nastasi' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p1_win, _ = whr.probability_future_match(p1, p2, 0)
+benchmarks/common.py:122: DisconnectedPlayersWarning: 'Hicham Khaddari' and 'Sergis Kyratzis' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p1_win, _ = whr.probability_future_match(p1, p2, 0)
+benchmarks/common.py:122: DisconnectedPlayersWarning: 'Victor Hanescu' and 'Hicham Khaddari' are in different connected components: no chain of games links them, so their ratings sit on independently anchored scales and this comparison has no evidence behind it. Rate each pool separately, or add games that link them. connected_components() lists the groups.
+  p1_win, _ = whr.probability_future_match(p1, p2, 0)
   base_rate_0.5  log-loss=0.6931 acc=0.5000
-  whr            log-loss=0.6164 acc=0.6697
-    fit: 48335 games, grad_norm=4.81e-03, iters~(330, True)
-wrote results/tennis_results.json and results/tennis_history.png
+  whr            log-loss=0.6163 acc=0.6697
+FIT_AUDIT {"w2": 3.0, "games": 48335, "players": 1948, "iterations": 350, "converged": true, "options": {"time_limit": 240, "precision": 0.005}, "elapsed_seconds": 87.59120379200613, "gradient": 0.00443659541217345, "log_posterior": 80428.35483911888, "nu": 0.0}
+    fit: 48335 games, grad_norm=4.44e-03, iters~(350, True)
+wrote results/tennis_results.json and results/tennis_curves.json
+RUN tennis completed in 466.6s

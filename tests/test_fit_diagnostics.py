@@ -98,6 +98,7 @@ BASES = {
     "decisive": lambda: _fitted(),
     "draws": lambda: _fitted("BWD"),
     "handicap_komi": lambda: _fitted("BW", handicap=True),
+    "draws_handicap_komi": lambda: _fitted("BWD", handicap=True),
     # draws in the data, but "no draws" declared: nu stays 0 and the fit
     # carries no draw term, so neither may the log-posterior
     "draws_declared_absent": lambda: _fitted_declared_drawless(),

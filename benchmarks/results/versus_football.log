@@ -1,19 +1,28 @@
+RUN versus_football started 2026-09-30T18:47:26.165100+00:00
 football: 18085 matches, draw rate 0.252 | train_v=12681 valid=1826 train_t=14507 test=1826
+FIT_AUDIT {"w2": 1.0, "games": 12681, "players": 179, "iterations": 100, "converged": true, "options": {"time_limit": 300, "precision": 0.001}, "elapsed_seconds": 55.81476875000226, "gradient": 0.0004107269279509662, "log_posterior": 80525.36814221133, "nu": 0.786012750879478}
     WHR {'w2': 1.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0105  <- best so far
     WHR {'w2': 1.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0104  <- best so far
+FIT_AUDIT {"w2": 3.0, "games": 12681, "players": 179, "iterations": 100, "converged": true, "options": {"time_limit": 300, "precision": 0.001}, "elapsed_seconds": 56.91349112500029, "gradient": 0.0004075345144489706, "log_posterior": 68211.06278571946, "nu": 0.7861439546481845}
     WHR {'w2': 3.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0099  <- best so far
     WHR {'w2': 3.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0098  <- best so far
+FIT_AUDIT {"w2": 10.0, "games": 12681, "players": 179, "iterations": 100, "converged": true, "options": {"time_limit": 300, "precision": 0.001}, "elapsed_seconds": 58.61458812499768, "gradient": 0.0004312043114422792, "log_posterior": 54734.75694443429, "nu": 0.7870332973192496}
     WHR {'w2': 10.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0088  <- best so far
     WHR {'w2': 10.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0086  <- best so far
+FIT_AUDIT {"w2": 30.0, "games": 12681, "players": 179, "iterations": 100, "converged": true, "options": {"time_limit": 300, "precision": 0.001}, "elapsed_seconds": 59.27739774998918, "gradient": 0.0005709915938827415, "log_posterior": 42467.04438569472, "nu": 0.7899686735240568}
     WHR {'w2': 30.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0085  <- best so far
     WHR {'w2': 30.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0083  <- best so far
+FIT_AUDIT {"w2": 100.0, "games": 12681, "players": 179, "iterations": 150, "converged": true, "options": {"time_limit": 300, "precision": 0.001}, "elapsed_seconds": 88.59801699999662, "gradient": 0.0005397309660377658, "log_posterior": 29063.307582841007, "nu": 0.7968611880990905}
     WHR {'w2': 100.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0100
     WHR {'w2': 100.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0096
+FIT_AUDIT {"w2": 300.0, "games": 12681, "players": 179, "iterations": 150, "converged": true, "options": {"time_limit": 300, "precision": 0.001}, "elapsed_seconds": 89.44717216599383, "gradient": 0.0009384251186819181, "log_posterior": 16879.252165783964, "nu": 0.8068154414961324}
     WHR {'w2': 300.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0143
     WHR {'w2': 300.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0135
+FIT_AUDIT {"w2": 1000.0, "games": 12681, "players": 179, "iterations": 150, "converged": true, "options": {"time_limit": 300, "precision": 0.001}, "elapsed_seconds": 90.46350995799003, "gradient": 0.0009156377101563473, "log_posterior": 3608.1728538181787, "nu": 0.8229879404016661}
     WHR {'w2': 1000.0, 'predict_uncertainty': False} valid 3way-log-loss=1.0241
     WHR {'w2': 1000.0, 'predict_uncertainty': True} valid 3way-log-loss=1.0221
   WHR: selected {'w2': 30.0, 'predict_uncertainty': True} (valid 1.0083)
+FIT_AUDIT {"w2": 30.0, "games": 14507, "players": 188, "iterations": 100, "converged": true, "options": {"time_limit": 300, "precision": 0.001}, "elapsed_seconds": 66.37375691600027, "gradient": 0.0009935302326384843, "log_posterior": 48620.04084241274, "nu": 0.7929445798489151}
   WHR: TEST 3way-log-loss=1.0085 acc=51.4%  edge={'w2': False} flat=[]
     TTT {'gamma': 0.01, 'p_draw': 0.2} valid 3way-log-loss=1.0469  <- best so far
     TTT {'gamma': 0.01, 'p_draw': 0.25} valid 3way-log-loss=1.0326  <- best so far
@@ -61,3 +70,4 @@ football: 18085 matches, draw rate 0.252 | train_v=12681 valid=1826 train_t=1450
   KickScore: selected {'wiener_var': 0.0001, 'margin': 0.3} (valid 1.0225)
   KickScore: TEST 3way-log-loss=1.0134 acc=51.5%  edge={'wiener_var': False, 'margin': False} flat=[]
 wrote benchmarks/results/versus_football.json
+RUN versus_football completed in 896.2s
