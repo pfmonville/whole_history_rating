@@ -117,6 +117,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A day inserted before a player's first day started from their *last* day's
   rating: index -1 wrapped around. It now starts from the first day. Only the
   starting point was affected; the fit corrects it.
+- Float days that differ only by round-off (`0.1 + 0.2` next to `0.3`) were
+  two days 5.6e-17 apart. That made a drift prior too tight to solve, and
+  `iterate()` died with a bare `ZeroDivisionError`. Days are now kept to 12
+  significant digits, which absorbs arithmetic noise and keeps any day a
+  caller means: even an epoch-seconds day keeps its hundredths. A prior that
+  is still too tight, for example from a tiny `w2`, raises
+  `UnstableRatingException` with an explanation.
+- `load_games` could not read an `extras` dict written as Python prints it.
+  `{'komi': 6.5}` contains the default `" "` separator, and a two-key dict
+  contains `","`. The dict that ends a line is now set aside before the line
+  is split. Player names containing braces are not affected.
 - `Game.prediction_score()` scored a drawn game as a wrong prediction (0.0).
   It now scores 0.5, since there was no winner to predict.
 

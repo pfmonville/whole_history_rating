@@ -105,6 +105,12 @@ def _validated_time_step(time_step: Any) -> int | float:
     value = float(time_step)
     if not math.isfinite(value):
         raise ValueError(f"time_step must be finite, got {time_step!r}")
+    # Drop float round-off: 0.1 + 0.2 is 0.30000000000000004, which would be a
+    # second day 5.6e-17 away from 0.3 -- a drift prior so tight the Newton
+    # step could not be solved. 12 significant digits keep any day a caller
+    # means (even an epoch-seconds day keeps its hundredths) and absorb the
+    # last-bit noise of arithmetic.
+    value = float(f"{value:.12g}")
     if value.is_integer():
         return int(value)
     return value
@@ -2322,9 +2328,25 @@ class WHR:
         """One ``load_games`` line as ``create_game`` arguments (komi rides in
         extras). Raises ``ValueError`` on a malformed line; the game itself is
         checked by ``_validated_game``."""
+        # An extras dict is set aside before splitting: {'komi': 6.5} contains
+        # the default " " separator, and a dict of two keys contains ",". It is
+        # the field that ends the line and starts with "{" right after a
+        # separator, so a player name containing a brace is left alone.
+        head, dict_text = line.strip(), ""
+        if head.endswith("}"):
+            sep = separator.strip()
+            for i, char in enumerate(head):
+                before = head[:i].rstrip()
+                if char == "{" and (
+                    before.endswith(sep) if sep else i > 0 and head[i - 1].isspace()
+                ):
+                    head, dict_text = before[: len(before) - len(sep)], head[i:]
+                    break
         # strip the line before splitting, so a stray leading/trailing space
         # is not read as an extra (empty) field
-        parts = [part.strip() for part in line.strip().split(separator)]
+        parts = [part.strip() for part in head.strip().split(separator)]
+        if dict_text:
+            parts.append(dict_text)
         if len(parts) < 4 or len(parts) > 6:
             raise ValueError(
                 f"Invalid game format: '{line}' -- expected 4 to 6 "
