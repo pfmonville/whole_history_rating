@@ -15,7 +15,7 @@ import warnings
 
 import pytest
 
-from whr import NoDrawsWarning
+from whr import DrawModelWarning, NoDrawsWarning
 from whr.whole_history_rating import WHR
 
 
@@ -64,7 +64,8 @@ def test_pinned_draw_still_wins_over_the_data_when_draws_exist():
 
 
 def test_pinned_draw_zero_disables_draws_even_with_draws_present():
-    w = _fit(WHR({"w2": 30, "pinned_draw": 0.0}), draws=6)
+    with pytest.warns(DrawModelWarning, match="left out of the fit"):
+        w = _fit(WHR({"w2": 30, "pinned_draw": 0.0}), draws=6)
     assert w.nu == 0.0
     assert _wdl(w, "a", "b", 0)[1] == 0.0
 

@@ -270,8 +270,10 @@ def test_legacy_load_without_advantage_attrs_still_predicts(tmp_path):
         del game.handicap_gamma
         del game.komi_gamma
     for player in w.players.values():
-        del player.initial_prior_wins
-        del player.hessian_damping
+        # A pre-2.0 Player had neither of these settings, and every Player
+        # pickled before 3.7.0 copied its settings instead of reading the
+        # base's config, so it has no _config either.
+        del player._config
 
     path = tmp_path / "old_legacy_base.pkl"
     with open(path, "wb") as f:

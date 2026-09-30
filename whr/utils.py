@@ -63,6 +63,23 @@ class StaleFitWarning(UserWarning):
     """
 
 
+class DrawModelWarning(UserWarning):
+    """The draws in the data cannot be fitted by the draw model as configured.
+
+    Two cases, each reported once per instance at the start of a fit:
+
+    * **every game is a draw.** Davidson's draw tendency ``nu`` then has no
+      finite maximum-likelihood value: the data says draws are infinitely more
+      likely than decisive results, and ``nu`` used to grow with every
+      iteration. It is left at its starting value instead. Declare the rate you
+      expect with ``draw_rate`` (or ``pinned_draw``).
+    * **draws were declared impossible** (``pinned_draw=0`` or ``draw_rate=0``)
+      **but the data contains some.** They carry no information under that
+      declaration, so they are left out of every update. Remove the
+      declaration to have the draw tendency fitted.
+    """
+
+
 class DisconnectedPlayersWarning(UserWarning):
     """A comparison was made between players with no chain of games linking them.
 

@@ -15,11 +15,26 @@ from whr.utils import UnstableRatingException
 class Player:
     def __init__(self, name: str, config: dict[str, Any]):
         self.name = name
-        self.w2 = (math.sqrt(config["w2"]) * math.log(10) / 400) ** 2
-        self.initial_prior_wins = config["initial_prior_wins"]
-        self.hessian_damping = config["hessian_damping"]
+        # The base's own config, read live: players used to copy w2,
+        # initial_prior_wins and hessian_damping when created, so a setting
+        # changed on a live base reached only the players created afterwards,
+        # and a save/load round trip then rebuilt everyone with the new value.
+        self._config = config
         self.days: list[PD.PlayerDay] = []
         self.draw_tendency: float = 0.0
+
+    @property
+    def w2(self) -> float:
+        """The drift variance per time step, in natural units (config is elo^2)."""
+        return (math.sqrt(self._config["w2"]) * math.log(10) / 400) ** 2
+
+    @property
+    def initial_prior_wins(self) -> float:
+        return self._config["initial_prior_wins"]
+
+    @property
+    def hessian_damping(self) -> float:
+        return self._config["hessian_damping"]
 
     def refresh_game_terms(self) -> None:
         """Drop every day's cached opponent gammas.
@@ -169,10 +184,11 @@ class Player:
         Returns:
             list[float]: A list of variance values between consecutive rating days.
         """
-        sigma2 = []
-        for d1, d2 in zip(self.days, self.days[1:], strict=False):
-            sigma2.append(abs(d2.day - d1.day) * self.w2)
-        return sigma2
+        w2 = self.w2
+        return [
+            abs(d2.day - d1.day) * w2
+            for d1, d2 in zip(self.days, self.days[1:], strict=False)
+        ]
 
     def update_by_ndim_newton(self) -> None:
         """Updates the player's ratings using a multidimensional Newton-Raphson method."""
@@ -341,8 +357,10 @@ class Player:
             if len(self.days) == 0:
                 new_pday.set_gamma(1)
             else:
-                # still not perfect because gamma of day index can more farther if more games were not added in order
-                new_pday.set_gamma(self.days[day_index - 1].gamma())
+                # Start from the nearest earlier day, or from the first day when
+                # the new one comes before all of them (index -1 used to wrap
+                # around to the *last* day).
+                new_pday.set_gamma(self.days[max(day_index - 1, 0)].gamma())
             self.days.insert(day_index, new_pday)
         else:
             day_index = all_days.index(game.day)

@@ -422,8 +422,10 @@ def test_load_base_legacy_format_backfills_new_attributes(tmp_path):
     # Simulate the pre-2.0 shape: strip the new attributes/keys that did not
     # exist back then.
     for player in whr.players.values():
-        del player.initial_prior_wins
-        del player.hessian_damping
+        # A pre-2.0 Player had neither of these settings, and every Player
+        # pickled before 3.7.0 copied its settings instead of reading the
+        # base's config, so it has no _config either.
+        del player._config
     legacy_config = dict(whr.config)
     del legacy_config["initial_prior_wins"]
     del legacy_config["hessian_damping"]

@@ -20,6 +20,7 @@ from whr.game import Game
 from whr.player import Player
 from whr.utils import (
     DisconnectedPlayersWarning,
+    DrawModelWarning,
     HandicapBaselineWarning,
     NoDrawsWarning,
     StaleFitWarning,
@@ -53,6 +54,13 @@ _MAX_HALF_GAP = 700.0
 # iteration. The per-key 1-D sub-problem is concave in log-space, so the clamped
 # step still converges rather than growing unboundedly across iterations.
 _MAX_ADVANTAGE_LOG_STEP = 10.0
+
+# Bound on the raw elo ``handicap`` a prediction accepts. 10 ** (h / 400)
+# overflows a float beyond about 123,000 elo and raised OverflowError; at
+# 60,000 elo the underdog's probability is already 1e-150, so clamping there
+# changes nothing a probability can express, and leaves every ordinary
+# handicap's arithmetic untouched.
+_MAX_RAW_HANDICAP_ELO = 60_000.0
 
 
 def _rounded_uncertainty(value: float) -> float:
@@ -258,6 +266,8 @@ class WHR:
         self.config["w2"] = _validated_w2(self.config["w2"])
         self._display_uncertainty()
         self._has_draws = False
+        self._has_decisive = False
+        self._warned_draw_model = False
         self._warned_no_draws = False
         self._warned_baseline = False
         self._warned_uncomputed_uncertainty = False
@@ -307,7 +317,16 @@ class WHR:
         """
         if self._adv_layout is not None:
             return self._adv_layout
-        rated = [g for g in self.games if g.bpd is not None and g.wpd is not None]
+        # With draws declared impossible (nu == 0) a drawn game carries no
+        # information, and the player updates (Bradley-Terry) already skip it;
+        # counting it here as a half-win moved the advantages on its own.
+        rated = [
+            g
+            for g in self.games
+            if g.bpd is not None
+            and g.wpd is not None
+            and not (g.winner == "D" and self.nu == 0.0)
+        ]
         if not rated:
             return None
         h_index_of: dict[Any, int] = {}
@@ -1380,6 +1399,8 @@ class WHR:
             raise RuntimeError(
                 "Game could not be attached to the black player's playing day"
             )
+        if game.winner != "D":
+            self._has_decisive = True
         if game.winner == "D":
             self._has_draws = True
             # A declared draw tendency is already in self.nu (resolved in
@@ -1617,6 +1638,7 @@ class WHR:
         """
         count = _natural_number(count, "count", 0)
         self._warn_if_baseline_unidentified()
+        self._warn_if_draws_unfittable()
         for _ in range(count):
             self._run_one_iteration()
         for player in self.players.values():
@@ -1644,7 +1666,7 @@ class WHR:
             if len(p.days) > 0:
                 norm = max(norm, p.gradient_infinity_norm())
         norm = max(norm, self._handicap_komi_gradient_norm())
-        if self._has_draws and not self.draws_declared:
+        if self._nu_is_estimated():
             nu_gradient, _nu_hessian = self._nu_gradient_hessian()
             norm = max(norm, abs(nu_gradient))
         return norm
@@ -1981,6 +2003,7 @@ class WHR:
         player1, player2, bpd_gamma, bpd_elo, wpd_gamma, wpd_elo = (
             self._match_player_days(name1, name2)
         )
+        handicap = max(-_MAX_RAW_HANDICAP_ELO, min(_MAX_RAW_HANDICAP_ELO, handicap))
         if handicap_key is None and komi_key is None:
             # Backward-compatible raw-elo path (byte-identical to prior
             # releases): no learned advantages are consulted.
@@ -2128,6 +2151,7 @@ class WHR:
             self._match_player_days(name1, name2)
         )
         gh, gk = self._resolve_advantage_gammas(handicap_key, komi_key)
+        handicap = max(-_MAX_RAW_HANDICAP_ELO, min(_MAX_RAW_HANDICAP_ELO, handicap))
         h_shift = 10 ** (handicap / 400.0)
         s1 = bpd_gamma * gh * h_shift
         s2 = wpd_gamma * gk
@@ -2211,12 +2235,44 @@ class WHR:
         """One Newton step on the global draw tendency nu (Davidson), in log-nu
         space. Skipped when there are no draws, or when the caller declared the
         draw tendency via ``pinned_draw`` / ``draw_rate``."""
-        if not self._has_draws or self.draws_declared:
+        if not self._nu_is_estimated():
             return
         gradient, hessian = self._nu_gradient_hessian()
         hessian -= self.config["hessian_damping"]
         v = math.log(self.nu) + self._clamped_log_step(gradient, hessian)
         self.nu = math.exp(v)
+
+    def _nu_is_estimated(self) -> bool:
+        """Whether nu is a free parameter of the fit. Not when it was declared,
+        when there are no draws, nor when *every* game is a draw: its
+        maximum-likelihood value is then infinite, and it used to grow with
+        every iteration while the gauge reported convergence."""
+        return self._has_draws and self._has_decisive and not self.draws_declared
+
+    def _warn_if_draws_unfittable(self) -> None:
+        """Report, once per instance, draw data the model cannot fit as
+        configured. See :class:`~whr.utils.DrawModelWarning`."""
+        if self._warned_draw_model or not self._has_draws:
+            return
+        if not self._has_decisive and not self.draws_declared:
+            message = (
+                "every game is a draw, so the draw tendency nu has no finite "
+                "estimate (the data says a draw is infinitely more likely than "
+                f"a decisive result); it is left at {self.nu:g}. Declare the "
+                "rate you expect with draw_rate (or pinned_draw)."
+            )
+        elif self.draws_declared and self.nu == 0.0:
+            drawn = sum(1 for game in self.games if game.winner == "D")
+            message = (
+                f"{drawn} drawn game(s) are left out of the fit: pinned_draw=0 "
+                "/ draw_rate=0 declares that this domain cannot draw, so a "
+                "draw carries no information. Remove the declaration to have "
+                "the draw tendency fitted."
+            )
+        else:
+            return
+        self._warned_draw_model = True
+        warnings.warn(message, DrawModelWarning, stacklevel=3)
 
     def _run_one_iteration(self) -> None:
         """Runs one iteration of the WHR algorithm."""
@@ -2405,11 +2461,11 @@ class WHR:
             # keys added in later versions) are applied and the dict is copied.
             result = WHR(config)
             result.games, result.players = games, players
-            # Players pickled by older versions predate these attributes;
-            # backfill them so the loaded base can still be iterated.
+            # Players read their settings from the base's config (3.7.0);
+            # pickled ones carry their own copies, or predate some settings
+            # altogether. Point them all at this base's config.
             for player in result.players.values():
-                player.initial_prior_wins = result.config["initial_prior_wins"]
-                player.hessian_damping = result.config["hessian_damping"]
+                player._config = result.config
             # Preserve advantages carried by pickled games (phase-3+ bases saved in
             # the legacy shape); genuinely-old games have no such attribute.
             for game in games:

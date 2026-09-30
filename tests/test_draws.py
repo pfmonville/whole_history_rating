@@ -3,7 +3,7 @@ import random
 
 import pytest
 
-from whr import NoDrawsWarning
+from whr import DrawModelWarning, NoDrawsWarning
 from whr.player import Player
 from whr.whole_history_rating import WHR
 
@@ -559,7 +559,8 @@ def test_whr_log_likelihood_includes_draw_contribution():
     """
     w = WHR()
     w.create_game("a", "b", "D", 1, 0)
-    w.iterate(20)
+    with pytest.warns(DrawModelWarning, match="every game is a draw"):
+        w.iterate(20)
     score = w.log_likelihood()
     assert math.isfinite(score)
 

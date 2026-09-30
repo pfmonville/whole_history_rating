@@ -144,13 +144,14 @@ class Game:
         Calculates the accuracy of the prediction for the game's outcome.
         Returns a score based on the actual outcome compared to the predicted probabilities:
         - Returns 1.0 if the prediction matches the actual outcome (white or black winning as predicted).
-        - Returns 0.5 if the win probability is exactly 0.5, indicating uncertainty.
+        - Returns 0.5 if the win probability is exactly 0.5, indicating uncertainty,
+          or if the game was drawn: there was no winner to predict.
         - Returns 0.0 if the prediction does not match the actual outcome.
 
         Returns:
             float: The prediction score of the game.
         """
-        if self.white_win_probability() == 0.5:
+        if self.winner == "D" or self.white_win_probability() == 0.5:
             return 0.5
         return (
             1.0
@@ -165,6 +166,11 @@ class Game:
         """
         Calculates the win probability for the white player based on their gamma value and
         the adjusted gamma value of their opponent.
+
+        This is the probability *given a decisive result*: it ignores draws, so
+        it and ``black_win_probability`` sum to 1. Under the Davidson draw model
+        it is exactly P(white wins) / (P(white wins) + P(black wins)); use
+        ``WHR.win_draw_loss_probabilities`` for the three-way split.
 
         Returns:
             float: The win probability for the white player.
@@ -183,6 +189,9 @@ class Game:
         """
         Calculates the win probability for the black player based on their gamma value and
         the adjusted gamma value of their opponent.
+
+        Like ``white_win_probability``, the probability *given a decisive
+        result*.
 
         Returns:
             float: The win probability for the black player.

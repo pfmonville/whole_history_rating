@@ -306,11 +306,12 @@ def test_all_draw_data_is_already_stationary_at_no_advantage():
         w.create_game("b", "a", "D", day, 0)
     import warnings
 
-    from whr import HandicapBaselineWarning
+    from whr import DrawModelWarning, HandicapBaselineWarning
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", HandicapBaselineWarning)
-        w.iterate(200)
+        with pytest.warns(DrawModelWarning, match="every game is a draw"):
+            w.iterate(200)
     assert w.handicap_gamma[0] == pytest.approx(1.0, abs=1e-9)
 
 
