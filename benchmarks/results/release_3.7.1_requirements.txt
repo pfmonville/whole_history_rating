@@ -1,4 +1,6 @@
 # Source checkout is installed separately with -e .
+# Security refresh: Pillow upgraded to 13.0.0 on 2026-10-27.
+# The original run's versions remain in release_3.7.1_validation.json.
 ast-serialize==0.6.0
 click==8.4.2
 contourpy==1.4.0
@@ -25,7 +27,7 @@ numpy==2.4.4
 packaging==26.0
 pandas==3.0.6
 pathspec==1.1.1
-pillow==12.3.0
+pillow==13.0.0
 platformdirs==4.11.0
 pluggy==1.6.0
 pygments==2.20.0

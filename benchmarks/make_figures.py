@@ -31,7 +31,7 @@ Design rules applied (see the project's data-viz guidance):
     light slots sit under 3:1 vs the surface, so the relief rule applies: direct
     labels + the README tables.
 
-Run:  uv run --with pandas --with matplotlib python benchmarks/make_figures.py
+Run:  uv run --with matplotlib --with "pillow>=13.0.0" python benchmarks/make_figures.py
 """
 
 from __future__ import annotations

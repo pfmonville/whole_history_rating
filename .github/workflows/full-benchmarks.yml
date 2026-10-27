@@ -32,16 +32,16 @@ jobs:
         run: uv run --with pandas --with kickscore --with TrueSkillThroughTime python benchmarks/versus.py football
 
       - name: Run WHR tennis deep dive
-        run: uv run --with pandas --with matplotlib python benchmarks/tennis.py
+        run: uv run --with pandas python benchmarks/tennis.py
 
       - name: Run WHR NBA deep dive
-        run: uv run --with pandas --with matplotlib python benchmarks/nba.py
+        run: uv run --with pandas python benchmarks/nba.py
 
       - name: Run WHR football deep dive
         run: uv run --with pandas python benchmarks/football.py
 
       - name: Render benchmark figures
-        run: uv run --with matplotlib python benchmarks/make_figures.py
+        run: uv run --with matplotlib --with "pillow>=13.0.0" python benchmarks/make_figures.py
 
       - name: Upload results
         uses: actions/upload-artifact@v4

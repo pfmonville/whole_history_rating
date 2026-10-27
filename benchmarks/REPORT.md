@@ -364,15 +364,15 @@ Swap `tennis` for `nba` or `football`. The WHR-only benchmarks (which add the
 online walk-forward, the calibration curves and the draw-blind ablation):
 
 ```bash
-uv run --with pandas --with matplotlib python benchmarks/nba.py
-uv run --with pandas --with matplotlib python benchmarks/tennis.py
+uv run --with pandas python benchmarks/nba.py
+uv run --with pandas python benchmarks/tennis.py
 uv run --with pandas python benchmarks/football.py
 ```
 
 And the README figures, from the JSON the runs above leave behind:
 
 ```bash
-uv run --with matplotlib python benchmarks/make_figures.py
+uv run --with matplotlib --with "pillow>=13.0.0" python benchmarks/make_figures.py
 ```
 
 Head-to-head metrics are written to `results/versus_*.json`, WHR-only metrics to
