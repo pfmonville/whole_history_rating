@@ -102,14 +102,24 @@ ablation now rounds to 51.6% accuracy; its Davidson deep dive rounds to 51.4%.
 Python 3.13.13 on macOS arm64; WHR 3.7.1, NumPy 2.4.4, pandas 3.0.6,
 KickScore 0.2.0, TrueSkillThroughTime 1.1.0, SciPy 1.18.1, Numba 0.68.0,
 llvmlite 0.50.0 and Matplotlib 3.11.2. The complete installed environment is
-recorded in the validation JSON and pinned requirements below.
+recorded in the validation JSON.
+
+On 27 October 2026, the installable requirements were updated from Pillow
+12.3.0 to 13.0.0 to address the
+[Pillow security advisories](https://github.com/python-pillow/Pillow/releases/tag/13.0.0).
+All other pins are unchanged. The validation JSON preserves the original run's
+environment; the requirements below recreate it with this security update.
+Pillow is used by Matplotlib for benchmark figures and is not a WHR runtime
+dependency. All six figures were regenerated with Matplotlib 3.11.2 and Pillow
+13.0.0 and matched the committed PNGs pixel for pixel. The fitting/scoring
+benchmarks were not rerun for this dependency update.
 
 `PYTHONHASHSEED=0`; `OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS`,
 `VECLIB_MAXIMUM_THREADS` and `NUMBA_NUM_THREADS` were each set to `1`.
 Independent runs executed concurrently, so their elapsed times must **not** be
 used as a speed comparison between models or releases.
 
-To recreate the environment from the release checkout:
+To install the benchmark environment with the security update:
 
 ```bash
 uv venv .venv-benchmark --python 3.13.13
@@ -129,7 +139,7 @@ Evidence:
 
 - [Machine-readable validation](results/release_3.7.1_validation.json): per-fit
   diagnostics, exact-equality checks and hashes, historical deltas, environment.
-- [Pinned environment](results/release_3.7.1_requirements.txt).
+- [Pinned environment with the Pillow security update](results/release_3.7.1_requirements.txt).
 - [Result JSON, logs and figures at v3.7.1](https://github.com/pfmonville/whole_history_rating/tree/v3.7.1/benchmarks/results).
 - [Complete evidence archive](https://github.com/pfmonville/whole_history_rating/releases/download/v3.7.1/whole_history_rating-3.7.1-benchmark-evidence.tar.gz).
 - [Full methodology and interpretation](REPORT.md).

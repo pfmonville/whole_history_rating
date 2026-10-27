@@ -51,8 +51,8 @@ uv run --with pandas --with kickscore --with TrueSkillThroughTime python benchma
 Swap `tennis` for `nba` or `football`. Then the WHR-only runs:
 
 ```bash
-uv run --with pandas --with matplotlib python benchmarks/nba.py
-uv run --with pandas --with matplotlib python benchmarks/tennis.py
+uv run --with pandas python benchmarks/nba.py
+uv run --with pandas python benchmarks/tennis.py
 uv run --with pandas python benchmarks/football.py
 ```
 
@@ -64,8 +64,12 @@ Figures are rendered separately, so the expensive fits are not repeated when a
 chart's design changes:
 
 ```bash
-uv run --with matplotlib python benchmarks/make_figures.py
+uv run --with matplotlib --with "pillow>=13.0.0" python benchmarks/make_figures.py
 ```
+
+The Pillow minimum includes the security fixes released in 13.0.0. Matplotlib
+and Pillow are needed only for this rendering step; fitting and scoring use
+neither package.
 
 That writes each README figure twice — `*_light.png` and `*_dark.png`, stepped
 from the same palette — which the README serves via

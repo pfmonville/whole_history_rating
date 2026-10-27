@@ -14,7 +14,7 @@ Protocol (forward validation, no leakage):
     TEST orientation is by player id (independent of the result) so the label
     is never leaked into the prediction.
 
-Run:  uv run --with pandas --with matplotlib python benchmarks/tennis.py
+Run:  uv run --with pandas python benchmarks/tennis.py
 """
 
 from __future__ import annotations

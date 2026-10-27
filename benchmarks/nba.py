@@ -17,7 +17,7 @@ Protocol (forward validation, no leakage):
     are *online* (updated every game), so they have a structural edge here — a
     point we make explicitly in the report.
 
-Run:  uv run --with pandas --with matplotlib python benchmarks/nba.py
+Run:  uv run --with pandas python benchmarks/nba.py
 """
 
 from __future__ import annotations
